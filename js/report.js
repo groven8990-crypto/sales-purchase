@@ -29,7 +29,26 @@ const Report = (function () {
     });
     XLSX.utils.book_append_sheet(wb, aoaSheet(summaryAoa), "요약");
 
-    // ---- 스토어별 매출/매입/입출금 ----
+    // ---- 채널별 매출 / 매입처별 매입 (요청 형식) ----
+    const chAoa = [[`${scopeLabel}채널별 매출`], [], ["순번", "스토어", "채널", "건수", "공급가액", "비중(%)"]];
+    let chSeq = 1;
+    ["groven", "yb"].forEach((st) => {
+      const sl = S.filterBy(S.data.sales, { store: st, year, month });
+      S.groupSum(sl, "channel", "supply").forEach((g) =>
+        chAoa.push([chSeq++, S.STORES[st].name, g.key, g.count, Math.round(g.sum), +(g.ratio * 100).toFixed(1)]));
+    });
+    XLSX.utils.book_append_sheet(wb, aoaSheet(chAoa), "채널별매출");
+
+    const vAoa = [[`${scopeLabel}매입처별 매입`], [], ["순번", "스토어", "매입처", "건수", "공급가", "비중(%)"]];
+    let vSeq = 1;
+    ["groven", "yb"].forEach((st) => {
+      const pl = S.filterBy(S.data.purchases, { store: st, year, month });
+      S.groupSum(pl, "vendor", "supply").forEach((g) =>
+        vAoa.push([vSeq++, S.STORES[st].name, g.key, g.count, Math.round(g.sum), +(g.ratio * 100).toFixed(1)]));
+    });
+    XLSX.utils.book_append_sheet(wb, aoaSheet(vAoa), "매입처별매입");
+
+    // ---- 스토어별 매출/매입/입출금 (상세) ----
     ["groven", "yb"].forEach((st) => {
       const nm = S.STORES[st].name;
 

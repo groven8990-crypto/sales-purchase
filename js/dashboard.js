@@ -25,10 +25,10 @@ const Dashboard = (function () {
 
   function render(container, scope) {
     destroy();
-    const { store } = scope; // store: '' | 'groven' | 'yb'
+    const { store, year, month } = scope; // 선택된 스토어·연·월 모두 반영
     const S = SPC;
-    const sales = S.filterBy(S.data.sales, { store });
-    const purchases = S.filterBy(S.data.purchases, { store });
+    const sales = S.filterBy(S.data.sales, { store, year, month });
+    const purchases = S.filterBy(S.data.purchases, { store, year, month });
 
     const totalSales = S.sum(sales, "supply") || S.sum(sales, "total");
     const totalPurchase = S.sum(purchases, "supply") || S.sum(purchases, "total");
@@ -62,9 +62,9 @@ const Dashboard = (function () {
       options: baseOpts(),
     });
 
-    /* 스토어별 비중 (전체일 때 의미) */
+    /* 스토어별 비중 (선택 기간 기준) */
     const byStore = ["groven", "yb"].map((k) =>
-      S.sum(S.filterBy(S.data.sales, { store: k }), "supply"));
+      S.sum(S.filterBy(S.data.sales, { store: k, year, month }), "supply"));
     charts.store = new Chart(document.getElementById("ch-store"), {
       type: "doughnut",
       data: { labels: ["그로븐(면세)", "옐로우브릿지(과세)"],
@@ -121,5 +121,29 @@ const Dashboard = (function () {
     };
   }
 
-  return { render, destroy, won };
+  // 그룹 집계(채널별/매입처별) 단독 차트
+  function renderGroup(canvasId, groups, type) {
+    const el = document.getElementById(canvasId);
+    if (!el) return;
+    if (charts[canvasId]) charts[canvasId].destroy();
+    const labels = groups.map((g) => g.key);
+    const data = groups.map((g) => g.sum);
+    const colors = groups.map((_, i) => PALETTE[i % PALETTE.length]);
+    charts[canvasId] = new Chart(el, type === "doughnut" ? {
+      type: "doughnut",
+      data: { labels, datasets: [{ data, backgroundColor: colors }] },
+      options: { plugins: { legend: { position: "right" },
+        tooltip: { callbacks: { label: (c) => `${c.label}: ${won(c.parsed)}` } } },
+        responsive: true, maintainAspectRatio: false },
+    } : {
+      type: "bar",
+      data: { labels, datasets: [{ label: "금액", data, backgroundColor: colors }] },
+      options: { indexAxis: "y", plugins: { legend: { display: false },
+        tooltip: { callbacks: { label: (c) => won(c.parsed.x) } } },
+        scales: { x: { ticks: { callback: (v) => cheon(v) } } },
+        responsive: true, maintainAspectRatio: false },
+    });
+  }
+
+  return { render, renderGroup, destroy, won };
 })();

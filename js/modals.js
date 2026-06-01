@@ -206,5 +206,79 @@ const Modals = (function () {
     return k.some((x) => n.toLowerCase().includes(x.toLowerCase()));
   }
 
-  return { importExisting, importBank, importPO, close };
+  /* ===== 4) 행 수정 (매입/매출/입출금) ===== */
+  const EDIT_FIELDS = {
+    purchases: [
+      { k: "year", l: "년", t: "num" }, { k: "month", l: "월", t: "num" }, { k: "day", l: "일", t: "num" },
+      { k: "evidence", l: "증빙", t: "sel", opts: () => S.EVIDENCES },
+      { k: "category", l: "분류", t: "sel", opts: () => S.CATEGORIES },
+      { k: "desc", l: "내용", t: "text", wide: true },
+      { k: "vendor", l: "업체명", t: "text", wide: true },
+      { k: "supply", l: "공급가", t: "num" }, { k: "vat", l: "세액", t: "num" }, { k: "total", l: "합계", t: "num" },
+      { k: "orders", l: "주문건수", t: "num" }, { k: "paid", l: "결제여부", t: "text" },
+    ],
+    sales: [
+      { k: "year", l: "년", t: "num" }, { k: "month", l: "월", t: "num" },
+      { k: "channel", l: "채널", t: "sel", opts: () => S.CHANNELS, free: true },
+      { k: "taxClass", l: "구분", t: "sel", opts: () => ["면세", "과세"] },
+      { k: "desc", l: "내용", t: "text", wide: true },
+      { k: "orders", l: "주문건수", t: "num" },
+      { k: "supply", l: "공급가액", t: "num" }, { k: "vat", l: "세액", t: "num" }, { k: "total", l: "합계", t: "num" },
+      { k: "settled", l: "정산여부", t: "text" },
+    ],
+    transactions: [
+      { k: "year", l: "년", t: "num" }, { k: "month", l: "월", t: "num" }, { k: "day", l: "일", t: "num" },
+      { k: "type", l: "입출구분", t: "sel", opts: () => [["in", "입금"], ["out", "출금"]] },
+      { k: "category", l: "분류", t: "sel", opts: () => S.CATEGORIES.concat(["매출정산"]) },
+      { k: "desc", l: "내용", t: "text", wide: true },
+      { k: "counterparty", l: "거래처", t: "text", wide: true },
+      { k: "amount", l: "금액", t: "num" },
+      { k: "bank", l: "은행", t: "text" }, { k: "account", l: "계좌번호", t: "text" },
+      { k: "note", l: "비고", t: "text", wide: true },
+    ],
+  };
+  const KIND_LABEL = { purchases: "매입", sales: "매출", transactions: "입출금" };
+
+  function editRow(kind, id) {
+    const row = (S.data[kind] || []).find((r) => r.id === id);
+    if (!row) return;
+    const fields = EDIT_FIELDS[kind];
+    const fieldHtml = fields.map((f) => {
+      const v = row[f.k] != null ? row[f.k] : "";
+      let input;
+      if (f.t === "sel") {
+        const opts = f.opts();
+        const optionTags = opts.map((o) => {
+          const val = Array.isArray(o) ? o[0] : o;
+          const lab = Array.isArray(o) ? o[1] : o;
+          return `<option value="${E(val)}" ${String(v) === String(val) ? "selected" : ""}>${E(lab)}</option>`;
+        }).join("");
+        // free=true 인 경우 목록에 없는 기존값도 유지
+        const extra = (f.free && v && !opts.some((o) => String(Array.isArray(o) ? o[0] : o) === String(v)))
+          ? `<option value="${E(v)}" selected>${E(v)}</option>` : "";
+        input = `<select id="ed-${f.k}">${extra}${optionTags}</select>`;
+      } else {
+        input = `<input id="ed-${f.k}" type="${f.t === "num" ? "number" : "text"}" value="${E(v)}">`;
+      }
+      return `<span class="${f.wide ? "wide" : ""}"><label>${f.l}</label>${input}</span>`;
+    }).join("");
+
+    open(`${KIND_LABEL[kind]} 내용 수정`,
+      `<div class="edit-grid">${fieldHtml}</div>
+       <p class="hint">금액을 바꾸면 표·차트·보고서에 바로 반영됩니다.</p>`,
+      `<button class="btn" id="ed-cancel">취소</button>
+       <button class="btn primary" id="ed-save">저장</button>`);
+    q("#ed-cancel").onclick = close;
+    q("#ed-save").onclick = () => {
+      const patch = {};
+      fields.forEach((f) => {
+        const el = q(`#ed-${f.k}`); if (!el) return;
+        patch[f.k] = f.t === "num" ? S.num(el.value) : el.value;
+      });
+      S.update(kind, id, patch);
+      close();
+    };
+  }
+
+  return { importExisting, importBank, importPO, editRow, close };
 })();

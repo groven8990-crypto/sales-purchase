@@ -110,11 +110,15 @@ const App = (function () {
         <thead><tr>${cols.map((c) => `<th class="${c[2] || ""}">${c[0]}</th>`).join("")}<th></th></tr></thead>
         <tbody>${rows.map((r, i) => `<tr data-id="${r.id}">${cols.map((c) =>
           `<td class="${c[2] || ""}">${c[1](r, i)}</td>`).join("")}
-          <td><button class="icon-btn" data-del="${r.id}" title="삭제">✕</button></td></tr>`).join("")}
+          <td class="row-actions">
+            <button class="icon-btn edit" data-edit="${r.id}" title="수정">✎</button>
+            <button class="icon-btn" data-del="${r.id}" title="삭제">✕</button>
+          </td></tr>`).join("")}
         </tbody>
       </table>${rows.length ? "" : `<p class="empty">데이터가 없습니다.</p>`}</div>`;
 
     $$("[data-act]", main).forEach((b) => b.addEventListener("click", () => handleAct(b.dataset.act)));
+    $$("[data-edit]", main).forEach((b) => b.addEventListener("click", () => Modals.editRow(kind, b.dataset.edit)));
     $$("[data-del]", main).forEach((b) => b.addEventListener("click", () => {
       if (confirm("이 행을 삭제할까요?")) S.remove(kind, b.dataset.del);
     }));
@@ -122,27 +126,52 @@ const App = (function () {
 
   /* ---- 보고서 화면 ---------------------------------------- */
   function renderReport(main) {
-    const wb = Report.buildWorkbook({ year: scope.year, month: scope.month });
-    // 요약 미리보기
+    const { store, year, month } = scope;
+    const sales = S.filterBy(S.data.sales, { store, year, month });
+    const purchases = S.filterBy(S.data.purchases, { store, year, month });
+
+    // 스토어별 요약
     const summary = ["groven", "yb"].map((st) => {
-      const sl = S.filterBy(S.data.sales, { store: st, year: scope.year, month: scope.month });
-      const pl = S.filterBy(S.data.purchases, { store: st, year: scope.year, month: scope.month });
-      const sv = S.sum(sl, "supply") || S.sum(sl, "total");
-      const pv = S.sum(pl, "supply") || S.sum(pl, "total");
-      return { st, nm: S.STORES[st].name, tax: S.STORES[st].taxType, sv, pv, profit: sv - pv, sc: sl.length, pc: pl.length };
+      const sl = S.filterBy(S.data.sales, { store: st, year, month });
+      const pl = S.filterBy(S.data.purchases, { store: st, year, month });
+      const sv = S.sum(sl, "supply"), pv = S.sum(pl, "supply");
+      return { nm: S.STORES[st].name, tax: S.STORES[st].taxType, sv, pv, profit: sv - pv, sc: sl.length, pc: pl.length };
     });
+    const byChannel = S.groupSum(sales, "channel", "supply");
+    const byVendor = S.groupSum(purchases, "vendor", "supply");
+    const scopeName = (store ? S.STORES[store].name : "통합") + " · " +
+      (year ? year + "년 " : "전체 ") + (month ? month + "월" : "전체");
+
+    const grpTable = (rows, kindLabel) => `
+      <table class="grid">
+        <thead><tr><th>순번</th><th>${kindLabel}</th><th class="num">건수</th><th class="num">공급가</th><th class="num">비중</th><th>비중그래프</th></tr></thead>
+        <tbody>${rows.map((g, i) => `<tr>
+          <td>${i + 1}</td><td>${esc(g.key)}</td>
+          <td class="num">${g.count}</td>
+          <td class="num">₩${won(g.sum)}</td>
+          <td class="num">${(g.ratio * 100).toFixed(1)}%</td>
+          <td><div class="bar"><span style="width:${(g.ratio * 100).toFixed(1)}%"></span></div></td>
+        </tr>`).join("")}
+        <tr class="total-row"><td></td><td>합계</td>
+          <td class="num">${rows.reduce((a, g) => a + g.count, 0)}</td>
+          <td class="num">₩${won(rows.reduce((a, g) => a + g.sum, 0))}</td>
+          <td class="num">100%</td><td></td></tr>
+        </tbody></table>
+      ${rows.length ? "" : '<p class="empty">데이터가 없습니다.</p>'}`;
+
     main.innerHTML = `
       <div class="toolbar">
-        <h2>월 마감 보고서</h2>
+        <h2>마감 보고서 <span class="muted">${esc(scopeName)}</span></h2>
         <div class="toolbar-actions">
-          <button class="btn primary" id="btn-dl-report">⬇️ 엑셀 보고서 다운로드</button>
+          <button class="btn primary" id="btn-dl-report">⬇️ 엑셀 다운로드</button>
           <button class="btn" onclick="window.print()">🖨️ 인쇄</button>
         </div>
       </div>
+
       <div class="card report-summary">
-        <h3>${scope.year || "전체"}년 ${scope.month || "전체"}월 요약</h3>
+        <h3>스토어 요약</h3>
         <table class="grid">
-          <thead><tr><th>스토어</th><th>구분</th><th class="num">매출(공급가)</th><th class="num">매입(공급가)</th><th class="num">손익</th><th class="num">매출건수</th><th class="num">매입건수</th></tr></thead>
+          <thead><tr><th>스토어</th><th>구분</th><th class="num">매출</th><th class="num">매입</th><th class="num">손익</th><th class="num">매출건</th><th class="num">매입건</th></tr></thead>
           <tbody>${summary.map((r) => `<tr><td>${r.nm}</td><td>${r.tax}</td>
             <td class="num">₩${won(r.sv)}</td><td class="num">₩${won(r.pv)}</td>
             <td class="num ${r.profit >= 0 ? "pos" : "neg"}">₩${won(r.profit)}</td>
@@ -155,11 +184,24 @@ const App = (function () {
               <td class="num">${summary.reduce((a, r) => a + r.pc, 0)}</td></tr>
           </tbody>
         </table>
-        <p class="hint">엑셀 보고서에는 스토어별 매출/매입/입출금 시트(모두 금액 큰 순 정렬)와 월별 재무현황이 포함됩니다.</p>
       </div>
-      <div id="report-charts"></div>`;
-    $("#btn-dl-report").addEventListener("click", () => Report.download({ year: scope.year, month: scope.month }));
-    Dashboard.render($("#report-charts"), scope);
+
+      <div class="report-cols">
+        <div class="card"><h3>📊 채널별 매출 <span class="muted">(${byChannel.length}개 채널)</span></h3>
+          <div class="table-wrap">${grpTable(byChannel, "채널")}</div></div>
+        <div class="card"><h3>🏷️ 매입처별 매입 <span class="muted">(${byVendor.length}곳)</span></h3>
+          <div class="table-wrap">${grpTable(byVendor, "매입처")}</div></div>
+      </div>
+
+      <div class="chart-grid">
+        <div class="card"><h3>채널별 매출 비중</h3><canvas id="rp-ch"></canvas></div>
+        <div class="card"><h3>매입처별 매입 (상위)</h3><canvas id="rp-vd"></canvas></div>
+      </div>
+      <p class="hint">엑셀 보고서에는 <b>채널별매출 · 매입처별매입</b> 시트와 스토어별 매출/매입/입출금 상세(모두 금액 큰 순), 월별 재무현황이 포함됩니다.</p>`;
+
+    $("#btn-dl-report").addEventListener("click", () => Report.download({ year, month }));
+    Dashboard.renderGroup("rp-ch", byChannel, "doughnut");
+    Dashboard.renderGroup("rp-vd", byVendor.slice(0, 10), "bar");
   }
 
   /* ---- 데이터/설정 화면 ----------------------------------- */

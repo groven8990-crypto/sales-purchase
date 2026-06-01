@@ -150,6 +150,20 @@ const SPC = (function () {
 
   function sum(arr, field) { return arr.reduce((s, r) => s + num(r[field]), 0); }
 
+  // 특정 필드(채널/업체 등)로 묶어 건수·금액 합계 → 금액 큰 순 정렬
+  function groupSum(arr, keyField, valField) {
+    const m = {};
+    arr.forEach((r) => {
+      const k = (r[keyField] != null && r[keyField] !== "") ? r[keyField] : "(미지정)";
+      (m[k] = m[k] || { key: k, count: 0, sum: 0 });
+      m[k].count += 1; m[k].sum += num(r[valField]);
+    });
+    const rows = Object.values(m).sort((a, b) => b.sum - a.sum);
+    const total = rows.reduce((s, r) => s + r.sum, 0) || 1;
+    rows.forEach((r) => { r.ratio = r.sum / total; });
+    return rows;
+  }
+
   /* ---- 자동 분류 적용 ------------------------------------- */
   function classify(text, amountType) {
     // amountType: 'in' | 'out' (입금/출금 — 금액 부호로 먼저 판단)
@@ -169,6 +183,20 @@ const SPC = (function () {
     return data.vendors.find((v) => name.includes(v.name) || v.name.includes(name)) || null;
   }
 
+  // 거래내용(desc)을 우선, 없으면 거래처(cp)로 분류. 매칭 여부도 반환.
+  function classifyTxn(desc, cp, type) {
+    const tryText = (t) => {
+      const s = String(t || "");
+      for (const r of data.rules) { if (r.type === type && s.includes(r.kw)) return r; }
+      return null;
+    };
+    const r = tryText(desc) || tryText(cp);
+    if (r) return { category: r.category, channel: r.channel || "", matched: true };
+    if (type === "in") return { category: "매출정산", channel: "기타", matched: false };
+    const v = lookupVendor(cp) || lookupVendor(desc); // 출금: 송금처 매칭되면 상품매입으로
+    return { category: v ? "상품매입" : "기타", channel: "", matched: false };
+  }
+
   /* ---- 공개 API ------------------------------------------- */
   return {
     KEY, STORES, CATEGORIES, EVIDENCES, CHANNELS,
@@ -176,7 +204,7 @@ const SPC = (function () {
     save, load, uid, num, byAmountDesc, filterBy,
     addSales, addPurchases, addTransactions, upsertVendor,
     remove, update, clearAll,
-    monthlySummary, sum, classify, lookupVendor,
+    monthlySummary, sum, groupSum, classify, classifyTxn, lookupVendor,
     emptyData,
     exportJSON() { return JSON.stringify(data, null, 2); },
     importJSON(json) { data = Object.assign(emptyData(), JSON.parse(json)); save(); },

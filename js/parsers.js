@@ -138,10 +138,12 @@ const Parsers = (function () {
     out: ["출금", "찾으신금액", "지급", "출금금액", "출금액"],
     in: ["입금", "맡기신금액", "받으신", "입금금액", "입금액"],
     amount: ["거래금액", "금액"],
-    flag: ["입출금구분", "구분", "입출구분"],
-    balance: ["잔액", "거래후잔액"],
+    flag: ["입출금구분", "입출구분"],
+    balance: ["거래후잔액", "잔액"],
     desc: ["적요", "거래내용", "내용", "기재내용", "거래기록사항", "통장표시내용"],
-    counterparty: ["보내는분", "받는분", "의뢰인", "입금자", "거래처", "상대계좌예금주", "이체메모", "받는통장표시"],
+    counterparty: ["상대계좌예금주", "보내는분", "받는분", "의뢰인", "입금자", "거래처", "이체메모", "받는통장표시"],
+    bank: ["상대은행", "거래은행"],
+    account: ["상대계좌번호", "계좌번호"],
     memo: ["메모", "비고"],
   };
 
@@ -157,15 +159,21 @@ const Parsers = (function () {
     return idx;
   }
 
+  // 헤더 = 짧은 라벨 셀이 여러 개 매칭되는 행 (안내문 블록 오인 방지)
   function findHeaderRow(rows) {
+    let best = -1, bi = 0;
+    const allKeys = Object.values(COLMAP).flat().map((k) => k.replace(/\s/g, ""));
     for (let i = 0; i < Math.min(rows.length, 25); i++) {
       const r = rows[i] || [];
-      const joined = r.map(str).join("");
-      const hasDate = /거래일|일자/.test(joined);
-      const hasMoney = /출금|입금|금액|잔액/.test(joined);
-      if (hasDate && hasMoney) return i;
+      let score = 0;
+      r.forEach((c) => {
+        const h = str(c).replace(/\s/g, "");
+        if (!h || h.length > 12) return; // 긴 안내문 셀은 라벨로 보지 않음
+        if (allKeys.some((k) => h === k || h.includes(k))) score++;
+      });
+      if (score > best) { best = score; bi = i; }
     }
-    return 0;
+    return best >= 3 ? bi : 0;
   }
 
   // 통장내역 → 미리보기용 표준 거래행 배열
@@ -182,8 +190,12 @@ const Parsers = (function () {
       if (r.every((c) => c == null || c === "")) continue;
 
       const d = parseDate(r[idx.date]);
-      const desc = str(r[idx.desc]);
-      const cp = str(r[idx.counterparty]) || desc;
+      // 날짜가 없는 행(합계/소계 등 요약 행)은 건너뜀
+      if (d.m == null && d.y == null) continue;
+
+      const descRaw = str(r[idx.desc]);
+      const cp = str(r[idx.counterparty]); // 상대계좌예금주명(더 정확)
+      const desc = descRaw || cp;
       let amount = 0, type = null;
 
       if (idx.out != null || idx.in != null) {
@@ -199,19 +211,23 @@ const Parsers = (function () {
       }
       if (!amount || !type) continue;
 
-      const rule = SPC.classify(`${desc} ${cp}`, type);
-      const vendor = SPC.lookupVendor(cp);
+      // 거래내용 우선, 없으면 거래처로 분류
+      const rule = SPC.classifyTxn(descRaw, cp, type);
+      const vendor = SPC.lookupVendor(cp) || SPC.lookupVendor(descRaw);
+      // 상대은행/계좌(출금 시 받는 곳) → 없으면 송금처 마스터
+      const stmtBank = idx.bank != null ? str(r[idx.bank]) : "";
+      const stmtAcct = idx.account != null ? str(r[idx.account]) : "";
       txns.push({
         store,
         year: d.y || new Date().getFullYear(), month: d.m, day: d.d,
         type,
-        evidence: type === "in" ? "통장입금증" : (vendor ? "" : ""),
+        evidence: type === "in" ? "통장입금증" : "",
         category: rule.category,
         channel: rule.channel || "",
-        desc, counterparty: cp,
+        desc, counterparty: cp || desc,
         amount, vat: 0, total: amount,
-        bank: vendor ? vendor.bank : "기업",
-        account: vendor ? vendor.account : "",
+        bank: stmtBank || (vendor ? vendor.bank : ""),
+        account: stmtAcct || (vendor ? vendor.account : ""),
         balance: num(r[idx.balance]),
         note: str(r[idx.memo]),
       });
