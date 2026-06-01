@@ -1,0 +1,14 @@
+# 의존성/빌드
+node_modules/
+*.log
+
+# 사용자의 실제 매출/매입/통장 데이터 파일은 저장소에 올리지 않습니다 (개인정보 보호)
+*.xlsx
+*.xls
+*.csv
+백업*.json
+*_백업_*.json
+
+# OS
+.DS_Store
+Thumbs.db
