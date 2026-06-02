@@ -59,7 +59,20 @@ function colIdxAny(headers, keywords) {
   return -1;
 }
 
-// 드라이브 폴더에서 YYMMDD 패턴 파일 목록 수집
+// 스프레드시트(엑셀/구글시트)로 읽을 수 있는 파일인지 확인
+// PNG/JPG/PDF 등 그림·문서 파일은 제외
+function isSpreadsheetFile(name, mimeType) {
+  var SHEET_MIMES = [
+    "application/vnd.google-apps.spreadsheet",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", // xlsx
+    "application/vnd.ms-excel", // xls
+  ];
+  if (SHEET_MIMES.indexOf(mimeType) !== -1) return true;
+  // mimeType이 비어있을 때 확장자로 보조 판단
+  return /\.(xlsx|xls|csv)$/i.test(name);
+}
+
+// 드라이브 폴더에서 YYMMDD 패턴 파일 목록 수집 (엑셀/구글시트만)
 // yearMonth: "2605" 형태 (비워두면 전체)
 function listFilesInFolder(folderId, yearMonth) {
   var folder = DriveApp.getFolderById(folderId);
@@ -68,9 +81,9 @@ function listFilesInFolder(folderId, yearMonth) {
   while (files.hasNext()) {
     var f = files.next();
     var name = f.getName();
-    if (!yearMonth || matchYearMonth(name, yearMonth)) {
-      result.push({ id: f.getId(), name: name, file: f });
-    }
+    if (yearMonth && !matchYearMonth(name, yearMonth)) continue;
+    if (!isSpreadsheetFile(name, f.getMimeType())) continue; // 그림·PDF 제외
+    result.push({ id: f.getId(), name: name, file: f });
   }
   // 날짜 오름차순 정렬
   result.sort(function(a, b) { return a.name > b.name ? 1 : -1; });
