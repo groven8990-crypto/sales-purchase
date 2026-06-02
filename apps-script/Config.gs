@@ -12,7 +12,7 @@ var CONFIG = {
     BALJOO_FOOD:   "1k--9pdo6xvgudwsFr4gWDorCYt7BLpFN",  // 푸드엔드베스트 발주
     BALJOO_ILBI:   "17EBW_keARXJ7ZADq7GjOKxQtQSbT78wR",  // 일비 발주
     JUNGSAN_ROOT:  "17cOKQmHT5_Si-GRSuw-PxNof_4jB9vzh",  // 재무관리/정산서
-    FOOD_JUNGSAN:  "15tGauMhnwqjuuVwtdjJdsYlNuhQtXHst",  // 푸드엔 거래내역서
+    FOOD_JUNGSAN:  "1EBES-zBsu9NVgi_dV2kguC4KmZ8r_bGb",  // 푸드엔 거래내역서
     ILBI_JUNGSAN:  "1CdexzQ1dPKTBnr_5oAX1KvOSrZBuX683",  // 일비 정산서
     HAEDAMBYUL:    "1x2BG4oBY38M3u6JuffszYDv1oVsYjWkF",  // 해담별 정산서
     DINET:         "10JCfWBzPz7w6lLzol_q-YTXARYdrr7Rk",  // 디네트 정산서
