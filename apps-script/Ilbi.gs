@@ -175,7 +175,7 @@ function compareIlbiItems(baljooItems, jungsanPurchase) {
     var bQty = b ? b.qty : null;
     var diff = (bQty !== null) ? (j.qty - bQty) : null;
     var flag = "";
-    if (diff === null)   flag = "⚠️ 발주서없음";
+    if (diff === null)   flag = DO_COMPARE ? "⚠️ 발주서없음" : "정산기준";
     else if (diff !== 0) flag = "🔴 수량불일치(발주" + bQty + "→정산" + j.qty + ")";
     else                 flag = "✅";
 
@@ -236,9 +236,9 @@ function ilbiB2bToSalesRows(b2bItems) {
 function processIlbi(yearMonth) {
   log("[일비] 처리 시작: " + yearMonth);
 
-  var baljooFiles  = listFilesInFolder(CONFIG.FOLDER.BALJOO_ILBI, yearMonth);
+  var baljooFiles  = DO_COMPARE ? listFilesInFolder(CONFIG.FOLDER.BALJOO_ILBI, yearMonth) : [];
   var jungsanFiles = listFilesInFolder(CONFIG.FOLDER.ILBI_JUNGSAN, yearMonth);
-  log("  발주서: " + baljooFiles.length + "개 / 정산서: " + jungsanFiles.length + "개");
+  log("  발주서: " + baljooFiles.length + "개" + (DO_COMPARE ? "" : " (대조 생략)") + " / 정산서: " + jungsanFiles.length + "개");
 
   var allBaljoo  = [];
   baljooFiles.forEach(function(f) {

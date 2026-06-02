@@ -175,7 +175,7 @@ function compareFoodItems(baljooItems, jungsanByStore) {
       var bQty  = b ? b.qty  : null;
       var diff  = (bQty !== null) ? (j.qty - bQty) : null;
       var flag  = "";
-      if (diff === null)      flag = "⚠️ 발주서없음";
+      if (diff === null)      flag = DO_COMPARE ? "⚠️ 발주서없음" : "정산기준";
       else if (diff !== 0)    flag = "🔴 수량불일치(발주" + bQty + "→정산" + j.qty + ")";
       else                    flag = "✅";
 
@@ -227,9 +227,9 @@ function compareFoodItems(baljooItems, jungsanByStore) {
 function processFoodAndBest(yearMonth) {
   log("[푸드엔드베스트] 처리 시작: " + yearMonth);
 
-  // 발주서 파일 목록
-  var baljooFiles = listFilesInFolder(CONFIG.FOLDER.BALJOO_FOOD, yearMonth);
-  log("  발주서 파일: " + baljooFiles.length + "개");
+  // 발주서 파일 목록 (대조 모드일 때만 — 발주서가 많아 느림)
+  var baljooFiles = DO_COMPARE ? listFilesInFolder(CONFIG.FOLDER.BALJOO_FOOD, yearMonth) : [];
+  log("  발주서 파일: " + baljooFiles.length + "개" + (DO_COMPARE ? "" : " (대조 생략)"));
 
   // 정산서 파일 목록
   var jungsanFiles = listFilesInFolder(CONFIG.FOLDER.FOOD_JUNGSAN, yearMonth);

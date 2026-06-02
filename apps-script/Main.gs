@@ -1,19 +1,32 @@
 // ===== 메인 진입점 =====
 // Google Apps Script 편집기에서 실행할 함수들
 
+// 발주↔정산 대조 여부.
+//  false = 정산서만 빠르게 읽음 (평소 마감, 6분 제한 안전)
+//  true  = 발주서까지 읽어 수량 대조 (느림, 필요할 때만)
+var DO_COMPARE = false;
+
 // ─────────────────────────────────────────────
 // 1. 월 마감 자동화 (버튼 한 번으로 전체 처리)
 // ─────────────────────────────────────────────
 
-// 현재 달 기준 실행
+// 현재 달 기준 실행 (빠른 마감 — 정산서만)
 function runThisMonthClosing() {
+  DO_COMPARE = false;
   var now = new Date();
   var ym = String(now.getFullYear()).slice(2) + String(now.getMonth() + 1).padStart(2, "0");
   runMonthlyClosing(ym);
 }
 
-// 특정 연월 지정 실행 (예: "2605" = 2026년 5월)
+// 특정 연월 빠른 마감 (예: "2605" = 2026년 5월)
 function runMay2026() {
+  DO_COMPARE = false;
+  runMonthlyClosing("2605");
+}
+
+// 2026년 5월 — 발주서까지 대조 (느림)
+function runCompareMay2026() {
+  DO_COMPARE = true;
   runMonthlyClosing("2605");
 }
 
@@ -214,9 +227,10 @@ function writeSummarySheet(ss, purchaseRows, b2bRows, compareRows, yearMonth) {
 function onOpen() {
   SpreadsheetApp.getUi()
     .createMenu("🧾 매입 마감")
-    .addItem("▶ 이번 달 마감 실행", "runThisMonthClosing")
+    .addItem("▶ 이번 달 마감 (빠름·정산서만)", "runThisMonthClosing")
     .addSeparator()
-    .addItem("▶ 2026년 5월 실행 (테스트)", "runMay2026")
+    .addItem("▶ 2026년 5월 마감 (빠름)", "runMay2026")
+    .addItem("🔍 2026년 5월 + 발주 대조 (느림)", "runCompareMay2026")
     .addSeparator()
     .addItem("📥 마감앱용 Excel 내보내기", "exportForClosingApp")
     .addToUi();
