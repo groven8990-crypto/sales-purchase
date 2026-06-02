@@ -86,6 +86,9 @@ function runMonthlyClosing(yearMonth) {
   // 요약 시트
   writeSummarySheet(ss, allPurchase, allB2b, allCompare, yearMonth);
 
+  // 변환용 임시 파일 정리
+  cleanupTempFiles();
+
   // 로그 기록
   flushLog(ss);
 

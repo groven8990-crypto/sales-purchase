@@ -77,21 +77,31 @@ function listFilesInFolder(folderId, yearMonth) {
   return result;
 }
 
+// 변환으로 생긴 임시 파일 ID 보관 (실행 끝에 정리)
+var _tempFileIds = [];
+
 // 스프레드시트 열기 (xlsx 포함, Google Sheets 모두)
 function openAsSpreadsheet(fileId) {
   try {
     return SpreadsheetApp.openById(fileId);
   } catch (e) {
-    // xlsx 파일은 Drive로 변환 후 열기
+    // xlsx 파일은 Google Sheets로 변환 후 열기 (Drive API v3)
     var blob = DriveApp.getFileById(fileId).getBlob();
-    var converted = Drive.Files.insert(
-      { title: "tmp_" + fileId, mimeType: "application/vnd.google-apps.spreadsheet" },
+    var converted = Drive.Files.create(
+      { name: "tmp_" + fileId, mimeType: "application/vnd.google-apps.spreadsheet" },
       blob
     );
-    var ss = SpreadsheetApp.openById(converted.id);
-    // 임시 파일 정리는 별도 처리
-    return ss;
+    _tempFileIds.push(converted.id);
+    return SpreadsheetApp.openById(converted.id);
   }
+}
+
+// 변환용 임시 파일 정리
+function cleanupTempFiles() {
+  _tempFileIds.forEach(function(id) {
+    try { DriveApp.getFileById(id).setTrashed(true); } catch(e) {}
+  });
+  _tempFileIds = [];
 }
 
 // 출력 스프레드시트 가져오기 또는 생성
