@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>시안 2 · 경영 대시보드</title>
+<script src="../vendor/chart.umd.min.js"></script>
+<style>
+  :root{--bg:#0f1726;--panel:#18233a;--panel2:#1e2c47;--ink:#eaf0fb;--soft:#8b9bba;--line:#26344f;
+        --b1:#4f8cff;--b2:#22c55e;--b3:#f59e0b;--b4:#f43f5e;--b5:#a855f7}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:"Pretendard","Malgun Gothic",sans-serif}
+  .top{display:flex;justify-content:space-between;align-items:center;padding:20px 28px;border-bottom:1px solid var(--line)}
+  .top h1{font-size:20px;margin:0;font-weight:800}
+  .top .sub{color:var(--soft);font-size:13px;margin-top:3px}
+  .seg{display:flex;gap:6px}
+  .seg span{padding:7px 14px;border-radius:9px;background:var(--panel);font-size:13px;font-weight:600;color:var(--soft);border:1px solid var(--line)}
+  .seg span.on{background:linear-gradient(135deg,#4f8cff,#3b6fe0);color:#fff;border-color:transparent}
+  .wrap{padding:22px 28px;max-width:1200px;margin:0 auto}
+  .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:18px}
+  .kpi{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:18px 20px;position:relative;overflow:hidden}
+  .kpi::after{content:"";position:absolute;right:-20px;top:-20px;width:80px;height:80px;border-radius:50%;opacity:.18}
+  .kpi.k1::after{background:var(--b1)}.kpi.k2::after{background:var(--b3)}.kpi.k3::after{background:var(--b2)}.kpi.k4::after{background:var(--b5)}
+  .kpi .lab{color:var(--soft);font-size:13px;font-weight:600}
+  .kpi .val{font-size:26px;font-weight:800;margin:8px 0 4px;letter-spacing:-.5px}
+  .kpi .chg{font-size:12px;font-weight:700}
+  .up{color:#34d399}.down{color:#fb7185}
+  .grid{display:grid;grid-template-columns:2fr 1fr;gap:16px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:18px 20px;margin-bottom:16px}
+  .card h3{margin:0 0 14px;font-size:15px;font-weight:700}
+  .card h3 small{color:var(--soft);font-weight:500;margin-left:6px}
+  canvas{max-height:260px}
+  .rank{list-style:none;margin:0;padding:0}
+  .rank li{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--line);font-size:13px}
+  .rank li:last-child{border:0}
+  .rank .no{width:22px;height:22px;border-radius:7px;background:var(--panel2);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:var(--soft)}
+  .rank .nm{flex:1}.rank .amt{font-weight:700;font-variant-numeric:tabular-nums}
+  .rank .bar{height:5px;background:var(--panel2);border-radius:3px;margin-top:5px;overflow:hidden}
+  .rank .bar>span{display:block;height:100%;background:var(--b1)}
+  .twocol{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  .pill{display:inline-block;background:#3a2a00;color:var(--b3);font-size:11px;padding:3px 9px;border-radius:20px}
+  @media(max-width:900px){.kpis,.grid,.twocol{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+  <div class="top">
+    <div><h1>📊 경영 대시보드 <span class="pill">예시 데이터</span></h1>
+      <div class="sub">그로븐 · 옐로우브릿지 통합 · 2026년 4월</div></div>
+    <div class="seg"><span class="on">통합</span><span>그로븐</span><span>옐로우브릿지</span></div>
+  </div>
+  <div class="wrap">
+    <div class="kpis">
+      <div class="kpi k1"><div class="lab">총 매출</div><div class="val">₩27,460,276</div><div class="chg up">▲ 전월대비 +439%</div></div>
+      <div class="kpi k2"><div class="lab">총 매입</div><div class="val">₩27,163,853</div><div class="chg up">▲ +357%</div></div>
+      <div class="kpi k3"><div class="lab">영업 손익</div><div class="val up">+₩296,424</div><div class="chg up">흑자 전환</div></div>
+      <div class="kpi k4"><div class="lab">원가율</div><div class="val">98.9%</div><div class="chg down">▲ +1.2%p</div></div>
+    </div>
+
+    <div class="grid">
+      <div class="card"><h3>월별 매출 · 매입 · 손익 추이</h3><canvas id="trend"></canvas></div>
+      <div class="card"><h3>스토어 비중 <small>매출</small></h3><canvas id="store"></canvas></div>
+    </div>
+
+    <div class="twocol">
+      <div class="card"><h3>채널별 매출 <small>TOP</small></h3>
+        <ul class="rank">
+          <li><span class="no">1</span><div style="flex:1"><div class="nm">쿠팡 <span class="amt" style="float:right">₩10,337,958</span></div><div class="bar"><span style="width:100%"></span></div></div></li>
+          <li><span class="no">2</span><div style="flex:1"><div class="nm">디네트(과메기) <span class="amt" style="float:right">₩10,238,700</span></div><div class="bar"><span style="width:99%"></span></div></div></li>
+          <li><span class="no">3</span><div style="flex:1"><div class="nm">지마켓 <span class="amt" style="float:right">₩3,200,102</span></div><div class="bar"><span style="width:31%"></span></div></div></li>
+          <li><span class="no">4</span><div style="flex:1"><div class="nm">11번가 <span class="amt" style="float:right">₩1,931,715</span></div><div class="bar"><span style="width:19%"></span></div></div></li>
+          <li><span class="no">5</span><div style="flex:1"><div class="nm">옥션 <span class="amt" style="float:right">₩1,622,585</span></div><div class="bar"><span style="width:16%"></span></div></div></li>
+        </ul>
+      </div>
+      <div class="card"><h3>매입처별 매입 <small>TOP</small></h3>
+        <ul class="rank">
+          <li><span class="no">1</span><div style="flex:1"><div class="nm">주식회사 일비 <span class="amt" style="float:right">₩11,341,400</span></div><div class="bar"><span style="width:100%;background:#f59e0b"></span></div></div></li>
+          <li><span class="no">2</span><div style="flex:1"><div class="nm">㈜푸드엔드베스트 <span class="amt" style="float:right">₩4,428,500</span></div><div class="bar"><span style="width:39%;background:#f59e0b"></span></div></div></li>
+          <li><span class="no">3</span><div style="flex:1"><div class="nm">대우엔지니어링 <span class="amt" style="float:right">₩1,000,000</span></div><div class="bar"><span style="width:9%;background:#f59e0b"></span></div></div></li>
+          <li><span class="no">4</span><div style="flex:1"><div class="nm">주식회사 해담별 <span class="amt" style="float:right">₩771,600</span></div><div class="bar"><span style="width:7%;background:#f59e0b"></span></div></div></li>
+          <li><span class="no">5</span><div style="flex:1"><div class="nm">쿠팡 주식회사 <span class="amt" style="float:right">₩587,818</span></div><div class="bar"><span style="width:5%;background:#f59e0b"></span></div></div></li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="card"><h3>입출금 정산 <small>기업은행 · 5월</small></h3><canvas id="cash" style="max-height:150px"></canvas></div>
+  </div>
+
+<script>
+const f={plugins:{legend:{labels:{color:'#8b9bba',boxWidth:12,font:{size:11}}}},
+  scales:{x:{ticks:{color:'#8b9bba'},grid:{color:'#26344f'}},y:{ticks:{color:'#8b9bba',callback:v=>(v/10000)+'만'},grid:{color:'#26344f'}}},maintainAspectRatio:false};
+new Chart(trend,{data:{labels:['25.12','26.1','26.2','26.3','26.4','26.5'],
+  datasets:[{type:'bar',label:'매출',data:[400280,3023550,4186620,5094445,27460276,32999810],backgroundColor:'#4f8cff',borderRadius:5},
+            {type:'bar',label:'매입',data:[2152119,3599754,8408897,5948794,27163853,4193783],backgroundColor:'#f59e0b',borderRadius:5},
+            {type:'line',label:'손익',data:[-1751839,-576204,-4222277,-854349,296424,28806027],borderColor:'#22c55e',backgroundColor:'#22c55e',tension:.35}]},options:f});
+new Chart(store,{type:'doughnut',data:{labels:['그로븐(면세)','옐로우브릿지(과세)'],datasets:[{data:[16660140,10800136],backgroundColor:['#4f8cff','#a855f7'],borderWidth:0}]},
+  options:{cutout:'62%',plugins:{legend:{position:'bottom',labels:{color:'#8b9bba',boxWidth:12,font:{size:12}}}},maintainAspectRatio:false}});
+new Chart(cash,{type:'bar',data:{labels:['입금(매출정산)','출금(매입·비용)'],datasets:[{data:[14049074,20881822],backgroundColor:['#22c55e','#f43f5e'],borderRadius:6}]},
+  options:{indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#8b9bba',callback:v=>(v/10000)+'만'},grid:{color:'#26344f'}},y:{ticks:{color:'#eaf0fb'},grid:{display:false}}},maintainAspectRatio:false}});
+</script>
+</body>
+</html>

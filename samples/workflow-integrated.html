@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>시안 3 · 실무 통합형</title>
+<script src="../vendor/chart.umd.min.js"></script>
+<style>
+  :root{--bg:#f3f5f9;--ink:#1f2733;--soft:#6b7588;--line:#e3e8f0;--accent:#0d6e6e;--accent2:#0ea5a5;
+        --blue:#2563eb;--amber:#d97706;--red:#dc2626;--green:#059669}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:"Pretendard","Malgun Gothic",sans-serif;font-size:14px}
+  .head{background:#fff;border-bottom:1px solid var(--line);padding:16px 26px;display:flex;justify-content:space-between;align-items:center}
+  .head h1{margin:0;font-size:19px}.head .sub{color:var(--soft);font-size:13px;margin-top:2px}
+  .tag{background:#e6fbf7;color:var(--accent);font-size:11px;font-weight:700;padding:3px 9px;border-radius:6px;margin-left:8px}
+  .layout{display:flex;max-width:1180px;margin:0 auto;padding:22px;gap:22px}
+  .rail{width:210px;flex-shrink:0}
+  .step{display:flex;gap:12px;padding:14px 0;position:relative}
+  .step:not(:last-child)::before{content:"";position:absolute;left:15px;top:38px;bottom:-6px;width:2px;background:var(--line)}
+  .step .dot{width:32px;height:32px;border-radius:50%;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;flex-shrink:0;z-index:1}
+  .step .t{font-weight:700}.step .d{color:var(--soft);font-size:12px;margin-top:2px}
+  .step.done .dot{background:var(--green)}
+  .content{flex:1;min-width:0}
+  .sec{background:#fff;border:1px solid var(--line);border-radius:14px;padding:18px 20px;margin-bottom:18px}
+  .sec h2{font-size:15px;margin:0 0 4px;display:flex;align-items:center;gap:8px}
+  .sec .badge{background:var(--accent);color:#fff;width:22px;height:22px;border-radius:7px;display:inline-flex;align-items:center;justify-content:center;font-size:12px}
+  .sec .desc{color:var(--soft);font-size:12.5px;margin:0 0 14px}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:left}
+  th{background:#f7f9fc;color:var(--soft);font-weight:700;font-size:12px}
+  td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
+  tr.sum td{font-weight:800;background:#f7f9fc;border-top:2px solid #cfd8e6}
+  .pos{color:var(--green)}.neg{color:var(--red)}
+  .row2{display:grid;grid-template-columns:1.3fr 1fr;gap:18px}
+  .mini{height:170px}
+  .kpibar{display:flex;gap:14px;margin-bottom:18px}
+  .kpibar .b{flex:1;background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px 16px;border-top:3px solid var(--blue)}
+  .kpibar .b.p{border-top-color:var(--amber)}.kpibar .b.r{border-top-color:var(--green)}
+  .kpibar .lab{color:var(--soft);font-size:12px;font-weight:600}.kpibar .v{font-size:21px;font-weight:800;margin-top:5px}
+  .chk{color:var(--green);font-weight:700;font-size:12px}
+  .src{display:inline-block;background:#eef2f8;color:var(--soft);font-size:11px;padding:2px 8px;border-radius:5px}
+  .approval{display:flex;border:1px solid #cbd5e1;float:right}
+  .approval .c{width:70px;text-align:center;border-left:1px solid #cbd5e1;font-size:11px}
+  .approval .c:first-child{border:0;width:26px;writing-mode:vertical-rl;display:flex;align-items:center;justify-content:center;background:#f1f5f9}
+  .approval .h{border-bottom:1px solid #cbd5e1;padding:4px 0;background:#f1f5f9}.approval .s{height:42px}
+  @media(max-width:900px){.layout{flex-direction:column}.rail{width:auto;display:flex;overflow:auto}.row2{grid-template-columns:1fr}.step::before{display:none}}
+</style>
+</head>
+<body>
+  <div class="head">
+    <div><h1>매입·매출 마감 <span class="tag">예시 데이터</span></h1>
+      <div class="sub">2026년 4월 · 그로븐(면세) + 옐로우브릿지(과세)</div></div>
+    <div class="src">자료 출처: 발주서 · 기업은행 통장 · 채널 정산</div>
+  </div>
+
+  <div class="layout">
+    <div class="rail">
+      <div class="step done"><div class="dot">1</div><div><div class="t">매출 마감</div><div class="d">채널별 정산 집계</div></div></div>
+      <div class="step done"><div class="dot">2</div><div><div class="t">매입 마감</div><div class="d">발주서 → 매입처별</div></div></div>
+      <div class="step done"><div class="dot">3</div><div><div class="t">통장 정산</div><div class="d">입금·출금 대사</div></div></div>
+      <div class="step"><div class="dot">4</div><div><div class="t">손익·보고</div><div class="d">결재 상신</div></div></div>
+    </div>
+
+    <div class="content">
+      <div class="kpibar">
+        <div class="b"><div class="lab">총 매출</div><div class="v">₩27,460,276</div></div>
+        <div class="b p"><div class="lab">총 매입</div><div class="v">₩27,163,853</div></div>
+        <div class="b r"><div class="lab">손익</div><div class="v pos">+₩296,424</div></div>
+      </div>
+
+      <div class="sec">
+        <h2><span class="badge">1</span> 매출 마감 — 채널별 <span class="chk">✔ 정산 완료</span></h2>
+        <p class="desc">각 채널 정산 자료를 합산했습니다. (금액 큰 순)</p>
+        <div class="row2">
+          <table>
+            <thead><tr><th>순번</th><th>채널</th><th class="n">건수</th><th class="n">매출(공급가)</th><th class="n">비중</th></tr></thead>
+            <tbody>
+              <tr><td>1</td><td>쿠팡</td><td class="n">447</td><td class="n">10,337,958</td><td class="n">37.6%</td></tr>
+              <tr><td>2</td><td>디네트(과메기)</td><td class="n">574</td><td class="n">10,238,700</td><td class="n">37.3%</td></tr>
+              <tr><td>3</td><td>지마켓</td><td class="n">129</td><td class="n">3,200,102</td><td class="n">11.7%</td></tr>
+              <tr><td>4</td><td>11번가</td><td class="n">48</td><td class="n">1,931,715</td><td class="n">7.0%</td></tr>
+              <tr><td>5</td><td>옥션</td><td class="n">89</td><td class="n">1,622,585</td><td class="n">5.9%</td></tr>
+              <tr><td>6</td><td>네이버</td><td class="n">6</td><td class="n">129,216</td><td class="n">0.5%</td></tr>
+              <tr class="sum"><td colspan="2">합계</td><td class="n">1,293</td><td class="n">27,460,276</td><td class="n">100%</td></tr>
+            </tbody>
+          </table>
+          <div class="mini"><canvas id="ch"></canvas></div>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h2><span class="badge">2</span> 매입 마감 — 매입처별 <span class="src">발주서 기준</span></h2>
+        <p class="desc">발주서에서 정리한 매입을 매입처별로 집계했습니다. (금액 큰 순)</p>
+        <div class="row2">
+          <table>
+            <thead><tr><th>순번</th><th>매입처</th><th class="n">건수</th><th class="n">매입(공급가)</th><th class="n">비중</th></tr></thead>
+            <tbody>
+              <tr><td>1</td><td>주식회사 일비</td><td class="n">2</td><td class="n">11,341,400</td><td class="n">41.8%</td></tr>
+              <tr><td>2</td><td>㈜푸드엔드베스트</td><td class="n">16</td><td class="n">4,428,500</td><td class="n">16.3%</td></tr>
+              <tr><td>3</td><td>대우엔지니어링</td><td class="n">1</td><td class="n">1,000,000</td><td class="n">3.7%</td></tr>
+              <tr><td>4</td><td>주식회사 해담별</td><td class="n">3</td><td class="n">771,600</td><td class="n">2.8%</td></tr>
+              <tr><td>5</td><td>쿠팡 주식회사</td><td class="n">2</td><td class="n">587,818</td><td class="n">2.2%</td></tr>
+              <tr class="sum"><td colspan="2">합계 (그 외 포함)</td><td class="n">231</td><td class="n">27,163,853</td><td class="n">100%</td></tr>
+            </tbody>
+          </table>
+          <div class="mini"><canvas id="cat"></canvas></div>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h2><span class="badge">3</span> 통장 정산 — 기업은행 <span class="chk">✔ 78건 대사</span></h2>
+        <p class="desc">통장 거래내역을 입금(매출정산)·출금(매입·비용)으로 자동 분류했습니다.</p>
+        <table>
+          <thead><tr><th>구분</th><th class="n">건수</th><th class="n">금액</th><th>주요 내역</th></tr></thead>
+          <tbody>
+            <tr><td>입금 (매출 정산)</td><td class="n">56</td><td class="n pos">14,049,074</td><td>네이버 · 쿠팡 · 지마켓 · 옥션 · 카카오</td></tr>
+            <tr><td>출금 (매입·비용)</td><td class="n">22</td><td class="n neg">20,881,822</td><td>상품매입 · 임대료 · 광고비 · 통신</td></tr>
+            <tr class="sum"><td>월 순증감</td><td class="n">78</td><td class="n neg">-6,832,748</td><td>월말 잔액 ₩10,846,904</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sec">
+        <h2><span class="badge">4</span> 손익 마감 · 결재</h2>
+        <div class="approval">
+          <div class="c">결재</div>
+          <div class="c"><div class="h">작성</div><div class="s"></div></div>
+          <div class="c"><div class="h">검토</div><div class="s"></div></div>
+          <div class="c"><div class="h">대표</div><div class="s"></div></div>
+        </div>
+        <p class="desc">사업장별 손익 요약입니다.</p>
+        <table style="clear:right">
+          <thead><tr><th>사업장</th><th>구분</th><th class="n">매출</th><th class="n">매입</th><th class="n">손익</th></tr></thead>
+          <tbody>
+            <tr><td>그로븐</td><td>면세</td><td class="n">16,660,140</td><td class="n">16,085,645</td><td class="n pos">+574,495</td></tr>
+            <tr><td>옐로우브릿지</td><td>과세</td><td class="n">10,800,136</td><td class="n">11,078,207</td><td class="n neg">-278,071</td></tr>
+            <tr class="sum"><td>합계</td><td>-</td><td class="n">27,460,276</td><td class="n">27,163,853</td><td class="n pos">+296,424</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+<script>
+const opt={plugins:{legend:{position:'right',labels:{boxWidth:10,font:{size:11}}}},maintainAspectRatio:false};
+new Chart(ch,{type:'doughnut',data:{labels:['쿠팡','디네트','지마켓','11번가','옥션','네이버'],
+  datasets:[{data:[10337958,10238700,3200102,1931715,1622585,129216],backgroundColor:['#0d6e6e','#0ea5a5','#34d3c5','#7fe0d6','#bfeee8','#e3f7f4'],borderWidth:0}]},options:opt});
+new Chart(cat,{type:'doughnut',data:{labels:['상품매입','임대료','광고비','수수료','기타'],
+  datasets:[{data:[22000000,1000000,1500000,1800000,863853],backgroundColor:['#d97706','#f59e0b','#fbbf24','#fcd34d','#fde68a'],borderWidth:0}]},options:opt});
+</script>
+</body>
+</html>

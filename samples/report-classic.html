@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>시안 1 · 인쇄용 마감 보고서</title>
+<script src="../vendor/chart.umd.min.js"></script>
+<style>
+  :root{--ink:#1a1a1a;--line:#222;--soft:#888;--accent:#1a3a6b;--zebra:#f6f7f9}
+  *{box-sizing:border-box}
+  body{margin:0;background:#e9ebf0;font-family:"Pretendard","Malgun Gothic",sans-serif;color:var(--ink);padding:24px}
+  .sheet{width:210mm;min-height:297mm;margin:0 auto;background:#fff;padding:18mm 16mm;box-shadow:0 4px 24px rgba(0,0,0,.15)}
+  .doc-head{text-align:center;border-bottom:3px double var(--line);padding-bottom:12px;margin-bottom:6px}
+  .doc-head h1{font-size:26px;letter-spacing:8px;margin:0 0 6px}
+  .doc-head .sub{font-size:12px;color:var(--soft);letter-spacing:2px}
+  .meta-approval{display:flex;justify-content:space-between;align-items:flex-start;margin:14px 0 18px}
+  .meta{font-size:12px;line-height:1.9}
+  .meta b{display:inline-block;width:64px;color:var(--soft);font-weight:600}
+  .approval{display:flex;border:1px solid var(--line)}
+  .approval .cell{width:62px;text-align:center;border-left:1px solid var(--line);font-size:11px}
+  .approval .cell:first-child{border-left:0;width:30px;writing-mode:vertical-rl;display:flex;align-items:center;justify-content:center;background:#f0f1f5;letter-spacing:3px}
+  .approval .ttl{border-bottom:1px solid var(--line);padding:4px 0;background:#f0f1f5}
+  .approval .sig{height:46px}
+  h2.sec{font-size:14px;margin:20px 0 8px;padding-left:9px;border-left:4px solid var(--accent);letter-spacing:1px}
+  table{width:100%;border-collapse:collapse;font-size:12px}
+  th,td{border:1px solid #bbb;padding:5px 8px}
+  th{background:#eef1f6;font-weight:700}
+  td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
+  tbody tr:nth-child(even){background:var(--zebra)}
+  tr.sum{font-weight:800;background:#e7ebf2!important}
+  .pos{color:#0a6b2b}.neg{color:#b3261e}
+  .two{display:flex;gap:14px}.two>div{flex:1}
+  .charts{display:flex;gap:14px;margin-top:6px}
+  .chartbox{flex:1;border:1px solid #ddd;padding:8px;height:190px}
+  .foot{margin-top:22px;font-size:11px;color:var(--soft);text-align:center;border-top:1px solid #ccc;padding-top:8px}
+  .badge{display:inline-block;background:#fde68a;color:#7c5b00;font-size:11px;padding:2px 8px;border-radius:4px;margin-left:8px}
+  @media print{body{background:#fff;padding:0}.sheet{box-shadow:none;margin:0}}
+</style>
+</head>
+<body>
+<div class="sheet">
+  <div class="doc-head">
+    <h1>월 마감 보고서</h1>
+    <div class="sub">SALES · PURCHASE MONTHLY CLOSING REPORT</div>
+  </div>
+  <div class="meta-approval">
+    <div class="meta">
+      <div><b>대상월</b> 2026년 4월<span class="badge">예시 데이터</span></div>
+      <div><b>사업장</b> 그로븐(면세) · 옐로우브릿지(과세)</div>
+      <div><b>작성일</b> 2026. 6. 2.</div>
+    </div>
+    <div class="approval">
+      <div class="cell">결재</div>
+      <div class="cell"><div class="ttl">작성</div><div class="sig"></div></div>
+      <div class="cell"><div class="ttl">검토</div><div class="sig"></div></div>
+      <div class="cell"><div class="ttl">대표</div><div class="sig"></div></div>
+    </div>
+  </div>
+
+  <h2 class="sec">Ⅰ. 손익 요약 (공급가 기준)</h2>
+  <table>
+    <thead><tr><th>사업장</th><th>과세구분</th><th class="n">매출</th><th class="n">매입</th><th class="n">손익</th><th class="n">원가율</th></tr></thead>
+    <tbody>
+      <tr><td>그로븐</td><td>면세</td><td class="n">16,660,140</td><td class="n">16,085,645</td><td class="n pos">+574,495</td><td class="n">96.5%</td></tr>
+      <tr><td>옐로우브릿지</td><td>과세</td><td class="n">10,800,136</td><td class="n">11,078,207</td><td class="n neg">-278,071</td><td class="n">102.6%</td></tr>
+      <tr class="sum"><td>합계</td><td>-</td><td class="n">27,460,276</td><td class="n">27,163,853</td><td class="n pos">+296,424</td><td class="n">98.9%</td></tr>
+    </tbody>
+  </table>
+
+  <div class="two" style="margin-top:18px">
+    <div>
+      <h2 class="sec">Ⅱ. 채널별 매출</h2>
+      <table>
+        <thead><tr><th>순번</th><th>채널</th><th class="n">금액</th><th class="n">비중</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td>쿠팡</td><td class="n">10,337,958</td><td class="n">37.6%</td></tr>
+          <tr><td>2</td><td>디네트(과메기)</td><td class="n">10,238,700</td><td class="n">37.3%</td></tr>
+          <tr><td>3</td><td>지마켓</td><td class="n">3,200,102</td><td class="n">11.7%</td></tr>
+          <tr><td>4</td><td>11번가</td><td class="n">1,931,715</td><td class="n">7.0%</td></tr>
+          <tr><td>5</td><td>옥션</td><td class="n">1,622,585</td><td class="n">5.9%</td></tr>
+          <tr><td>6</td><td>네이버</td><td class="n">129,216</td><td class="n">0.5%</td></tr>
+          <tr class="sum"><td colspan="2">합계</td><td class="n">27,460,276</td><td class="n">100%</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div>
+      <h2 class="sec">Ⅲ. 매입처별 매입</h2>
+      <table>
+        <thead><tr><th>순번</th><th>매입처</th><th class="n">금액</th><th class="n">비중</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td>주식회사 일비</td><td class="n">11,341,400</td><td class="n">41.8%</td></tr>
+          <tr><td>2</td><td>㈜푸드엔드베스트</td><td class="n">4,428,500</td><td class="n">16.3%</td></tr>
+          <tr><td>3</td><td>대우엔지니어링</td><td class="n">1,000,000</td><td class="n">3.7%</td></tr>
+          <tr><td>4</td><td>주식회사 해담별</td><td class="n">771,600</td><td class="n">2.8%</td></tr>
+          <tr><td>5</td><td>쿠팡 주식회사</td><td class="n">587,818</td><td class="n">2.2%</td></tr>
+          <tr><td>6</td><td>그 외</td><td class="n">9,034,535</td><td class="n">33.2%</td></tr>
+          <tr class="sum"><td colspan="2">합계</td><td class="n">27,163,853</td><td class="n">100%</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <h2 class="sec">Ⅳ. 추이 및 구성</h2>
+  <div class="charts">
+    <div class="chartbox"><canvas id="c-trend"></canvas></div>
+    <div class="chartbox"><canvas id="c-channel"></canvas></div>
+  </div>
+
+  <h2 class="sec">Ⅴ. 입출금 정산 (기업은행)</h2>
+  <table>
+    <thead><tr><th>구분</th><th class="n">건수</th><th class="n">금액</th><th>비고</th></tr></thead>
+    <tbody>
+      <tr><td>입금 (매출 정산)</td><td class="n">56</td><td class="n pos">14,049,074</td><td>네이버·쿠팡·지마켓·옥션 등</td></tr>
+      <tr><td>출금 (매입·비용)</td><td class="n">22</td><td class="n neg">20,881,822</td><td>상품매입·임대료·광고비 등</td></tr>
+      <tr class="sum"><td>순증감</td><td class="n">78</td><td class="n neg">-6,832,748</td><td>월말 잔액 10,846,904</td></tr>
+    </tbody>
+  </table>
+
+  <div class="foot">본 보고서는 자동 마감 시스템으로 생성되었습니다 · 그로븐 / 옐로우브릿지 · 1/1</div>
+</div>
+
+<script>
+new Chart(document.getElementById('c-trend'),{type:'bar',
+  data:{labels:['25.12','26.1','26.2','26.3','26.4','26.5'],
+    datasets:[{label:'매출',data:[400280,3023550,4186620,5094445,27460276,32999810],backgroundColor:'#1a3a6b'},
+              {label:'매입',data:[2152119,3599754,8408897,5948794,27163853,4193783],backgroundColor:'#9aa7bd'}]},
+  options:{plugins:{legend:{position:'bottom',labels:{boxWidth:12,font:{size:10}}},title:{display:true,text:'월별 매출·매입 추이',font:{size:11}}},scales:{y:{ticks:{font:{size:9},callback:v=>(v/10000)+'만'}},x:{ticks:{font:{size:10}}}},maintainAspectRatio:false}});
+new Chart(document.getElementById('c-channel'),{type:'doughnut',
+  data:{labels:['쿠팡','디네트','지마켓','11번가','옥션','네이버'],
+    datasets:[{data:[10337958,10238700,3200102,1931715,1622585,129216],backgroundColor:['#1a3a6b','#2a6bbf','#4a90d9','#84b6e6','#b9d4f0','#dfeaf7']}]},
+  options:{plugins:{legend:{position:'right',labels:{boxWidth:10,font:{size:10}}},title:{display:true,text:'채널별 매출 구성',font:{size:11}}},maintainAspectRatio:false}});
+</script>
+</body>
+</html>
