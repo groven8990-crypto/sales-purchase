@@ -121,6 +121,26 @@ const Dashboard = (function () {
     };
   }
 
+  // 월별 매출·매입 추이 (보고서용)
+  function renderTrend(canvasId, monthly) {
+    const el = document.getElementById(canvasId);
+    if (!el) return;
+    if (charts[canvasId]) charts[canvasId].destroy();
+    charts[canvasId] = new Chart(el, {
+      data: {
+        labels: monthly.map((r) => `${String(r.y).slice(2)}.${r.m}`),
+        datasets: [
+          { type: "bar", label: "매출", data: monthly.map((r) => r.sales), backgroundColor: "#1a3a6b", borderRadius: 4 },
+          { type: "bar", label: "매입", data: monthly.map((r) => r.purchase), backgroundColor: "#9aa7bd", borderRadius: 4 },
+          { type: "line", label: "손익", data: monthly.map((r) => r.profit), borderColor: "#0ea5a5", backgroundColor: "#0ea5a5", tension: .3 },
+        ],
+      },
+      options: { plugins: { legend: { position: "bottom", labels: { boxWidth: 12, font: { size: 11 } } } },
+        scales: { y: { ticks: { font: { size: 10 }, callback: (v) => cheon(v) } }, x: { ticks: { font: { size: 10 } } } },
+        responsive: true, maintainAspectRatio: false },
+    });
+  }
+
   // 그룹 집계(채널별/매입처별) 단독 차트
   function renderGroup(canvasId, groups, type) {
     const el = document.getElementById(canvasId);
@@ -145,5 +165,5 @@ const Dashboard = (function () {
     });
   }
 
-  return { render, renderGroup, destroy, won };
+  return { render, renderTrend, renderGroup, destroy, won };
 })();
