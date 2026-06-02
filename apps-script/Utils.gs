@@ -34,6 +34,32 @@ function matchYearMonth(filename, targetYM) {
   return filename.indexOf(ym) === 0;
 }
 
+// "2605" → "2026-05"
+function targetMonthStr(yearMonth) {
+  return "20" + yearMonth.slice(0, 2) + "-" + yearMonth.slice(2);
+}
+
+// 파일명에서 '실제 거래 월'을 추정 → "YYYY-MM"
+// 우선순위: ① 기간 표기(2026-04-16) ② MM.DD~ 표기(05.26~05.29)
+//          ③ 6자리 접두(YYMMDD) ④ 4자리 접두(MMDD, 연도는 대상연도 사용)
+function detectFileMonth(filename, yearMonth) {
+  var yy = yearMonth ? yearMonth.slice(0, 2)
+                     : String(new Date().getFullYear()).slice(2);
+  // ① YYYY-MM-DD 기간 표기 (가장 신뢰)
+  var iso = filename.match(/(20\d{2})-(\d{2})-(\d{2})/);
+  if (iso) return iso[1] + "-" + iso[2];
+  // ② MM.DD~ / MM-DD~ 기간 표기
+  var md = filename.match(/(\d{1,2})[.\-/](\d{1,2})\s*[~\-]/);
+  if (md) return "20" + yy + "-" + ("0" + md[1]).slice(-2);
+  // ③ 앞 6자리 YYMMDD (받은 날짜)
+  var p6 = filename.match(/^(\d{2})(\d{2})(\d{2})/);
+  if (p6) return "20" + p6[1] + "-" + p6[2];
+  // ④ 앞 4자리 MMDD (연도는 대상연도로 가정)
+  var p4 = filename.match(/^(\d{2})(\d{2})(\D|$)/);
+  if (p4) return "20" + yy + "-" + p4[1];
+  return "";
+}
+
 // 스프레드시트 → 2D 배열 (첫 행 = 헤더, 이후 = 데이터)
 function sheetToRows(sheet) {
   var data = sheet.getDataRange().getValues();
@@ -78,12 +104,14 @@ function listFilesInFolder(folderId, yearMonth) {
   var folder = DriveApp.getFolderById(folderId);
   var files = folder.getFiles();
   var result = [];
+  var target = yearMonth ? targetMonthStr(yearMonth) : null;
   while (files.hasNext()) {
     var f = files.next();
     var name = f.getName();
-    if (yearMonth && !matchYearMonth(name, yearMonth)) continue;
     if (/회신/.test(name)) continue; // 발주 '회신' 파일 제외 (대조용 발주서만 사용)
     if (!isSpreadsheetFile(name, f.getMimeType())) continue; // 그림·PDF 제외
+    // 파일 안의 실제 거래 월 기준으로 매칭 (받은 날짜 아님)
+    if (target && detectFileMonth(name, yearMonth) !== target) continue;
     result.push({ id: f.getId(), name: name, file: f });
   }
   // 날짜 오름차순 정렬
