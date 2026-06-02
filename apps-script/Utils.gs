@@ -82,6 +82,7 @@ function listFilesInFolder(folderId, yearMonth) {
     var f = files.next();
     var name = f.getName();
     if (yearMonth && !matchYearMonth(name, yearMonth)) continue;
+    if (/회신/.test(name)) continue; // 발주 '회신' 파일 제외 (대조용 발주서만 사용)
     if (!isSpreadsheetFile(name, f.getMimeType())) continue; // 그림·PDF 제외
     result.push({ id: f.getId(), name: name, file: f });
   }
