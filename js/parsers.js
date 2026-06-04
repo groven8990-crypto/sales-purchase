@@ -241,8 +241,12 @@ const Parsers = (function () {
    * ========================================================= */
   async function readGenericTable(file) {
     const wb = await readWorkbook(file);
-    const ws = wb.Sheets[wb.SheetNames[0]];
-    const rows = sheetToRows(ws).filter((r) => r && r.some((c) => c != null && c !== ""));
+    // 데이터가 가장 많은 시트 선택 (빈 '시트1' 같은 건 건너뜀)
+    let rows = [], bestCount = -1;
+    wb.SheetNames.forEach((name) => {
+      const r = sheetToRows(wb.Sheets[name]).filter((row) => row && row.some((c) => c != null && c !== ""));
+      if (r.length > bestCount) { bestCount = r.length; rows = r; }
+    });
     // 헤더 후보: 가장 많은 채워진 칸을 가진 상위 행
     let hi = 0, best = -1;
     for (let i = 0; i < Math.min(rows.length, 15); i++) {
