@@ -289,6 +289,7 @@ const App = (function () {
           <button class="btn" data-act="import-existing">📂 기존 마감 엑셀 불러오기</button>
           <button class="btn" data-act="import-bank">🏦 기업은행 통장내역</button>
           <button class="btn" data-act="import-po">🧾 발주서로 매입 정리</button>
+          <button class="btn" data-act="import-paste">📋 매입 직접 추가(붙여넣기)</button>
         </div></div>
       <div class="card"><h3>송금처 마스터 (${S.data.vendors.length}곳)</h3>
         <div class="table-wrap"><table class="grid"><thead><tr><th>송금처</th><th>은행</th><th>계좌번호</th></tr></thead>
@@ -326,6 +327,7 @@ const App = (function () {
       if (b.dataset.act === "import-existing") Modals.importExisting();
       else if (b.dataset.act === "import-bank") Modals.importBank();
       else if (b.dataset.act === "import-po") Modals.importPO();
+      else if (b.dataset.act === "import-paste") Modals.importPaste();
     }));
     $$("[data-go]", main).forEach((b) => b.addEventListener("click", () => go(b.dataset.go)));
   }

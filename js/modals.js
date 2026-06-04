@@ -284,5 +284,53 @@ const Modals = (function () {
     };
   }
 
-  return { importExisting, importBank, importPO, editRow, close };
+  /* ===== 5) 매입 직접 추가 (붙여넣기) ===== */
+  function importPaste() {
+    open("📋 매입 직접 추가 (붙여넣기)",
+      `<p>한 줄에 하나씩 붙여넣으세요. 형식: <b>거래처, 스토어, 금액, 건수</b><br>
+        스토어는 <b>그로븐</b> 또는 <b>옐브</b>(=옐로우브릿지). 건수는 없으면 비워도 돼요.</p>
+       <div class="form-row two">
+         <span><label>기본 연/월</label><input id="ps-ym" placeholder="예: 2026-5"></span>
+         <span><label>분류</label><select id="ps-cat">${S.CATEGORIES.map((x) => `<option ${x === "상품매입" ? "selected" : ""}>${x}</option>`).join("")}</select></span>
+       </div>
+       <div class="form-row"><label>매입 줄 (거래처, 스토어, 금액, 건수)</label>
+         <textarea id="ps-text" rows="12" style="width:100%;font-family:monospace;font-size:12.5px" placeholder="공덕농협, 옐브, 36000, 2&#10;생선상륙, 그로븐, 36500, 3"></textarea></div>
+       <div id="ps-preview" class="preview"></div>`,
+      `<button class="btn" id="ps-cancel">취소</button>
+       <button class="btn primary" id="ps-apply">매입에 추가</button>`);
+
+    const normStore = (v) => {
+      v = String(v || "").toLowerCase().trim();
+      if (v.indexOf("yb") !== -1 || v.indexOf("옐") !== -1 || v.indexOf("과세") !== -1) return "yb";
+      return "groven";
+    };
+    q("#ps-cancel").onclick = close;
+    q("#ps-apply").onclick = () => {
+      const ymM = (q("#ps-ym").value || "").match(/(\d{4})\D+(\d{1,2})/);
+      const year = ymM ? +ymM[1] : new Date().getFullYear();
+      const month = ymM ? +ymM[2] : "";
+      const cat = q("#ps-cat").value;
+      const lines = q("#ps-text").value.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+      const rows = [];
+      lines.forEach((line) => {
+        const p = line.split(/[,\t]/).map((x) => x.trim());
+        if (p.length < 3) return;
+        const vendor = p[0];
+        const store = normStore(p[1]);
+        const amount = S.num(p[2]);
+        const count = p[3] ? S.num(p[3]) : 1;
+        if (!vendor || !amount) return;
+        rows.push({
+          store, year, month, day: "", evidence: store === "yb" ? "세금계산서" : "계산서",
+          category: cat, desc: vendor, vendor, supply: amount, vat: 0, total: amount,
+          orders: count, paid: "", note: "직접추가",
+        });
+      });
+      if (!rows.length) { q("#ps-preview").innerHTML = `<div class="err">읽을 줄이 없어요. 형식을 확인해주세요.</div>`; return; }
+      S.addPurchases(rows);
+      close(); App.go("purchases");
+    };
+  }
+
+  return { importExisting, importBank, importPO, importPaste, editRow, close };
 })();
