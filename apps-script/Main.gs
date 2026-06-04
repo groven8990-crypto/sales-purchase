@@ -165,6 +165,25 @@ function tidyDrive() {
     "정리 완료!\n· 결과 시트 → '클로드작업' 폴더로 이동\n· 임시파일 " + trashed + "개 휴지통으로 이동");
 }
 
+// '내 드라이브' 최상위에 흩어진 파일을 모두 '클로드작업' 폴더로 쓸어담기
+// (다른 클로드 대화에서 만든 시트 포함 — 옮기는 것이라 되돌리기 가능)
+function gatherLooseFilesToFolder() {
+  var folder = DriveApp.getFolderById(getClaudeFolderId());
+  var files = DriveApp.getRootFolder().getFiles();
+  var moved = 0, trashed = 0, names = [];
+  while (files.hasNext()) {
+    var f = files.next();
+    var name = f.getName();
+    if (name.indexOf("tmp_") === 0) { f.setTrashed(true); trashed++; continue; } // 찌꺼기는 삭제
+    try { f.moveTo(folder); moved++; if (names.length < 25) names.push("· " + name); }
+    catch(e) {}
+  }
+  SpreadsheetApp.getUi().alert(
+    moved + "개를 '클로드작업' 폴더로 옮겼어요. (임시 " + trashed + "개 삭제)\n\n"
+    + names.join("\n") + (moved > 25 ? "\n…외" : ""));
+}
+
+
 
 // 대조결과 열 색상 표시 (🔴=빨강, ⚠️=노랑, ✅=초록)
 function highlightCompareSheet(sheet, rowCount) {
@@ -257,5 +276,6 @@ function onOpen() {
     .addSeparator()
     .addItem("📥 마감앱용 Excel 내보내기", "exportForClosingApp")
     .addItem("🧹 드라이브 정리 (찌꺼기 삭제)", "tidyDrive")
+    .addItem("📦 흩어진 파일 → 클로드작업 폴더로 모으기", "gatherLooseFilesToFolder")
     .addToUi();
 }
