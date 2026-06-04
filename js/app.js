@@ -201,9 +201,9 @@ const App = (function () {
     const grp = (rows, label, sumTotal) => `
       <table class="doc-table"><thead><tr><th style="width:42px">순번</th><th>${label}</th><th class="n">건수</th><th class="n">공급가</th><th class="n" style="width:64px">비중</th></tr></thead>
       <tbody>${rows.length ? rows.map((g, i) => `<tr><td>${i + 1}</td><td>${esc(g.key)}</td>
-        <td class="n">${g.count}</td><td class="n">${won(g.sum)}</td><td class="n">${(g.ratio * 100).toFixed(1)}%</td></tr>`).join("")
+        <td class="n">${won(g.count)}</td><td class="n">${won(g.sum)}</td><td class="n">${(g.ratio * 100).toFixed(1)}%</td></tr>`).join("")
         : `<tr><td colspan="5" class="empty">자료 없음</td></tr>`}
-        <tr class="sum"><td colspan="2">합계</td><td class="n">${rows.reduce((a, g) => a + g.count, 0)}</td>
+        <tr class="sum"><td colspan="2">합계</td><td class="n">${won(rows.reduce((a, g) => a + g.count, 0))}</td>
         <td class="n">${won(sumTotal)}</td><td class="n">100%</td></tr></tbody></table>`;
 
     const ttl = (scope.year || "____") + "년 " + (scope.month || "__") + "월";
