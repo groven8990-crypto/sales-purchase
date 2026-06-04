@@ -143,6 +143,29 @@ function exportForClosingApp() {
 // 3. 보조 함수
 // ─────────────────────────────────────────────
 
+// 드라이브 정리: 남은 tmp_ 찌꺼기 삭제 + 결과 시트를 '클로드작업' 폴더로 이동
+function tidyDrive() {
+  var folderId = getClaudeFolderId();
+  var folder = DriveApp.getFolderById(folderId);
+
+  // 1) 결과 시트를 클로드작업 폴더로 이동
+  if (CONFIG.OUTPUT_SHEET_ID) {
+    try { DriveApp.getFileById(CONFIG.OUTPUT_SHEET_ID).moveTo(folder); } catch(e) {}
+  }
+
+  // 2) 어디에 있든 tmp_ 로 시작하는 변환 찌꺼기 휴지통으로
+  var trashed = 0;
+  var tmp = DriveApp.searchFiles('title contains "tmp_" and trashed = false');
+  while (tmp.hasNext()) {
+    var f = tmp.next();
+    if (f.getName().indexOf("tmp_") === 0) { f.setTrashed(true); trashed++; }
+  }
+
+  SpreadsheetApp.getUi().alert(
+    "정리 완료!\n· 결과 시트 → '클로드작업' 폴더로 이동\n· 임시파일 " + trashed + "개 휴지통으로 이동");
+}
+
+
 // 대조결과 열 색상 표시 (🔴=빨강, ⚠️=노랑, ✅=초록)
 function highlightCompareSheet(sheet, rowCount) {
   if (rowCount < 1) return;
@@ -233,5 +256,6 @@ function onOpen() {
     .addItem("🔍 2026년 5월 + 발주 대조 (느림)", "runCompareMay2026")
     .addSeparator()
     .addItem("📥 마감앱용 Excel 내보내기", "exportForClosingApp")
+    .addItem("🧹 드라이브 정리 (찌꺼기 삭제)", "tidyDrive")
     .addToUi();
 }

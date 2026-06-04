@@ -121,6 +121,16 @@ function listFilesInFolder(folderId, yearMonth) {
 
 // 변환으로 생긴 임시 파일 ID 보관 (실행 끝에 정리)
 var _tempFileIds = [];
+var _claudeFolderId = null;
+
+// '클로드작업' 폴더 확보 (없으면 생성). 임시·결과 파일 보관용
+function getClaudeFolderId() {
+  if (_claudeFolderId) return _claudeFolderId;
+  var it = DriveApp.getFoldersByName("클로드작업");
+  var folder = it.hasNext() ? it.next() : DriveApp.createFolder("클로드작업");
+  _claudeFolderId = folder.getId();
+  return _claudeFolderId;
+}
 
 // 스프레드시트 열기 (xlsx 포함, Google Sheets 모두)
 function openAsSpreadsheet(fileId) {
@@ -128,9 +138,11 @@ function openAsSpreadsheet(fileId) {
     return SpreadsheetApp.openById(fileId);
   } catch (e) {
     // xlsx 파일은 Google Sheets로 변환 후 열기 (Drive API v3)
+    // 변환본은 '클로드작업' 폴더 안에 만들어 루트가 지저분해지지 않게 함
     var blob = DriveApp.getFileById(fileId).getBlob();
     var converted = Drive.Files.create(
-      { name: "tmp_" + fileId, mimeType: "application/vnd.google-apps.spreadsheet" },
+      { name: "tmp_" + fileId, mimeType: "application/vnd.google-apps.spreadsheet",
+        parents: [getClaudeFolderId()] },
       blob
     );
     _tempFileIds.push(converted.id);
