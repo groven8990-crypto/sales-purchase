@@ -21,6 +21,9 @@ h2{font-size:20px;margin:0}h3{font-size:15px;margin:0 0 12px}
 .store-tab small{font-weight:500;font-size:10px;opacity:.8}
 .store-tab.active{background:#fff;color:var(--navy)}
 .scope select{padding:8px 10px;border:1px solid var(--navy-d);border-radius:9px;background:#fff;font-size:13px;color:var(--ink)}
+.pin-btn{padding:8px 12px;border:1px solid var(--navy-d);border-radius:9px;background:rgba(255,255,255,.12);color:#cdd8ec;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap}
+.pin-btn:hover{background:rgba(255,255,255,.2)}
+.pin-btn.active{background:#fff;color:var(--navy);border-color:#fff}
 
 /* 레이아웃 */
 .layout{display:flex;min-height:calc(100vh - 58px)}

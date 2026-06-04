@@ -11,7 +11,18 @@ const App = (function () {
   const esc = (s) => String(s == null ? "" : s).replace(/[&<>"]/g, (c) =>
     ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
-  const scope = { store: "", year: "", month: "", view: "home" };
+  const scope = { store: "", year: "", month: "", view: "home", pinned: false };
+  const SCOPE_KEY = "spc_scope_v1";
+
+  function loadSavedScope() {
+    try { return JSON.parse(localStorage.getItem(SCOPE_KEY)) || {}; } catch (e) { return {}; }
+  }
+  function saveScope() {
+    if (!scope.pinned) { localStorage.removeItem(SCOPE_KEY); return; }
+    localStorage.setItem(SCOPE_KEY, JSON.stringify({
+      store: scope.store, year: scope.year, month: scope.month, pinned: true,
+    }));
+  }
 
   function go(view) {
     scope.view = view;
@@ -25,12 +36,11 @@ const App = (function () {
       if (r.year) years.add(S.num(r.year)); if (r.month) months.add(S.num(r.month));
     });
     const yf = $("#f-year"), mf = $("#f-month");
-    const cur = { y: yf.value, m: mf.value };
     yf.innerHTML = `<option value="">전체 연도</option>` +
       [...years].sort((a, b) => b - a).map((y) => `<option value="${y}">${y}년</option>`).join("");
     mf.innerHTML = `<option value="">전체 월</option>` +
       [...months].sort((a, b) => a - b).map((m) => `<option value="${m}">${m}월</option>`).join("");
-    yf.value = cur.y; mf.value = cur.m;
+    yf.value = scope.year; mf.value = scope.month;
   }
 
   function scopeLabel() {
@@ -317,14 +327,33 @@ const App = (function () {
   }
 
   function init() {
+    // 고정해둔 연·월·스토어 복원
+    const saved = loadSavedScope();
+    if (saved.pinned) {
+      scope.pinned = true;
+      scope.store = saved.store || "";
+      scope.year = saved.year || "";
+      scope.month = saved.month || "";
+    }
+    $$(".store-tab").forEach((x) => x.classList.toggle("active", x.dataset.store === scope.store));
+    const pin = $("#f-pin");
+    pin.classList.toggle("active", scope.pinned);
+
     $$(".nav-item").forEach((b) => b.addEventListener("click", () => go(b.dataset.view)));
     $$(".store-tab").forEach((b) => b.addEventListener("click", () => {
       scope.store = b.dataset.store;
       $$(".store-tab").forEach((x) => x.classList.toggle("active", x === b));
-      render();
+      saveScope(); render();
     }));
-    $("#f-year").addEventListener("change", (e) => { scope.year = e.target.value; render(); });
-    $("#f-month").addEventListener("change", (e) => { scope.month = e.target.value; render(); });
+    $("#f-year").addEventListener("change", (e) => { scope.year = e.target.value; saveScope(); render(); });
+    $("#f-month").addEventListener("change", (e) => { scope.month = e.target.value; saveScope(); render(); });
+    pin.addEventListener("click", () => {
+      scope.pinned = !scope.pinned;
+      pin.classList.toggle("active", scope.pinned);
+      pin.textContent = scope.pinned ? "📌 고정됨" : "📌 고정";
+      saveScope();
+    });
+    pin.textContent = scope.pinned ? "📌 고정됨" : "📌 고정";
     document.addEventListener("spc:changed", render);
     go("home");
   }
