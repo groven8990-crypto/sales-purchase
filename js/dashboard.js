@@ -146,13 +146,20 @@ const Dashboard = (function () {
     const el = document.getElementById(canvasId);
     if (!el) return;
     if (charts[canvasId]) charts[canvasId].destroy();
-    const labels = groups.map((g) => g.key);
-    const data = groups.map((g) => g.sum);
-    const colors = groups.map((_, i) => PALETTE[i % PALETTE.length]);
+    // 도넛은 항목이 많으면 상위 7개 + '기타'로 묶어 범례가 넘치지 않게
+    let g2 = groups;
+    if (type === "doughnut" && groups.length > 8) {
+      const top = groups.slice(0, 7);
+      const etcSum = groups.slice(7).reduce((a, g) => a + g.sum, 0);
+      g2 = top.concat([{ key: "기타", sum: etcSum }]);
+    }
+    const labels = g2.map((g) => g.key);
+    const data = g2.map((g) => g.sum);
+    const colors = g2.map((_, i) => PALETTE[i % PALETTE.length]);
     charts[canvasId] = new Chart(el, type === "doughnut" ? {
       type: "doughnut",
       data: { labels, datasets: [{ data, backgroundColor: colors }] },
-      options: { plugins: { legend: { position: "right" },
+      options: { plugins: { legend: { position: "right", labels: { boxWidth: 10, font: { size: 10 }, padding: 6 } },
         tooltip: { callbacks: { label: (c) => `${c.label}: ${won(c.parsed)}` } } },
         responsive: true, maintainAspectRatio: false },
     } : {

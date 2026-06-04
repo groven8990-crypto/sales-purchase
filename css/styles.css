@@ -133,7 +133,7 @@ table.grid tbody tr:hover{background:#fafbff}
 .doc-table .pos{color:var(--green)}.doc-table .neg{color:var(--red)}
 .doc-2col{display:flex;gap:14px}.doc-2col>div{flex:1;min-width:0}
 .doc-charts{display:flex;gap:14px}
-.doc-charts .cbox{flex:1;border:1px solid #d4dae4;border-radius:6px;padding:8px;height:200px}
+.doc-charts .cbox{flex:1;min-width:0;border:1px solid #d4dae4;border-radius:6px;padding:8px;height:210px;overflow:hidden}
 .doc-foot{margin-top:20px;font-size:11px;color:var(--muted);text-align:center;border-top:1px solid #ccc;padding-top:8px}
 
 @media(max-width:760px){.doc-2col,.doc-charts{flex-direction:column}.sheet{padding:14px}}
