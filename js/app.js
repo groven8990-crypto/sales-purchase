@@ -293,7 +293,8 @@ const App = (function () {
       <div class="card"><h3>백업 / 초기화</h3>
         <div class="flow-actions">
           <button class="btn" id="ex-json">💾 전체 백업(JSON)</button>
-          <label class="btn">📥 백업 불러오기<input type="file" id="im-json" accept=".json" hidden></label>
+          <label class="btn">📥 백업 불러오기(덮어쓰기)<input type="file" id="im-json" accept=".json" hidden></label>
+          <label class="btn">🔗 백업 합치기(merge)<input type="file" id="im-merge" accept=".json" hidden></label>
           <button class="btn danger" id="clr-pur">🧾 매입만 비우기</button>
           <button class="btn danger" id="clr">🗑️ 전체 삭제</button>
         </div>
@@ -308,6 +309,11 @@ const App = (function () {
       const f = e.target.files[0]; if (!f) return;
       if (!confirm("현재 데이터를 백업 파일로 덮어씁니다. 계속할까요?")) return;
       S.importJSON(await f.text()); go("home");
+    });
+    $("#im-merge").addEventListener("change", async (e) => {
+      const f = e.target.files[0]; if (!f) return;
+      if (!confirm("백업 파일의 매출·매입·입출금을 현재 데이터에 합칩니다.\n(같은 자료를 두 번 합치면 중복되니 주의)\n계속할까요?")) return;
+      S.importMergeJSON(await f.text()); go("home");
     });
     $("#clr-pur").addEventListener("click", () => {
       if (confirm("매입 자료만 모두 비울까요? (매출·통장은 그대로 유지됩니다)")) { S.clearKind("purchases"); go("purchases"); }

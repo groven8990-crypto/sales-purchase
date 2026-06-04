@@ -79,6 +79,7 @@ const SPC = (function () {
       transactions: [], // 입출금
       vendors: [],      // 송금처 마스터 {name, bank, account}
       rules: JSON.parse(JSON.stringify(DEFAULT_RULES)),
+      vendorItems: {},  // 매입처별 취급품목 { 매입처명: "취급품목" }
     };
   }
 
@@ -243,5 +244,18 @@ const SPC = (function () {
     emptyData,
     exportJSON() { return JSON.stringify(data, null, 2); },
     importJSON(json) { data = Object.assign(emptyData(), JSON.parse(json)); save(); },
+    // 합치기: 기존 데이터에 백업의 매출/매입/입출금을 더하고, 마스터/규칙/취급품목 병합
+    importMergeJSON(json) {
+      const inc = JSON.parse(json);
+      ["sales", "purchases", "transactions"].forEach((k) => {
+        if (Array.isArray(inc[k])) data[k] = (data[k] || []).concat(inc[k]);
+      });
+      if (Array.isArray(inc.vendors)) inc.vendors.forEach((v) => upsertVendor(v));
+      if (Array.isArray(inc.rules)) inc.rules.forEach((r) => {
+        if (!data.rules.some((x) => x.kw === r.kw && x.type === r.type)) data.rules.push(r);
+      });
+      if (inc.vendorItems) data.vendorItems = Object.assign({}, inc.vendorItems, data.vendorItems);
+      save();
+    },
   };
 })();
