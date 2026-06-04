@@ -169,10 +169,12 @@ function exportForClosingApp() {
   var stamp = Utilities.formatDate(now, "Asia/Seoul", "yyMMdd");
   var fileName = "장부_매입내역_" + stamp + ".xlsx";
 
-  // Google Sheets → xlsx 변환
-  var xlsxBlob = DriveApp.getFileById(ss.getId()).getAs("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
-  xlsxBlob.setName(fileName);
-  var savedFile = DriveApp.createFile(xlsxBlob);
+  // Google Sheets → xlsx (export URL 사용)
+  var url = "https://docs.google.com/spreadsheets/d/" + ss.getId() + "/export?format=xlsx";
+  var resp = UrlFetchApp.fetch(url, { headers: { Authorization: "Bearer " + ScriptApp.getOAuthToken() } });
+  var blob = resp.getBlob().setName(fileName);
+  var savedFile = DriveApp.createFile(blob);
+  try { savedFile.moveTo(DriveApp.getFolderById(getClaudeFolderId())); } catch(e) {}
 
   var msg = "Excel 파일 저장 완료!\n파일명: " + fileName + "\n위치: " + savedFile.getUrl();
   log(msg);
