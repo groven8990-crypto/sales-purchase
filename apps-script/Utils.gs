@@ -146,7 +146,13 @@ function openAsSpreadsheet(fileId) {
       blob
     );
     _tempFileIds.push(converted.id);
-    return SpreadsheetApp.openById(converted.id);
+    // 변환 직후 인덱싱 지연으로 'Service Spreadsheets failed'가 날 수 있어 재시도
+    var lastErr;
+    for (var i = 0; i < 6; i++) {
+      try { return SpreadsheetApp.openById(converted.id); }
+      catch (err) { lastErr = err; Utilities.sleep(1500); }
+    }
+    throw lastErr;
   }
 }
 

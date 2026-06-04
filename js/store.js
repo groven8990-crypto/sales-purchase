@@ -43,6 +43,10 @@ const SPC = (function () {
     { kw: "11번가", type: "in", category: "매출정산", channel: "11번가" },
     { kw: "에스케이플래닛", type: "in", category: "매출정산", channel: "11번가" },
     { kw: "옥션", type: "in", category: "매출정산", channel: "옥션" },
+    { kw: "스마트스토어", type: "in", category: "매출정산", channel: "네이버" },
+    { kw: "토스", type: "in", category: "매출정산", channel: "기타" },
+    { kw: "위메프", type: "in", category: "매출정산", channel: "기타" },
+    { kw: "티몬", type: "in", category: "매출정산", channel: "기타" },
     // 출금 성격 — 비용/매입
     { kw: "임대", type: "out", category: "지급임차료" },
     { kw: "임차", type: "out", category: "지급임차료" },
@@ -50,6 +54,18 @@ const SPC = (function () {
     { kw: "수수료", type: "out", category: "지급수수료" },
     { kw: "도매꾹", type: "out", category: "상품매입" },
     { kw: "이머니", type: "out", category: "상품매입" },
+    // 매입 거래처 (출금 → 상품매입)
+    { kw: "해담별", type: "out", category: "상품매입" },
+    { kw: "일비", type: "out", category: "상품매입" },
+    { kw: "푸드엔", type: "out", category: "상품매입" },
+    { kw: "디네트", type: "out", category: "상품매입" },
+    { kw: "생선상륙", type: "out", category: "상품매입" },
+    { kw: "공덕농협", type: "out", category: "상품매입" },
+    { kw: "다모아", type: "out", category: "상품매입" },
+    { kw: "한마당", type: "out", category: "상품매입" },
+    { kw: "일해수산", type: "out", category: "상품매입" },
+    { kw: "충남마른김", type: "out", category: "상품매입" },
+    { kw: "거풍푸드", type: "out", category: "상품매입" },
   ];
 
   /* ---- 기본 데이터 ---------------------------------------- */
@@ -72,7 +88,15 @@ const SPC = (function () {
   function load() {
     try {
       const raw = localStorage.getItem(KEY);
-      if (raw) return Object.assign(emptyData(), JSON.parse(raw));
+      if (raw) {
+        const d = Object.assign(emptyData(), JSON.parse(raw));
+        // 새로 추가된 기본 규칙을 기존 데이터에도 보충 (학습 규칙은 그대로 유지)
+        if (!d.rules) d.rules = [];
+        DEFAULT_RULES.forEach((dr) => {
+          if (!d.rules.some((r) => r.kw === dr.kw && r.type === dr.type)) d.rules.push(dr);
+        });
+        return d;
+      }
     } catch (e) {
       console.warn("저장된 데이터를 읽지 못했습니다:", e);
     }
@@ -197,6 +221,16 @@ const SPC = (function () {
     return { category: v ? "상품매입" : "기타", channel: "", matched: false };
   }
 
+  // 사용자가 정한 분류를 규칙으로 기억 → 다음 업로드 때 자동 적용
+  function learnRule(text, type, category, channel) {
+    const kw = String(text || "").trim();
+    if (!kw || kw.length < 2 || !category || category === "기타") return;
+    const ex = data.rules.find((r) => r.type === type && r.kw === kw);
+    if (ex) { ex.category = category; if (channel) ex.channel = channel; }
+    else data.rules.push({ kw, type, category, channel: channel || "", learned: true });
+    save();
+  }
+
   /* ---- 공개 API ------------------------------------------- */
   return {
     KEY, STORES, CATEGORIES, EVIDENCES, CHANNELS,
@@ -204,7 +238,7 @@ const SPC = (function () {
     save, load, uid, num, byAmountDesc, filterBy,
     addSales, addPurchases, addTransactions, upsertVendor,
     remove, update, clearAll,
-    monthlySummary, sum, groupSum, classify, classifyTxn, lookupVendor,
+    monthlySummary, sum, groupSum, classify, classifyTxn, learnRule, lookupVendor,
     emptyData,
     exportJSON() { return JSON.stringify(data, null, 2); },
     importJSON(json) { data = Object.assign(emptyData(), JSON.parse(json)); save(); },

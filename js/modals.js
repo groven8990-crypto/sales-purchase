@@ -89,9 +89,10 @@ const Modals = (function () {
     q("#bk-cancel").onclick = close;
     q("#bk-apply").onclick = () => {
       if (!result) return;
-      // 미리보기에서 수정된 분류 반영
+      // 미리보기에서 수정된 분류 반영 + 사용자가 정한 분류를 기억(학습)
       result.txns.forEach((t, i) => {
         const sel = q(`#bk-cat-${i}`); if (sel) t.category = sel.value;
+        S.learnRule(t.counterparty || t.desc, t.type, t.category, t.channel);
       });
       S.addTransactions(result.txns);
       close(); App.go("transactions");
