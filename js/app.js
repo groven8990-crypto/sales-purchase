@@ -198,13 +198,16 @@ const App = (function () {
     });
     const tSv = summary.reduce((a, r) => a + r.v, 0), tPv = summary.reduce((a, r) => a + r.p, 0);
 
-    const grp = (rows, label, sumTotal) => `
-      <table class="doc-table"><thead><tr><th style="width:44px">순번</th><th>${label}</th><th class="n" style="width:80px">건수</th><th class="n" style="width:130px">공급가</th><th class="n" style="width:70px">비중</th></tr></thead>
-      <tbody>${rows.length ? rows.map((g, i) => `<tr><td>${i + 1}</td><td class="name" title="${esc(g.key)}">${esc(g.key)}</td>
+    const grp = (rows, label, sumTotal, itemsOf) => {
+      const hi = !!itemsOf;
+      return `
+      <table class="doc-table"><thead><tr><th style="width:40px">순번</th><th style="${hi ? "width:96px" : ""}">${label}</th>${hi ? `<th>취급품목</th>` : ""}<th class="n" style="width:70px">건수</th><th class="n" style="width:120px">공급가</th><th class="n" style="width:60px">비중</th></tr></thead>
+      <tbody>${rows.length ? rows.map((g, i) => `<tr><td>${i + 1}</td><td class="name">${esc(g.key)}</td>${hi ? `<td class="name">${esc(itemsOf(g.key))}</td>` : ""}
         <td class="n">${won(g.count)}</td><td class="n">${won(g.sum)}</td><td class="n">${(g.ratio * 100).toFixed(1)}%</td></tr>`).join("")
-        : `<tr><td colspan="5" class="empty">자료 없음</td></tr>`}
-        <tr class="sum"><td colspan="2">합계</td><td class="n">${won(rows.reduce((a, g) => a + g.count, 0))}</td>
+        : `<tr><td colspan="${hi ? 6 : 5}" class="empty">자료 없음</td></tr>`}
+        <tr class="sum"><td colspan="${hi ? 3 : 2}">합계</td><td class="n">${won(rows.reduce((a, g) => a + g.count, 0))}</td>
         <td class="n">${won(sumTotal)}</td><td class="n">100%</td></tr></tbody></table>`;
+    };
 
     const ttl = (scope.year || "____") + "년 " + (scope.month || "__") + "월";
     main.innerHTML = `
@@ -250,7 +253,7 @@ const App = (function () {
         </table>
 
         <h4 class="doc-sec">Ⅱ. 채널별 매출</h4>${grp(byChannel, "채널", tSv ? S.sum(sales, "supply") : 0)}
-        <h4 class="doc-sec">Ⅲ. 매입처별 매입</h4>${grp(byVendor, "매입처", S.sum(purch, "supply"))}
+        <h4 class="doc-sec">Ⅲ. 매입처별 매입</h4>${grp(byVendor, "매입처", S.sum(purch, "supply"), (k) => S.data.vendorItems[k] || "")}
 
         <h4 class="doc-sec">Ⅳ. 추이 및 구성</h4>
         <div class="doc-charts">
@@ -287,6 +290,12 @@ const App = (function () {
           <button class="btn" data-act="import-po">🧾 발주서로 매입 정리</button>
           <button class="btn" data-act="import-paste">📋 매입 직접 추가(붙여넣기)</button>
         </div></div>
+      <div class="card"><h3>매입처 취급품목</h3>
+        <p class="hint">매입처마다 취급하는 품목을 적어두면 보고서 '매입처별 매입'에 표시됩니다.</p>
+        <div class="table-wrap scroll"><table class="grid"><thead><tr><th style="width:160px">매입처</th><th>취급품목</th></tr></thead>
+        <tbody>${[...new Set(S.data.purchases.map((p) => p.vendor).filter(Boolean))].sort().map((v) =>
+          `<tr><td>${esc(v)}</td><td><input class="vi-input" data-v="${esc(v)}" value="${esc(S.data.vendorItems[v] || "")}" placeholder="예: 간고등어, 굴비" style="width:100%;border:1px solid var(--line);border-radius:7px;padding:6px 9px;font-size:13px"></td></tr>`).join("") ||
+          `<tr><td colspan="2" class="empty">매입 자료를 먼저 넣어주세요</td></tr>`}</tbody></table></div></div>
       <div class="card"><h3>송금처 마스터 (${S.data.vendors.length}곳)</h3>
         <div class="table-wrap"><table class="grid"><thead><tr><th>송금처</th><th>은행</th><th>계좌번호</th></tr></thead>
         <tbody>${S.data.vendors.map((v) => `<tr><td>${esc(v.name)}</td><td>${esc(v.bank)}</td><td>${esc(v.account)}</td></tr>`).join("")}</tbody></table></div></div>
@@ -315,6 +324,10 @@ const App = (function () {
       if (!confirm("백업 파일의 매출·매입·입출금을 현재 데이터에 합칩니다.\n(같은 자료를 두 번 합치면 중복되니 주의)\n계속할까요?")) return;
       S.importMergeJSON(await f.text()); go("home");
     });
+    $$(".vi-input", main).forEach((el) => el.addEventListener("change", () => {
+      S.data.vendorItems[el.dataset.v] = el.value.trim();
+      S.save();
+    }));
     $("#clr-pur").addEventListener("click", () => {
       if (confirm("매입 자료만 모두 비울까요? (매출·통장은 그대로 유지됩니다)")) { S.clearKind("purchases"); go("purchases"); }
     });
