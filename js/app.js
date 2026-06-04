@@ -201,7 +201,7 @@ const App = (function () {
     const grp = (rows, label, sumTotal, itemsOf) => {
       const hi = !!itemsOf;
       return `
-      <table class="doc-table"><thead><tr><th class="c" style="width:36px">순번</th><th>${label}</th>${hi ? `<th style="width:128px">취급품목</th>` : ""}<th class="n" style="width:70px">건수</th><th class="n" style="width:120px">공급가</th><th class="n" style="width:60px">비중</th></tr></thead>
+      <table class="doc-table"><thead><tr><th class="c" style="width:48px">순번</th><th>${label}</th>${hi ? `<th style="width:128px">취급품목</th>` : ""}<th class="n" style="width:54px">건수</th><th class="n" style="width:118px">공급가</th><th class="n" style="width:58px">비중</th></tr></thead>
       <tbody>${rows.length ? rows.map((g, i) => `<tr><td class="c">${i + 1}</td><td class="name">${esc(g.key)}</td>${hi ? `<td class="name">${esc(itemsOf(g.key))}</td>` : ""}
         <td class="n">${won(g.count)}</td><td class="n">${won(g.sum)}</td><td class="n">${(g.ratio * 100).toFixed(1)}%</td></tr>`).join("")
         : `<tr><td colspan="${hi ? 6 : 5}" class="empty">자료 없음</td></tr>`}
