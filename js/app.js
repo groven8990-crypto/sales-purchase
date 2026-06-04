@@ -267,15 +267,13 @@ const App = (function () {
             <tr class="sum"><td>순증감</td><td class="n">${txns.length}</td><td class="n ${inSum - outSum >= 0 ? "pos" : "neg"}">${inSum - outSum >= 0 ? "+" : ""}${won(inSum - outSum)}</td><td></td></tr>
           </tbody>
         </table>
-
-        <div class="doc-foot">본 보고서는 자동 마감 시스템으로 생성되었습니다 · 그로븐 / 옐로우브릿지</div>
       </div>`;
 
     $("#dl-xlsx").addEventListener("click", () => Report.download({ year, month }));
-    // 차트
+    // 차트 (구성 차트는 데이터 있는 쪽: 매출 채널 없으면 매입처)
     const monthly = S.monthlySummary(store);
     Dashboard.renderTrend("rp-trend", monthly);
-    Dashboard.renderGroup("rp-ch", byChannel, "doughnut");
+    Dashboard.renderGroup("rp-ch", byChannel.length ? byChannel : byVendor, "doughnut");
   }
 
   /* ===================== 데이터 · 설정 ===================== */
