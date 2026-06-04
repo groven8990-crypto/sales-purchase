@@ -297,6 +297,7 @@ const App = (function () {
         <div class="flow-actions">
           <button class="btn" id="ex-json">💾 전체 백업(JSON)</button>
           <label class="btn">📥 백업 불러오기<input type="file" id="im-json" accept=".json" hidden></label>
+          <button class="btn danger" id="clr-pur">🧾 매입만 비우기</button>
           <button class="btn danger" id="clr">🗑️ 전체 삭제</button>
         </div>
         <p class="hint">데이터는 이 브라우저에만 저장됩니다. 다른 PC에서 쓰려면 백업 파일을 옮기세요.</p></div>`;
@@ -310,6 +311,9 @@ const App = (function () {
       const f = e.target.files[0]; if (!f) return;
       if (!confirm("현재 데이터를 백업 파일로 덮어씁니다. 계속할까요?")) return;
       S.importJSON(await f.text()); go("home");
+    });
+    $("#clr-pur").addEventListener("click", () => {
+      if (confirm("매입 자료만 모두 비울까요? (매출·통장은 그대로 유지됩니다)")) { S.clearKind("purchases"); go("purchases"); }
     });
     $("#clr").addEventListener("click", () => {
       if (confirm("정말 모든 데이터를 삭제할까요? 되돌릴 수 없습니다.")) { S.clearAll(); go("home"); }

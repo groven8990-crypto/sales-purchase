@@ -152,6 +152,7 @@ const SPC = (function () {
   }
 
   function clearAll() { data = emptyData(); save(); }
+  function clearKind(kind) { if (data[kind]) { data[kind] = []; save(); } }
 
   /* ---- 집계 ----------------------------------------------- */
   // 월별 매출/매입 합계 (공급가 기준) 및 손익
@@ -237,7 +238,7 @@ const SPC = (function () {
     get data() { return data; },
     save, load, uid, num, byAmountDesc, filterBy,
     addSales, addPurchases, addTransactions, upsertVendor,
-    remove, update, clearAll,
+    remove, update, clearAll, clearKind,
     monthlySummary, sum, groupSum, classify, classifyTxn, learnRule, lookupVendor,
     emptyData,
     exportJSON() { return JSON.stringify(data, null, 2); },

@@ -198,7 +198,7 @@ const Modals = (function () {
     const n = String(name).replace(/\s/g, "");
     const k = {
       date: ["일자", "날짜", "발주일", "주문일", "date"],
-      vendor: ["업체", "거래처", "공급", "vendor", "상호"],
+      vendor: ["거래처", "업체", "공급처", "공급업체", "vendor", "상호", "거래선"],
       desc: ["품목", "상품", "내용", "내역", "품명", "item"],
       qty: ["수량", "qty", "개수"],
       supply: ["공급가", "단가", "공급"],
