@@ -249,10 +249,8 @@ const App = (function () {
           </tbody>
         </table>
 
-        <div class="doc-2col">
-          <div><h4 class="doc-sec">Ⅱ. 채널별 매출</h4>${grp(byChannel, "채널", tSv ? S.sum(sales, "supply") : 0)}</div>
-          <div><h4 class="doc-sec">Ⅲ. 매입처별 매입</h4>${grp(byVendor, "매입처", S.sum(purch, "supply"))}</div>
-        </div>
+        <h4 class="doc-sec">Ⅱ. 채널별 매출</h4>${grp(byChannel, "채널", tSv ? S.sum(sales, "supply") : 0)}
+        <h4 class="doc-sec">Ⅲ. 매입처별 매입</h4>${grp(byVendor, "매입처", S.sum(purch, "supply"))}
 
         <h4 class="doc-sec">Ⅳ. 추이 및 구성</h4>
         <div class="doc-charts">
