@@ -6,6 +6,12 @@
 //  true  = 발주서까지 읽어 수량 대조 (느림, 필요할 때만)
 var DO_COMPARE = false;
 
+// 알림: 메뉴에서 실행하면 팝업, 편집기에서 실행하면 로그로만 (오류 방지)
+function notify(msg) {
+  Logger.log(msg);
+  try { SpreadsheetApp.getUi().alert(msg); } catch (e) { /* 편집기 실행 시 무시 */ }
+}
+
 // ─────────────────────────────────────────────
 // 1. 월 마감 자동화 (버튼 한 번으로 전체 처리)
 // ─────────────────────────────────────────────
@@ -109,7 +115,7 @@ function runMonthlyClosing(yearMonth) {
   var summary = "✅ 완료: 매입 " + allPurchase.length + "건 / B2B매출 " + allB2b.length +
     "건 / 대조 " + allCompare.length + "건\n스프레드시트: " + ss.getUrl();
   log(summary);
-  SpreadsheetApp.getUi().alert(summary);
+  notify(summary);
 
   return ss.getUrl();
 }
@@ -122,7 +128,7 @@ function runMonthlyClosing(yearMonth) {
 function exportForClosingApp() {
   var ss = getOrCreateOutputSheet();
   var sheet = ss.getSheetByName(CONFIG.SHEET_PURCHASE);
-  if (!sheet) { SpreadsheetApp.getUi().alert("먼저 runMonthlyClosing을 실행하세요."); return; }
+  if (!sheet) { notify("먼저 runMonthlyClosing을 실행하세요."); return; }
 
   // 현재 날짜로 파일명 생성
   var now = new Date();
@@ -136,7 +142,7 @@ function exportForClosingApp() {
 
   var msg = "Excel 파일 저장 완료!\n파일명: " + fileName + "\n위치: " + savedFile.getUrl();
   log(msg);
-  SpreadsheetApp.getUi().alert(msg);
+  notify(msg);
 }
 
 // ─────────────────────────────────────────────
@@ -161,7 +167,7 @@ function tidyDrive() {
     if (f.getName().indexOf("tmp_") === 0) { f.setTrashed(true); trashed++; }
   }
 
-  SpreadsheetApp.getUi().alert(
+  notify(
     "정리 완료!\n· 결과 시트 → '클로드작업' 폴더로 이동\n· 임시파일 " + trashed + "개 휴지통으로 이동");
 }
 
@@ -178,7 +184,7 @@ function gatherLooseFilesToFolder() {
     try { f.moveTo(folder); moved++; if (names.length < 25) names.push("· " + name); }
     catch(e) {}
   }
-  SpreadsheetApp.getUi().alert(
+  notify(
     moved + "개를 '클로드작업' 폴더로 옮겼어요. (임시 " + trashed + "개 삭제)\n\n"
     + names.join("\n") + (moved > 25 ? "\n…외" : ""));
 }
