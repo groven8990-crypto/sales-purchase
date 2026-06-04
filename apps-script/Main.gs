@@ -21,18 +21,13 @@ function dropTotalRows(rows) {
   });
 }
 
-// 공급가가 0인데 합계가 있으면 합계로 공급가/부가세를 채움
+// 공급가가 0인데 합계가 있으면 합계로 채움 (면세 상품 → 공급가=합계, 부가세=0)
 function fillSupplyFromTotal(rows) {
   rows.forEach(function (r) {
     var supply = toNum(r[7]), total = toNum(r[9]);
     if (supply === 0 && total > 0) {
-      if (r[10] === "yb") {           // 과세
-        r[7] = Math.round(total / 1.1);
-        r[8] = total - r[7];
-      } else {                         // 면세(그로븐)
-        r[7] = total;
-        r[8] = 0;
-      }
+      r[7] = total;   // 공급가 = 합계
+      r[8] = 0;       // 부가세 0 (면세)
     }
   });
 }
