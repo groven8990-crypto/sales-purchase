@@ -165,15 +165,24 @@ function cleanupTempFiles() {
   _tempFileIds = [];
 }
 
-// 출력 스프레드시트 가져오기 또는 생성
+// 출력 스프레드시트 가져오기 또는 생성 (중복 생성 방지)
 function getOrCreateOutputSheet() {
   if (CONFIG.OUTPUT_SHEET_ID) {
     try { return SpreadsheetApp.openById(CONFIG.OUTPUT_SHEET_ID); } catch(e) {}
   }
+  // 같은 이름의 기존 결과 시트가 있으면 가장 최근 것을 재사용 (새로 안 만듦)
+  var it = DriveApp.getFilesByName("매입·매출 마감 자동화 결과");
+  var newest = null;
+  while (it.hasNext()) {
+    var f = it.next();
+    if (f.isTrashed()) continue;
+    if (!newest || f.getLastUpdated() > newest.getLastUpdated()) newest = f;
+  }
+  if (newest) return SpreadsheetApp.openById(newest.getId());
+
   var ss = SpreadsheetApp.create("매입·매출 마감 자동화 결과");
+  DriveApp.getFileById(ss.getId()).moveTo(DriveApp.getFolderById(getClaudeFolderId()));
   Logger.log("새 출력 시트 생성: " + ss.getId());
-  // Config에 저장 안내
-  Logger.log("CONFIG.OUTPUT_SHEET_ID 에 아래 ID를 입력하세요: " + ss.getId());
   return ss;
 }
 
