@@ -129,11 +129,10 @@ function parseIlbiJungsan(fileId) {
         isB2B:   isB2B,
       };
 
-      if (isB2B) {
-        result.b2bSales.push(entry);
-      } else {
-        result.purchase.push(entry);
-      }
+      // 일비 정산서는 전부 그로븐의 '매입(원가)'.
+      // 현해랑 주문분도 그로븐이 일비에 낸 돈이므로 매입에 포함.
+      // (현해랑 'B2B 매출'은 디네트 명세서의 실제 판매가로 따로 집계)
+      result.purchase.push(entry);
     }
   });
 
