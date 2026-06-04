@@ -62,6 +62,7 @@ function parseGenericJungsan(fileId, vendorName) {
         iNote   !== -1 ? String(row[iNote]   || "") : "", // 메모
         "✅ (자동인식)",                               // 대조결과
         filename,                                      // 원본파일
+        1,                                             // 건수
       ]);
     }
   });

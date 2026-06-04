@@ -288,7 +288,7 @@ const Parsers = (function () {
         category: fixed.category || "상품매입",
         desc: desc || (vendor ? vendor + " 발주 건" : "발주 건"),
         vendor, supply, vat, total: total || supply + vat,
-        orders: qty || 1, paid: "", note: "발주서",
+        orders: (mapping.orders != null ? num(get("orders")) : qty) || 1, paid: "", note: "발주서",
       });
     });
     return out;

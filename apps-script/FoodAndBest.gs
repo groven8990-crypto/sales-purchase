@@ -197,6 +197,7 @@ function compareFoodItems(baljooItems, jungsanByStore) {
         "",                        // 메모
         flag,                      // 대조결과
         j.items[0] ? j.items[0].srcFile : "", // 원본파일
+        j.items.length,            // 건수 (정산서 주문 수)
       ]);
     });
 
@@ -213,6 +214,7 @@ function compareFoodItems(baljooItems, jungsanByStore) {
           storeKey, "",
           "⚠️ 정산서없음(발주만존재)",
           b.items[0] ? b.items[0].srcFile : "",
+          b.items.length,
         ]);
       }
     });

@@ -181,7 +181,7 @@ const SPC = (function () {
     arr.forEach((r) => {
       const k = (r[keyField] != null && r[keyField] !== "") ? r[keyField] : "(미지정)";
       (m[k] = m[k] || { key: k, count: 0, sum: 0 });
-      m[k].count += 1; m[k].sum += num(r[valField]);
+      m[k].count += (num(r.orders) || 1); m[k].sum += num(r[valField]);
     });
     const rows = Object.values(m).sort((a, b) => b.sum - a.sum);
     const total = rows.reduce((s, r) => s + r.sum, 0) || 1;

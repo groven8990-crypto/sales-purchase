@@ -186,6 +186,7 @@ function compareIlbiItems(baljooItems, jungsanPurchase) {
       storeKey, "",
       flag,
       j.items[0] ? j.items[0].srcFile : "",
+      j.items.length,            // 건수 (정산서 주문 수)
     ]);
   });
 
@@ -202,6 +203,7 @@ function compareIlbiItems(baljooItems, jungsanPurchase) {
         parts[1], "",
         "⚠️ 정산서없음(발주만존재)",
         b.items[0] ? b.items[0].srcFile : "",
+        b.items.length,
       ]);
     }
   });
@@ -227,6 +229,7 @@ function ilbiB2bToSalesRows(b2bItems) {
       item.note,
       "✅",
       item.srcFile,
+      1,
     ];
   });
 }
