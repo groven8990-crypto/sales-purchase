@@ -199,7 +199,7 @@ const App = (function () {
     const tSv = summary.reduce((a, r) => a + r.v, 0), tPv = summary.reduce((a, r) => a + r.p, 0);
 
     const grp = (rows, label, sumTotal) => `
-      <table class="doc-table"><thead><tr><th style="width:30px">순번</th><th>${label}</th><th class="n" style="width:46px">건수</th><th class="n">공급가</th><th class="n" style="width:52px">비중</th></tr></thead>
+      <table class="doc-table"><thead><tr><th style="width:26px">순번</th><th>${label}</th><th class="n" style="width:38px">건수</th><th class="n" style="width:76px">공급가</th><th class="n" style="width:42px">비중</th></tr></thead>
       <tbody>${rows.length ? rows.map((g, i) => `<tr><td>${i + 1}</td><td class="name" title="${esc(g.key)}">${esc(g.key)}</td>
         <td class="n">${won(g.count)}</td><td class="n">${won(g.sum)}</td><td class="n">${(g.ratio * 100).toFixed(1)}%</td></tr>`).join("")
         : `<tr><td colspan="5" class="empty">자료 없음</td></tr>`}
@@ -249,8 +249,10 @@ const App = (function () {
           </tbody>
         </table>
 
-        <h4 class="doc-sec">Ⅱ. 채널별 매출</h4>${grp(byChannel, "채널", tSv ? S.sum(sales, "supply") : 0)}
-        <h4 class="doc-sec">Ⅲ. 매입처별 매입</h4>${grp(byVendor, "매입처", S.sum(purch, "supply"))}
+        <div class="doc-2col">
+          <div><h4 class="doc-sec">Ⅱ. 채널별 매출</h4>${grp(byChannel, "채널", tSv ? S.sum(sales, "supply") : 0)}</div>
+          <div><h4 class="doc-sec">Ⅲ. 매입처별 매입</h4>${grp(byVendor, "매입처", S.sum(purch, "supply"))}</div>
+        </div>
 
         <h4 class="doc-sec">Ⅳ. 추이 및 구성</h4>
         <div class="doc-charts">
