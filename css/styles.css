@@ -127,6 +127,7 @@ table.grid tbody tr:hover{background:#fafbff}
 .doc-table th{background:#eef1f6;font-weight:700;white-space:nowrap}
 .doc-table td.n,.doc-table th.n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
 .doc-table td.name{white-space:normal;word-break:break-all;line-height:1.25}
+.doc-table .c{text-align:center}
 .doc-table tbody tr:nth-child(even){background:#f7f8fb}
 .doc-table tr.sum td{font-weight:800;background:#e7ebf2}
 .doc-table .empty{text-align:center;color:var(--muted);padding:10px}

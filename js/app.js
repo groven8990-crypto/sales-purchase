@@ -201,8 +201,8 @@ const App = (function () {
     const grp = (rows, label, sumTotal, itemsOf) => {
       const hi = !!itemsOf;
       return `
-      <table class="doc-table"><thead><tr><th style="width:40px">순번</th><th style="${hi ? "width:96px" : ""}">${label}</th>${hi ? `<th>취급품목</th>` : ""}<th class="n" style="width:70px">건수</th><th class="n" style="width:120px">공급가</th><th class="n" style="width:60px">비중</th></tr></thead>
-      <tbody>${rows.length ? rows.map((g, i) => `<tr><td>${i + 1}</td><td class="name">${esc(g.key)}</td>${hi ? `<td class="name">${esc(itemsOf(g.key))}</td>` : ""}
+      <table class="doc-table"><thead><tr><th class="c" style="width:36px">순번</th><th>${label}</th>${hi ? `<th style="width:128px">취급품목</th>` : ""}<th class="n" style="width:70px">건수</th><th class="n" style="width:120px">공급가</th><th class="n" style="width:60px">비중</th></tr></thead>
+      <tbody>${rows.length ? rows.map((g, i) => `<tr><td class="c">${i + 1}</td><td class="name">${esc(g.key)}</td>${hi ? `<td class="name">${esc(itemsOf(g.key))}</td>` : ""}
         <td class="n">${won(g.count)}</td><td class="n">${won(g.sum)}</td><td class="n">${(g.ratio * 100).toFixed(1)}%</td></tr>`).join("")
         : `<tr><td colspan="${hi ? 6 : 5}" class="empty">자료 없음</td></tr>`}
         <tr class="sum"><td colspan="${hi ? 3 : 2}">합계</td><td class="n">${won(rows.reduce((a, g) => a + g.count, 0))}</td>
