@@ -134,26 +134,27 @@ function getClaudeFolderId() {
 
 // 스프레드시트 열기 (xlsx 포함, Google Sheets 모두)
 function openAsSpreadsheet(fileId) {
-  try {
+  var file = DriveApp.getFileById(fileId);
+  var mime = file.getMimeType();
+  // 이미 구글시트면 변환 없이 바로 열기
+  if (mime === "application/vnd.google-apps.spreadsheet") {
     return SpreadsheetApp.openById(fileId);
-  } catch (e) {
-    // xlsx 파일은 Google Sheets로 변환 후 열기 (Drive API v3)
-    // 변환본은 '클로드작업' 폴더 안에 만들어 루트가 지저분해지지 않게 함
-    var blob = DriveApp.getFileById(fileId).getBlob();
-    var converted = Drive.Files.create(
-      { name: "tmp_" + fileId, mimeType: "application/vnd.google-apps.spreadsheet",
-        parents: [getClaudeFolderId()] },
-      blob
-    );
-    _tempFileIds.push(converted.id);
-    // 변환 직후 인덱싱 지연으로 'Service Spreadsheets failed'가 날 수 있어 재시도
-    var lastErr;
-    for (var i = 0; i < 6; i++) {
-      try { return SpreadsheetApp.openById(converted.id); }
-      catch (err) { lastErr = err; Utilities.sleep(1500); }
-    }
-    throw lastErr;
   }
+  // xlsx/xls → 구글시트로 변환 ('클로드작업' 폴더에 임시 생성)
+  var converted = Drive.Files.create(
+    { name: "tmp_" + fileId, mimeType: "application/vnd.google-apps.spreadsheet",
+      parents: [getClaudeFolderId()] },
+    file.getBlob()
+  );
+  _tempFileIds.push(converted.id);
+  // 변환 직후 구글이 준비될 때까지 대기 후, 여러 번 재시도
+  Utilities.sleep(3000);
+  var lastErr;
+  for (var i = 0; i < 8; i++) {
+    try { return SpreadsheetApp.openById(converted.id); }
+    catch (err) { lastErr = err; Utilities.sleep(3000); }
+  }
+  throw lastErr;
 }
 
 // 변환용 임시 파일 정리
