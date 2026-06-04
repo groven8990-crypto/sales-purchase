@@ -12,6 +12,15 @@ function notify(msg) {
   try { SpreadsheetApp.getUi().alert(msg); } catch (e) { /* 편집기 실행 시 무시 */ }
 }
 
+// 정산서 '합계/소계 행' 제거: 품목·규격이 모두 빈 행은 집계용 총계줄
+function dropTotalRows(rows) {
+  return rows.filter(function (r) {
+    var item = String(r[3] || "").trim();
+    var spec = String(r[4] || "").trim();
+    return item !== "" || spec !== "";  // 둘 다 비면 제외
+  });
+}
+
 // 공급가가 0인데 합계가 있으면 합계로 공급가/부가세를 채움
 function fillSupplyFromTotal(rows) {
   rows.forEach(function (r) {
@@ -102,6 +111,10 @@ function runMonthlyClosing(yearMonth) {
   } catch(e) { log("❌ 디네트 오류: " + e.message); }
 
   // ── 결과 쓰기 ──
+  // 정산서 맨 아래 '합계 행'(품목·규격 모두 빈 행)은 매입에서 제외
+  allPurchase = dropTotalRows(allPurchase);
+  allCompare  = dropTotalRows(allCompare);
+
   // 공급가가 비어있으면(정산서에 공급가 열 없음) 합계로 채움.
   //  면세: 공급가=합계, 부가세=0 / 과세(yb): 공급가=합계÷1.1, 부가세=나머지
   fillSupplyFromTotal(allPurchase);
