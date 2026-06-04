@@ -255,21 +255,30 @@ const Parsers = (function () {
   }
 
   // 매핑 {field: colIndex} 적용 → 매입행 생성
+  function normStore(v) {
+    v = String(v || "").toLowerCase();
+    if (v.indexOf("yb") !== -1 || v.indexOf("옐") !== -1 || v.indexOf("과세") !== -1) return "yb";
+    if (v.indexOf("grov") !== -1 || v.indexOf("그로") !== -1 || v.indexOf("면세") !== -1) return "groven";
+    return "";
+  }
   function applyPurchaseMapping(body, mapping, fixed) {
     const out = [];
     body.forEach((r) => {
       const get = (f) => (mapping[f] != null ? r[mapping[f]] : null);
+      const rowStore = mapping.store != null ? normStore(get("store")) : "";
+      const store = rowStore || fixed.store;
+      const taxType = store === "yb" ? "과세" : "면세";
       const vendor = str(get("vendor")) || fixed.vendor || "";
       const desc = str(get("desc"));
       const qty = num(get("qty"));
       let supply = num(get("supply"));
       const total = num(get("total"));
-      if (!supply && total) supply = fixed.taxType === "과세" ? Math.round(total / 1.1) : total;
+      if (!supply && total) supply = taxType === "과세" ? Math.round(total / 1.1) : total;
       if (!vendor && !desc && !supply && !total) return;
       const d = parseDate(get("date"));
-      const vat = fixed.taxType === "과세" ? (num(get("vat")) || (total ? total - supply : Math.round(supply * 0.1))) : 0;
+      const vat = taxType === "과세" ? (num(get("vat")) || (total ? total - supply : Math.round(supply * 0.1))) : 0;
       out.push({
-        store: fixed.store,
+        store: store,
         year: d.y || fixed.year, month: d.m || fixed.month, day: d.d || fixed.day || "",
         evidence: fixed.evidence || "계산서",
         category: fixed.category || "상품매입",

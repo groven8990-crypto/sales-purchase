@@ -128,6 +128,7 @@ const Modals = (function () {
   const PO_FIELDS = [
     ["date", "일자"], ["vendor", "업체명"], ["desc", "품목/내용"],
     ["qty", "수량"], ["supply", "공급가"], ["vat", "세액"], ["total", "합계/금액"],
+    ["store", "스토어(있으면)"],
   ];
   function importPO() {
     open("🧾 발주서로 매입 정리",
@@ -203,6 +204,7 @@ const Modals = (function () {
       supply: ["공급가", "단가", "공급"],
       vat: ["세액", "부가", "vat", "세금"],
       total: ["합계", "금액", "총액", "amount", "total", "공급대가"],
+      store: ["스토어", "store", "매장"],
     }[field] || [];
     return k.some((x) => n.toLowerCase().includes(x.toLowerCase()));
   }
