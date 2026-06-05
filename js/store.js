@@ -176,11 +176,39 @@ const SPC = (function () {
 
   function sum(arr, field) { return arr.reduce((s, r) => s + num(r[field]), 0); }
 
+  // 같은 거래처의 정식명/약칭을 하나로 통일 (장부용 대표이름)
+  // 별칭표: 특정 이름 → 대표이름
+  const VENDOR_ALIAS = {
+    "더자인": "최고집",
+    "도매꾹": "도매꾹 이머니 충전", "도매꾹이머니충전": "도매꾹 이머니 충전",
+    "늘푸룬우리": "늘푸른", "늘푸른우리": "늘푸른",
+    "다모아식품": "다모아",
+    "공덕농협농산물가공사업소": "공덕농협",
+    "충남마른김가공수산업협동조합": "충남마른김", "충남마른김가공수산업": "충남마른김",
+    "11번가": "십일번가", "에스케이플래닛": "십일번가",
+  };
+  // 주 거래처(이 목록에 있으면 그대로 유지). 그 외 + 십일번가 제외는 모두 도매꾹으로
+  const VENDOR_KEEP = ["푸드엔드베스트", "최고집", "도매꾹 이머니 충전", "해담별", "일비",
+    "늘푸른", "다모아", "남부파머스", "소문난떡집", "생선상륙", "거풍푸드", "공덕농협",
+    "충남마른김", "십일번가"];
+  function canonVendor(name) {
+    let n = String(name || "").trim();
+    if (!n) return "(미지정)";
+    const userMap = (data && data.vendorAlias) || {};
+    // 법인격·공백 제거
+    let s = n.replace(/주식회사|㈜|\(주\)|\(유\)|농업회사법인|영농조합법인|유한회사|협동조합/g, "").replace(/\s/g, "").trim();
+    let cand = userMap[n] || userMap[s] || VENDOR_ALIAS[n] || VENDOR_ALIAS[s] || s || n;
+    if (VENDOR_KEEP.indexOf(cand) !== -1) return cand;
+    // 주 거래처가 아니면(=도매꾹에서 현금영수증으로 산 것) 도매꾹으로 묶음
+    return "도매꾹 이머니 충전";
+  }
+
   // 특정 필드(채널/업체 등)로 묶어 건수·금액 합계 → 금액 큰 순 정렬
   function groupSum(arr, keyField, valField) {
     const m = {};
     arr.forEach((r) => {
-      const k = (r[keyField] != null && r[keyField] !== "") ? r[keyField] : "(미지정)";
+      let k = (r[keyField] != null && r[keyField] !== "") ? r[keyField] : "(미지정)";
+      if (keyField === "vendor") k = canonVendor(k);
       (m[k] = m[k] || { key: k, count: 0, sum: 0 });
       m[k].count += (num(r.orders) || 1); m[k].sum += num(r[valField]);
     });
