@@ -533,10 +533,12 @@ const App = (function () {
   // 사업장별 수기 보고서 (편집 가능)
   function renderManualStore(main, M, store, ym, yr, mo) {
     const R = M[store];
+    if (!R.platform) R.platform = [];
     const fullNm = store === "yb" ? "옐로우브릿지" : "그로븐";
     const tax = store === "yb" ? "과세" : "면세";
     const numIn = (sec, i, f, v) => `<input class="mr-in n" data-sec="${sec}" data-i="${i}" data-f="${f}" value="${S.num(v)}" inputmode="numeric">`;
     const txtIn = (sec, i, f, v, ph) => `<input class="mr-in" data-sec="${sec}" data-i="${i}" data-f="${f}" value="${esc(v || "")}" placeholder="${ph || ""}">`;
+    const selType = (i, v) => `<select class="mr-in" data-sec="platform" data-i="${i}" data-f="type"><option ${v === "광고비" ? "" : "selected"}>수수료</option><option ${v === "광고비" ? "selected" : ""}>광고비</option></select>`;
 
     const profit = S.num(R.sales) - S.num(R.purchase);
     const rate = S.num(R.sales) ? Math.round(S.num(R.purchase) / S.num(R.sales) * 100) : 0;
@@ -555,6 +557,15 @@ const App = (function () {
       <td class="n">${numIn("vendors", i, "supply", r.supply)}</td>
       <td class="c no-print"><button class="icon-btn" data-rm="vendors" data-i="${i}">✕</button></td></tr>`).join("");
     const vnT = R.vendors.reduce((a, r) => a + S.num(r.supply), 0);
+
+    const pfBody = R.platform.map((r, i) => `<tr><td class="c">${i + 1}</td>
+      <td>${txtIn("platform", i, "supplier", r.supplier, "공급자")}</td>
+      <td>${txtIn("platform", i, "item", r.item, "품목")}</td>
+      <td class="c">${selType(i, r.type)}</td>
+      <td class="n">${numIn("platform", i, "amount", r.amount)}</td>
+      <td class="c no-print"><button class="icon-btn" data-rm="platform" data-i="${i}">✕</button></td></tr>`).join("");
+    const pfFee = R.platform.filter((r) => r.type !== "광고비").reduce((a, r) => a + S.num(r.amount), 0);
+    const pfAd = R.platform.filter((r) => r.type === "광고비").reduce((a, r) => a + S.num(r.amount), 0);
 
     main.innerHTML = `
       <div class="page-head no-print">
@@ -585,6 +596,12 @@ const App = (function () {
         <table class="doc-table"><thead><tr><th class="c" style="width:40px">순번</th><th>매입처</th><th style="width:160px">내용</th><th class="n" style="width:80px">건수</th><th class="n" style="width:130px">공급가</th><th class="no-print" style="width:30px"></th></tr></thead>
           <tbody>${vnBody || `<tr><td colspan="6" class="empty">행추가로 매입처를 입력하세요</td></tr>`}<tr class="sum"><td colspan="4">합계</td><td class="n" id="mr-vnT">${won(vnT)}</td><td class="no-print"></td></tr></tbody></table>
 
+        <h4 class="doc-sec">Ⅲ-1. 플랫폼 수수료·광고비 세부 <span class="muted" style="font-weight:400;font-size:11px">(위 매입처별 ‘플랫폼…’ 합계의 내역)</span> <button class="btn no-print" data-add="platform" style="padding:3px 9px;font-size:12px;margin-left:8px">➕ 행추가</button></h4>
+        <table class="doc-table"><thead><tr><th class="c" style="width:40px">순번</th><th>공급자</th><th>품목</th><th class="c" style="width:80px">구분</th><th class="n" style="width:120px">금액</th><th class="no-print" style="width:30px"></th></tr></thead>
+          <tbody>${pfBody || `<tr><td colspan="6" class="empty">행추가로 플랫폼 수수료·광고비 세부를 입력하세요</td></tr>`}
+          <tr class="sum"><td colspan="4">플랫폼 수수료 소계</td><td class="n" id="mr-pfFee">${won(pfFee)}</td><td class="no-print"></td></tr>
+          <tr class="sum"><td colspan="4">플랫폼 광고비 소계</td><td class="n" id="mr-pfAd">${won(pfAd)}</td><td class="no-print"></td></tr></tbody></table>
+
         <h4 class="doc-sec">Ⅳ. 입출금 정산</h4>
         <table class="doc-table"><thead><tr><th>구분</th><th class="n">건수</th><th class="n">금액</th></tr></thead>
           <tbody><tr><td>입금 (매출 정산)</td><td class="n">${numIn("bank", 0, "inCnt", R.bank.inCnt)}</td><td class="n">${numIn("bank", 0, "inSum", R.bank.inSum)}</td></tr>
@@ -606,22 +623,28 @@ const App = (function () {
       const ve = $("#mr-vnT", main); if (ve) ve.textContent = won(R.vendors.reduce((a, r) => a + S.num(r.supply), 0));
       const net = S.num(R.bank.inSum) - S.num(R.bank.outSum);
       const be = $("#mr-bankNet", main); if (be) { be.textContent = won(net); be.className = "n " + (net >= 0 ? "pos" : "neg"); }
+      const fe = $("#mr-pfFee", main); if (fe) fe.textContent = won(R.platform.filter((r) => r.type !== "광고비").reduce((a, r) => a + S.num(r.amount), 0));
+      const ae = $("#mr-pfAd", main); if (ae) ae.textContent = won(R.platform.filter((r) => r.type === "광고비").reduce((a, r) => a + S.num(r.amount), 0));
     };
     main.querySelectorAll(".mr-in").forEach((el) => {
       const upd = () => {
         const sec = el.dataset.sec, i = +el.dataset.i, f = el.dataset.f;
-        const isNum = el.classList.contains("n") || /Cnt|Sum|count|supply|sales|purchase/.test(f);
+        const isNum = el.classList.contains("n") || /Cnt|Sum|count|supply|sales|purchase|amount/.test(f);
         const val = isNum ? S.num(el.value) : el.value;
         if (sec === "totals") R[f] = val;
         else if (sec === "bank") R.bank[f] = val;
         else if (sec === "memo") R.memo = val;
         else R[sec][i][f] = val;
       };
-      el.addEventListener("input", () => { upd(); recalc(); S.save(true); });
+      const handler = () => { upd(); recalc(); S.save(true); };
+      el.addEventListener("input", handler);
+      if (el.tagName === "SELECT") el.addEventListener("change", handler);
     });
     main.querySelectorAll("[data-add]").forEach((b) => b.addEventListener("click", () => {
       const sec = b.dataset.add;
-      R[sec].push(sec === "vendors" ? { name: "", note: "", count: 0, supply: 0 } : { name: "", count: 0, supply: 0 });
+      R[sec].push(sec === "vendors" ? { name: "", note: "", count: 0, supply: 0 }
+        : sec === "platform" ? { supplier: "", item: "", type: "수수료", amount: 0 }
+        : { name: "", count: 0, supply: 0 });
       reSave(true);
     }));
     main.querySelectorAll("[data-rm]").forEach((b) => b.addEventListener("click", () => {
@@ -629,8 +652,10 @@ const App = (function () {
     }));
     $("#mr-print", main).addEventListener("click", () => window.print());
     $("#mr-auto", main).addEventListener("click", () => {
-      if (!confirm(`${fullNm}의 수기 보고서를 현재 데이터 자동값으로 다시 채울까요? 지금 입력한 값은 덮어써져요.`)) return;
+      if (!confirm(`${fullNm}의 수기 보고서를 현재 데이터 자동값으로 다시 채울까요? 지금 입력한 값은 덮어써져요. (플랫폼 세부내역은 유지됩니다)`)) return;
+      const keepPf = R.platform;
       M[store] = autoFillStoreReport(store, yr, mo);
+      M[store].platform = keepPf || [];
       reSave(true);
     });
   }
@@ -663,6 +688,17 @@ const App = (function () {
     };
     const memo = [g.memo, y.memo].filter(Boolean).join("\n");
 
+    const pf = [].concat(g.platform || [], y.platform || []);
+    const pfBody = pf.map((r, i) => `<tr><td class="c">${i + 1}</td><td class="name">${esc(r.supplier)}</td>
+      <td class="name">${esc(r.item)}</td><td class="c">${esc(r.type || "수수료")}</td><td class="n">${won(r.amount)}</td></tr>`).join("");
+    const pfFee = pf.filter((r) => r.type !== "광고비").reduce((a, r) => a + S.num(r.amount), 0);
+    const pfAd = pf.filter((r) => r.type === "광고비").reduce((a, r) => a + S.num(r.amount), 0);
+    const pfSection = pf.length ? `
+        <h4 class="doc-sec">Ⅲ-1. 플랫폼 수수료·광고비 세부</h4>
+        <table class="doc-table"><thead><tr><th class="c" style="width:40px">순번</th><th>공급자</th><th>품목</th><th class="c" style="width:80px">구분</th><th class="n" style="width:120px">금액</th></tr></thead>
+          <tbody>${pfBody}<tr class="sum"><td colspan="4">플랫폼 수수료 소계</td><td class="n">${won(pfFee)}</td></tr>
+          <tr class="sum"><td colspan="4">플랫폼 광고비 소계</td><td class="n">${won(pfAd)}</td></tr></tbody></table>` : "";
+
     main.innerHTML = `
       <div class="page-head no-print">
         <div><h2>📝 마감보고서(수기) · 통합 <span class="muted">${yr}년 ${mo}월</span></h2>
@@ -687,7 +723,7 @@ const App = (function () {
         <h4 class="doc-sec">Ⅲ. 매입처별 매입</h4>
         <table class="doc-table"><thead><tr><th class="c" style="width:40px">순번</th><th>매입처</th><th style="width:160px">내용</th><th class="n" style="width:80px">건수</th><th class="n" style="width:130px">공급가</th></tr></thead>
           <tbody>${vnBody || `<tr><td colspan="5" class="empty">자료 없음</td></tr>`}<tr class="sum"><td colspan="4">합계</td><td class="n">${won(vnT)}</td></tr></tbody></table>
-
+        ${pfSection}
         <h4 class="doc-sec">Ⅳ. 입출금 정산</h4>
         <table class="doc-table"><thead><tr><th>구분</th><th class="n">건수</th><th class="n">금액</th></tr></thead>
           <tbody><tr><td>입금 (매출 정산)</td><td class="n">${won(bk.inCnt)}</td><td class="n">${won(bk.inSum)}</td></tr>
