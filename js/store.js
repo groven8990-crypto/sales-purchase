@@ -84,6 +84,7 @@ const SPC = (function () {
       evidence: {},     // 홈택스 증빙 대조 { "YYYY-M": [{store,type,supply,vat,total}] }
       deposits: [],     // 예치금 입출 { id, vendor, date, kind:'충전'|'사용', amount, memo }
       orders: [],       // 발주내역 { id, store, year, month, day, vendor, desc, qty, note }
+      manualReport: {}, // 수기 마감보고서 { "YYYY-M": {...} }
     };
   }
 

@@ -58,6 +58,7 @@ const App = (function () {
     else if (scope.view === "orders") renderOrders(main);
     else if (scope.view === "deposits") renderDeposits(main);
     else if (scope.view === "report") renderReport(main);
+    else if (scope.view === "manual") renderManualReport(main);
     else if (scope.view === "data") renderData(main);
   }
 
@@ -216,7 +217,7 @@ const App = (function () {
         <tbody>${rows.map((r) => `<tr data-s="${esc(sText(r))}">
           <td>${esc((r.month || "") + "." + (r.day || ""))}</td><td>${esc(r.vendor || "")}</td>
           <td>${esc(r.desc || "")}</td><td class="num">${esc(r.qty || "")}</td>
-          <td>${r.store === "yb" ? "옐브" : (r.store === "groven" ? "그로븐" : "")}</td>
+          <td>${r.store === "yb" ? "YB" : (r.store === "groven" ? "그로븐" : "")}</td>
           <td>${esc(r.note || "")}</td>
           <td class="row-actions"><button class="icon-btn" data-delod="${r.id}" title="삭제">✕</button></td></tr>`).join("") ||
           `<tr><td colspan="7" class="empty">발주 내역이 없어요. '발주서 올리기'로 추가하세요.</td></tr>`}
@@ -241,7 +242,7 @@ const App = (function () {
     const deps = scope.store ? all.filter((d) => (d.store || "") === scope.store) : all;
     const vendors = [...new Set(deps.map((d) => `${d.store || ""}|${d.vendor}`))];
     if (depFilter && vendors.indexOf(depFilter) === -1) depFilter = "";
-    const stNm = (s) => s === "yb" ? "옐브" : (s === "groven" ? "그로븐" : "공통");
+    const stNm = (s) => s === "yb" ? "YB" : (s === "groven" ? "그로븐" : "공통");
     const cardFor = (st, v) => {
       const list = deps.filter((d) => (d.store || "") === st && d.vendor === v);
       const chg = list.filter((d) => d.kind === "충전").reduce((a, d) => a + S.num(d.amount), 0);
@@ -263,9 +264,10 @@ const App = (function () {
     const sorted = [...viewDeps].sort((a, b) => String(b.date).localeCompare(String(a.date)));
     main.innerHTML = `
       <div class="page-head"><div><h2>💳 예치금 충전현황 <span class="muted">${esc(scope.store ? stNm(scope.store) : "통합")}</span></h2>
-        <div class="muted">사업장별로 거래처 충전·사용·잔액 (상단 스토어 탭으로 그로븐/옐브만 보기)</div></div>
+        <div class="muted">사업장별로 거래처 충전·사용·잔액 (상단 스토어 탭으로 그로븐/YB만 보기)</div></div>
         <div class="row-actions"><button class="btn primary" data-act="import-deposit-file">📥 파일 올리기</button>
         <button class="btn" data-act="import-deposit-paste">📋 붙여넣기</button>
+        <button class="btn ghost" id="dp-png">📸 금일 사용 보고(PNG)</button>
         <button class="btn danger" id="dp-clear">🗑️ 전체삭제</button></div></div>
       ${sections || `<div class="kpibar"><div class="kb"><div class="l">아직 기록 없음</div></div></div>`}
       <div class="card"><h3>예치금 직접 입력</h3>
@@ -308,7 +310,7 @@ const App = (function () {
       renderDeposits(main);
     }));
     $("#dp-clear", main).addEventListener("click", () => {
-      const stLabel = scope.store ? (scope.store === "yb" ? "옐브" : "그로븐") : "전체";
+      const stLabel = scope.store ? (scope.store === "yb" ? "YB" : "그로븐") : "전체";
       if (depFilter) {
         const [fst, fv] = depFilter.split("|");
         const target = (S.data.deposits || []).filter((d) => d.vendor === fv && (d.store || "") === fst);
@@ -322,13 +324,75 @@ const App = (function () {
       S.data.deposits = (S.data.deposits || []).filter((d) => scope.store ? (d.store || "") !== scope.store : false);
       S.save(); renderDeposits(main);
     });
+    $("#dp-png", main).addEventListener("click", () => depositUsageReport(deps));
+  }
+
+  // 금일(오늘) 사용 내역만 보고서 형태로 PNG 저장
+  function depositUsageReport(deps) {
+    const stNm = (s) => s === "yb" ? "YB" : (s === "groven" ? "그로븐" : "공통");
+    const today = new Date().toISOString().slice(0, 10);
+    const todayK = today.replace(/-/g, ".");
+    const rows = (deps || []).filter((d) => d.kind === "사용" && String(d.date).slice(0, 10) === today)
+      .sort((a, b) => `${a.store}|${a.vendor}`.localeCompare(`${b.store}|${b.vendor}`));
+    if (!rows.length) { alert("오늘(" + todayK + ") 사용한 예치금 내역이 없어요."); return; }
+    const total = rows.reduce((a, d) => a + S.num(d.amount), 0);
+    // 사용 후 현재 잔액 (전체 기준)
+    const balOf = (st, v) => {
+      const list = (S.data.deposits || []).filter((d) => (d.store || "") === st && d.vendor === v);
+      const chg = list.filter((d) => d.kind === "충전").reduce((a, d) => a + S.num(d.amount), 0);
+      const use = list.filter((d) => d.kind === "사용").reduce((a, d) => a + S.num(d.amount), 0);
+      return chg - use;
+    };
+    const body = rows.map((d, i) => `<tr><td class="c">${i + 1}</td><td class="c">${stNm(d.store)}</td>
+      <td class="name">${esc(d.vendor)}</td><td class="n">${won(d.amount)}</td>
+      <td class="n">${won(balOf(d.store || "", d.vendor))}</td><td>${esc(d.memo || "")}</td></tr>`).join("");
+    const host = document.createElement("div");
+    host.style.cssText = "position:fixed;left:-9999px;top:0;width:700px;background:#fff";
+    host.innerHTML = `<div id="dp-report" style="width:700px;background:#fff;padding:34px 36px;box-sizing:border-box;font-family:'Pretendard','Malgun Gothic',sans-serif;color:#1f2733">
+      <div style="text-align:center;border-bottom:3px double #222;padding-bottom:12px;margin-bottom:10px">
+        <div style="font-size:23px;font-weight:800;letter-spacing:6px">예치금 사용 보고</div>
+        <div style="font-size:12px;color:#6b7588;letter-spacing:2px;margin-top:4px">${scope.store ? stNm(scope.store) : "그로븐 · YB 통합"}</div>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:13px;margin:10px 2px 14px">
+        <div>일자 : <b>${todayK}</b></div>
+        <div>금일 사용 합계 : <b style="color:#1a3a6b;font-size:15px">₩${won(total)}</b></div>
+      </div>
+      <table style="width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed">
+        <thead><tr style="background:#eef1f6">
+          <th style="border:1px solid #bcc4d0;padding:7px;width:42px">순번</th>
+          <th style="border:1px solid #bcc4d0;padding:7px;width:64px">사업장</th>
+          <th style="border:1px solid #bcc4d0;padding:7px">거래처</th>
+          <th style="border:1px solid #bcc4d0;padding:7px;width:120px;text-align:right">사용액</th>
+          <th style="border:1px solid #bcc4d0;padding:7px;width:120px;text-align:right">잔액</th>
+          <th style="border:1px solid #bcc4d0;padding:7px;width:130px">메모</th>
+        </tr></thead>
+        <tbody>${body.replace(/class="c"/g, 'style="border:1px solid #bcc4d0;padding:6px 7px;text-align:center"')
+          .replace(/class="name"/g, 'style="border:1px solid #bcc4d0;padding:6px 7px;word-break:break-all"')
+          .replace(/class="n"/g, 'style="border:1px solid #bcc4d0;padding:6px 7px;text-align:right;font-variant-numeric:tabular-nums"')
+          .replace(/<td>/g, '<td style="border:1px solid #bcc4d0;padding:6px 7px">')}
+        <tr style="background:#e7ebf2;font-weight:800"><td colspan="3" style="border:1px solid #bcc4d0;padding:7px;text-align:center">합계</td>
+          <td style="border:1px solid #bcc4d0;padding:7px;text-align:right">₩${won(total)}</td>
+          <td style="border:1px solid #bcc4d0;padding:7px"></td><td style="border:1px solid #bcc4d0;padding:7px"></td></tr>
+        </tbody></table>
+      <div style="margin-top:16px;font-size:11px;color:#6b7588;text-align:right">출력 : ${todayK}</div>
+    </div>`;
+    document.body.appendChild(host);
+    const node = host.querySelector("#dp-report");
+    if (typeof html2canvas !== "function") { alert("이미지 변환 라이브러리를 불러오지 못했어요. 인터넷 연결을 확인해주세요."); host.remove(); return; }
+    html2canvas(node, { scale: 2, backgroundColor: "#ffffff" }).then((canvas) => {
+      const a = document.createElement("a");
+      a.download = `예치금사용보고_${today}.png`;
+      a.href = canvas.toDataURL("image/png");
+      a.click();
+      host.remove();
+    }).catch((e) => { alert("이미지 저장 실패: " + e); host.remove(); });
   }
 
   // Ⅶ. 예치금 현황 (사업장·거래처별 충전/사용/잔액)
   function depositSection(store) {
     const all = (S.data.deposits || []).filter((d) => !store || (d.store || "") === store);
     if (!all.length) return "";
-    const stNm = (s) => s === "yb" ? "옐브" : (s === "groven" ? "그로븐" : "공통");
+    const stNm = (s) => s === "yb" ? "YB" : (s === "groven" ? "그로븐" : "공통");
     const keys = [...new Set(all.map((d) => (d.store || "") + "|" + d.vendor))];
     const rows = keys.map((k) => {
       const [st, v] = k.split("|");
@@ -349,7 +413,7 @@ const App = (function () {
     const saved = (S.data.evidence && S.data.evidence[year + "-" + month]) || [];
     const rows = saved.filter((e) => !store || e.store === store);
     if (!rows.length) return "";
-    const storeNm = (s) => s === "yb" ? "옐브" : (s === "groven" ? "그로븐" : "통합");
+    const storeNm = (s) => s === "yb" ? "YB" : (s === "groven" ? "그로븐" : "통합");
     const withBook = rows.map((e) => {
       const book = S.filterBy(S.data.purchases, { store: e.store, year, month })
         .filter((r) => S.canonVendor(r.vendor) === e.vendor)
@@ -367,6 +431,126 @@ const App = (function () {
         <thead><tr><th>거래처</th><th style="width:80px">증빙</th><th class="c" style="width:50px">스토어</th><th class="n" style="width:96px">홈택스</th><th class="n" style="width:96px">장부</th><th class="n" style="width:88px">차액</th><th class="c" style="width:40px">판정</th></tr></thead>
         <tbody>${body}<tr class="sum"><td colspan="3">합계</td><td class="n">${won(htSum)}</td><td class="n">${won(bkSum)}</td><td class="n ${htSum - bkSum === 0 ? "pos" : "neg"}">${won(htSum - bkSum)}</td><td></td></tr></tbody>
       </table>`;
+  }
+
+  /* ===================== 수기 마감보고서 ===================== */
+  function renderManualReport(main) {
+    if (!scope.year || !scope.month) {
+      main.innerHTML = `<div class="page-head"><div><h2>📝 마감보고서(수기)</h2></div></div>
+        <div class="card"><p>상단에서 <b>연도·월</b>을 먼저 골라주세요. (예: 2026년 / 5월)</p></div>`;
+      return;
+    }
+    const ym = scope.year + "-" + scope.month;
+    if (!S.data.manualReport) S.data.manualReport = {};
+    if (!S.data.manualReport[ym]) S.data.manualReport[ym] = {
+      income: [{ store: "groven", sales: 0, purchase: 0 }, { store: "yb", sales: 0, purchase: 0 }],
+      channels: [], vendors: [], bank: { inCnt: 0, inSum: 0, outCnt: 0, outSum: 0 }, memo: "",
+    };
+    const R = S.data.manualReport[ym];
+    const numIn = (sec, i, f, v) => `<input class="mr-in n" data-sec="${sec}" data-i="${i}" data-f="${f}" value="${v || 0}" inputmode="numeric">`;
+    const txtIn = (sec, i, f, v, ph) => `<input class="mr-in" data-sec="${sec}" data-i="${i}" data-f="${f}" value="${esc(v || "")}" placeholder="${ph || ""}">`;
+    const stNm = (s) => s === "yb" ? "옐로우브릿지" : "그로븐";
+
+    const incBody = R.income.map((r, i) => {
+      const profit = S.num(r.sales) - S.num(r.purchase);
+      const rate = S.num(r.sales) ? Math.round(S.num(r.purchase) / S.num(r.sales) * 100) : 0;
+      return `<tr><td>${stNm(r.store)}</td><td>${r.store === "yb" ? "과세" : "면세"}</td>
+        <td class="n">${numIn("income", i, "sales", r.sales)}</td>
+        <td class="n">${numIn("income", i, "purchase", r.purchase)}</td>
+        <td class="n ${profit >= 0 ? "pos" : "neg"}">${won(profit)}</td><td class="n">${rate}%</td></tr>`;
+    }).join("");
+    const incSaleT = R.income.reduce((a, r) => a + S.num(r.sales), 0);
+    const incBuyT = R.income.reduce((a, r) => a + S.num(r.purchase), 0);
+
+    const chBody = R.channels.map((r, i) => `<tr><td class="c">${i + 1}</td>
+      <td>${txtIn("channels", i, "name", r.name, "채널명")}</td>
+      <td class="n">${numIn("channels", i, "count", r.count)}</td>
+      <td class="n">${numIn("channels", i, "supply", r.supply)}</td>
+      <td class="c no-print"><button class="icon-btn" data-rm="channels" data-i="${i}">✕</button></td></tr>`).join("");
+    const chT = R.channels.reduce((a, r) => a + S.num(r.supply), 0);
+
+    const vnBody = R.vendors.map((r, i) => `<tr><td class="c">${i + 1}</td>
+      <td>${txtIn("vendors", i, "name", r.name, "매입처")}</td>
+      <td>${txtIn("vendors", i, "note", r.note, "내용")}</td>
+      <td class="n">${numIn("vendors", i, "count", r.count)}</td>
+      <td class="n">${numIn("vendors", i, "supply", r.supply)}</td>
+      <td class="c no-print"><button class="icon-btn" data-rm="vendors" data-i="${i}">✕</button></td></tr>`).join("");
+    const vnT = R.vendors.reduce((a, r) => a + S.num(r.supply), 0);
+
+    main.innerHTML = `
+      <div class="page-head no-print">
+        <div><h2>📝 마감보고서(수기) <span class="muted">${scope.year}년 ${scope.month}월</span></h2>
+          <div class="muted">직접 입력하는 보고서예요. (입력은 자동 저장)</div></div>
+        <div class="row-actions">
+          <button class="btn" id="mr-auto">📥 자동값 불러오기</button>
+          <button class="btn primary" id="mr-print">🖨️ 인쇄</button></div>
+      </div>
+      <div class="sheet">
+        <div class="doc-head"><h1>월 마감 보고서</h1><div class="doc-sub">SALES · PURCHASE MONTHLY CLOSING REPORT (수기)</div></div>
+        <div class="doc-meta"><div class="meta"><div><b>대상월</b> ${scope.year}년 ${scope.month}월</div>
+          <div><b>사업장</b> 그로븐(면세) · 옐로우브릿지(과세)</div><div><b>작성일</b> ${new Date().toLocaleDateString("ko-KR")}</div></div>
+          <div class="approval"><div class="c head2">결재</div><div class="c"><div class="h">작성</div><div class="s"></div></div><div class="c"><div class="h">검토</div><div class="s"></div></div><div class="c"><div class="h">대표</div><div class="s"></div></div></div>
+        </div>
+        <h4 class="doc-sec">Ⅰ. 손익 요약 (공급가 기준)</h4>
+        <table class="doc-table"><thead><tr><th>사업장</th><th>구분</th><th class="n">매출</th><th class="n">매입</th><th class="n">손익</th><th class="n">원가율</th></tr></thead>
+          <tbody>${incBody}<tr class="sum"><td colspan="2">합계</td><td class="n">${won(incSaleT)}</td><td class="n">${won(incBuyT)}</td>
+            <td class="n ${incSaleT - incBuyT >= 0 ? "pos" : "neg"}">${won(incSaleT - incBuyT)}</td><td class="n">${incSaleT ? Math.round(incBuyT / incSaleT * 100) : 0}%</td></tr></tbody></table>
+
+        <h4 class="doc-sec">Ⅱ. 채널별 매출 <button class="btn no-print" data-add="channels" style="padding:3px 9px;font-size:12px;margin-left:8px">➕ 행추가</button></h4>
+        <table class="doc-table"><thead><tr><th class="c" style="width:40px">순번</th><th>채널</th><th class="n" style="width:90px">건수</th><th class="n" style="width:140px">공급가</th><th class="no-print" style="width:30px"></th></tr></thead>
+          <tbody>${chBody || `<tr><td colspan="5" class="empty">행추가로 채널을 입력하세요</td></tr>`}<tr class="sum"><td colspan="3">합계</td><td class="n">${won(chT)}</td><td class="no-print"></td></tr></tbody></table>
+
+        <h4 class="doc-sec">Ⅲ. 매입처별 매입 <button class="btn no-print" data-add="vendors" style="padding:3px 9px;font-size:12px;margin-left:8px">➕ 행추가</button></h4>
+        <table class="doc-table"><thead><tr><th class="c" style="width:40px">순번</th><th>매입처</th><th style="width:160px">내용</th><th class="n" style="width:80px">건수</th><th class="n" style="width:130px">공급가</th><th class="no-print" style="width:30px"></th></tr></thead>
+          <tbody>${vnBody || `<tr><td colspan="6" class="empty">행추가로 매입처를 입력하세요</td></tr>`}<tr class="sum"><td colspan="4">합계</td><td class="n">${won(vnT)}</td><td class="no-print"></td></tr></tbody></table>
+
+        <h4 class="doc-sec">Ⅳ. 입출금 정산</h4>
+        <table class="doc-table"><thead><tr><th>구분</th><th class="n">건수</th><th class="n">금액</th></tr></thead>
+          <tbody><tr><td>입금 (매출 정산)</td><td class="n">${numIn("bank", 0, "inCnt", R.bank.inCnt)}</td><td class="n">${numIn("bank", 0, "inSum", R.bank.inSum)}</td></tr>
+          <tr><td>출금 (매입·비용)</td><td class="n">${numIn("bank", 0, "outCnt", R.bank.outCnt)}</td><td class="n">${numIn("bank", 0, "outSum", R.bank.outSum)}</td></tr>
+          <tr class="sum"><td>순증감</td><td class="n"></td><td class="n ${S.num(R.bank.inSum) - S.num(R.bank.outSum) >= 0 ? "pos" : "neg"}">${won(S.num(R.bank.inSum) - S.num(R.bank.outSum))}</td></tr></tbody></table>
+
+        <h4 class="doc-sec">Ⅴ. 비고</h4>
+        <textarea class="mr-in" data-sec="memo" data-i="0" data-f="memo" rows="3" style="width:100%" placeholder="특이사항">${esc(R.memo || "")}</textarea>
+      </div>`;
+
+    const reSave = (rerender) => { S.save(); if (rerender) renderManualReport(main); };
+    main.querySelectorAll(".mr-in").forEach((el) => {
+      const upd = () => {
+        const sec = el.dataset.sec, i = +el.dataset.i, f = el.dataset.f;
+        const isNum = el.classList.contains("n") || /Cnt|Sum|count|supply|sales|purchase/.test(f);
+        const val = isNum ? S.num(el.value) : el.value;
+        if (sec === "bank") R.bank[f] = val;
+        else if (sec === "memo") R.memo = val;
+        else R[sec][i][f] = val;
+      };
+      el.addEventListener("input", () => { upd(); S.save(); });
+      el.addEventListener("change", () => { upd(); reSave(true); });
+    });
+    main.querySelectorAll("[data-add]").forEach((b) => b.addEventListener("click", () => {
+      const sec = b.dataset.add;
+      R[sec].push(sec === "vendors" ? { name: "", note: "", count: 0, supply: 0 } : { name: "", count: 0, supply: 0 });
+      reSave(true);
+    }));
+    main.querySelectorAll("[data-rm]").forEach((b) => b.addEventListener("click", () => {
+      R[b.dataset.rm].splice(+b.dataset.i, 1); reSave(true);
+    }));
+    $("#mr-print", main).addEventListener("click", () => window.print());
+    $("#mr-auto", main).addEventListener("click", () => {
+      if (!confirm("현재 데이터(매출·매입·통장)의 자동 계산값으로 채울까요? 지금 입력한 수기 값은 덮어써져요.")) return;
+      const yr = scope.year, mo = scope.month;
+      ["groven", "yb"].forEach((st, idx) => {
+        const sl = S.filterBy(S.data.sales, { store: st, year: yr, month: mo });
+        const pl = S.filterBy(S.data.purchases, { store: st, year: yr, month: mo });
+        R.income[idx] = { store: st, sales: S.sum(sl, "supply"), purchase: S.sum(pl, "supply") };
+      });
+      R.channels = S.groupSum(S.filterBy(S.data.sales, { year: yr, month: mo }), "channel", "supply").map((g) => ({ name: g.key, count: g.count, supply: g.sum }));
+      R.vendors = S.groupSum(S.filterBy(S.data.purchases, { year: yr, month: mo }), "vendor", "supply").map((g) => ({ name: g.key, note: S.data.vendorItems[g.key] || "", count: g.count, supply: g.sum }));
+      const tx = S.filterBy(S.data.transactions, { year: yr, month: mo });
+      const ins = tx.filter((t) => t.type === "in"), outs = tx.filter((t) => t.type === "out");
+      R.bank = { inCnt: ins.length, inSum: S.sum(ins, "amount"), outCnt: outs.length, outSum: S.sum(outs, "amount") };
+      reSave(true);
+    });
   }
 
   function renderReport(main) {
@@ -484,7 +668,7 @@ const App = (function () {
         </div></div>
       <div class="card"><h3>매입처 내용 (취급품목)</h3>
         <p class="hint">매입처마다 내용(취급품목 등)을 적어두면 보고서 '매입처별 매입'의 내용 칸에 표시됩니다.</p>
-        <div class="table-wrap scroll"><table class="grid"><thead><tr><th style="width:160px">매입처</th><th>취급품목</th></tr></thead>
+        <div class="table-wrap scroll"><table class="grid"><thead><tr><th style="width:160px">매입처</th><th>내용</th></tr></thead>
         <tbody>${[...new Set(S.data.purchases.map((p) => p.vendor).filter(Boolean))].sort().map((v) =>
           `<tr><td>${esc(v)}</td><td><input class="vi-input" data-v="${esc(v)}" value="${esc(S.data.vendorItems[v] || "")}" placeholder="예: 간고등어, 굴비" style="width:100%;border:1px solid var(--line);border-radius:7px;padding:6px 9px;font-size:13px"></td></tr>`).join("") ||
           `<tr><td colspan="2" class="empty">매입 자료를 먼저 넣어주세요</td></tr>`}</tbody></table></div></div>

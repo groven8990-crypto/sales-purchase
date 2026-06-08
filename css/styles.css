@@ -137,6 +137,10 @@ table.grid tbody tr:hover{background:#fafbff}
 .doc-charts .cbox{flex:1;min-width:0;border:1px solid #d4dae4;border-radius:6px;padding:8px;height:210px;overflow:hidden}
 .doc-foot{margin-top:20px;font-size:11px;color:var(--muted);text-align:center;border-top:1px solid #ccc;padding-top:8px}
 
+.mr-in{border:1px solid var(--line);border-radius:6px;padding:4px 7px;font-size:12px;width:100%;font-family:inherit}
+.mr-in.n{text-align:right;font-variant-numeric:tabular-nums}
+@media print{.mr-in{border:none!important;padding:0!important;background:transparent}}
+
 @media(max-width:760px){.doc-2col,.doc-charts{flex-direction:column}.sheet{padding:14px}}
 @media print{
   .topbar,.sidebar,.page-head,.no-print{display:none!important}

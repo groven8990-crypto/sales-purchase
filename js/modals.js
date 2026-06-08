@@ -288,13 +288,13 @@ const Modals = (function () {
   function importPaste() {
     open("📋 매입 직접 추가 (붙여넣기)",
       `<p>한 줄에 하나씩 붙여넣으세요. 형식: <b>거래처, 스토어, 금액, 건수</b><br>
-        스토어는 <b>그로븐</b> 또는 <b>옐브</b>(=옐로우브릿지). 건수는 없으면 비워도 돼요.</p>
+        스토어는 <b>그로븐</b> 또는 <b>YB</b>(=옐로우브릿지). 건수는 없으면 비워도 돼요.</p>
        <div class="form-row two">
          <span><label>기본 연/월</label><input id="ps-ym" placeholder="예: 2026-5"></span>
          <span><label>분류</label><select id="ps-cat">${S.CATEGORIES.map((x) => `<option ${x === "상품매입" ? "selected" : ""}>${x}</option>`).join("")}</select></span>
        </div>
        <div class="form-row"><label>매입 줄 (거래처, 스토어, 금액, 건수)</label>
-         <textarea id="ps-text" rows="12" style="width:100%;font-family:monospace;font-size:12.5px" placeholder="공덕농협, 옐브, 36000, 2&#10;생선상륙, 그로븐, 36500, 3"></textarea></div>
+         <textarea id="ps-text" rows="12" style="width:100%;font-family:monospace;font-size:12.5px" placeholder="공덕농협, YB, 36000, 2&#10;생선상륙, 그로븐, 36500, 3"></textarea></div>
        <div id="ps-preview" class="preview"></div>`,
       `<button class="btn" id="ps-cancel">취소</button>
        <button class="btn primary" id="ps-apply">매입에 추가</button>`);
@@ -357,7 +357,7 @@ const Modals = (function () {
     const ymM = (q("#ev-ym").value || "").match(/(\d{4})\D+(\d{1,2})/);
     const year = ymM ? +ymM[1] : "";
     const month = ymM ? +ymM[2] : "";
-    const storeNm = (s) => s === "yb" ? "옐브" : (s === "groven" ? "그로븐" : "통합");
+    const storeNm = (s) => s === "yb" ? "YB" : (s === "groven" ? "그로븐" : "통합");
     // 거래처별 집계 (대표이름으로 묶음)
     const agg = {};
     parsed.forEach((p) => (p.byVendor || []).forEach((v) => {
