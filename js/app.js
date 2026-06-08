@@ -547,6 +547,29 @@ const App = (function () {
     const top = groups.slice(0, 7);
     const etc = groups.slice(7).reduce((a, g) => a + g.sum, 0);
     const arr = etc > 0 ? top.concat([{ key: "기타", sum: etc }]) : top;
+    // 큰 조각 안에 % 표시 (글자 들어갈 만큼 큰 것만)
+    const pctPlugin = {
+      id: "pctInside",
+      afterDatasetsDraw(chart) {
+        const { ctx } = chart;
+        const ds = chart.data.datasets[0].data;
+        const total = ds.reduce((a, b) => a + (+b || 0), 0);
+        if (!total) return;
+        ctx.save();
+        ctx.font = "bold 11px 'Pretendard','Malgun Gothic',sans-serif";
+        ctx.fillStyle = "#33414f";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        chart.getDatasetMeta(0).data.forEach((arc, i) => {
+          const pct = (+ds[i] || 0) / total * 100;
+          if (pct < 8) return; // 글자 안 들어갈 작은 조각은 생략
+          const ang = (arc.startAngle + arc.endAngle) / 2;
+          const r = (arc.innerRadius + arc.outerRadius) / 2;
+          ctx.fillText(Math.round(pct) + "%", arc.x + Math.cos(ang) * r, arc.y + Math.sin(ang) * r);
+        });
+        ctx.restore();
+      },
+    };
     try {
       new Chart(cv, {
         type: "doughnut",
@@ -554,6 +577,7 @@ const App = (function () {
         options: { responsive: true, maintainAspectRatio: false,
           plugins: { legend: { position: "bottom", labels: { boxWidth: 10, font: { size: 9 }, padding: 5 } },
             tooltip: { callbacks: { label: (c) => `${c.label}: ${won(c.parsed)}` } } } },
+        plugins: [pctPlugin],
       });
     } catch (e) { console.warn("도넛 차트 실패", e); }
   }
