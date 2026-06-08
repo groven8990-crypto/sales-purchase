@@ -294,12 +294,59 @@ const Parsers = (function () {
     return out;
   }
 
+  // 홈택스 증빙 파일(현금영수증/계산서/세금계산서) 합계 파싱
+  async function parseHometaxEvidence(file) {
+    const wb = await readWorkbook(file);
+    let grid = [];
+    wb.SheetNames.forEach((n) => { grid = grid.concat(sheetToRows(wb.Sheets[n])); });
+    const flat = grid.map((r) => (r || []).map((c) => String(c == null ? "" : c)).join(" ")).join(" \n ");
+    const numOf = (s) => num(String(s == null ? "" : s).replace(/[^\d.-]/g, ""));
+
+    let type = "";
+    if (/공제여부|가맹점명|총\s*사용금액|현금영수증/.test(flat)) type = "현금영수증";
+    else if (/세금계산서|총\s*세액/.test(flat)) type = "세금계산서";
+    else if (/계산서/.test(flat)) type = "계산서";
+    const store = /옐로우브릿지|Yellow\s*Bridge/i.test(flat) ? "yb"
+      : (/그로븐|GROVEN|Groven/i.test(flat) ? "groven" : "");
+
+    let supply = 0, vat = 0, total = 0, count = 0;
+
+    if (type === "현금영수증") {
+      let hr = -1, h = null;
+      for (let i = 0; i < Math.min(grid.length, 10); i++) {
+        if ((grid[i] || []).some((c) => String(c).indexOf("매입금액") !== -1)) { hr = i; h = grid[i]; break; }
+      }
+      if (hr >= 0) {
+        const iS = h.findIndex((c) => String(c).indexOf("공급가액") !== -1);
+        const iV = h.findIndex((c) => String(c).indexOf("부가세") !== -1);
+        const iT = h.findIndex((c) => String(c).indexOf("매입금액") !== -1);
+        for (let r = hr + 1; r < grid.length; r++) {
+          const row = grid[r]; if (!row || !String(row[iT] || "").trim()) continue;
+          supply += numOf(row[iS]); vat += numOf(row[iV]); total += numOf(row[iT]); count++;
+        }
+      }
+    }
+    // 계산서·세금계산서(또는 위에서 합계 못 구한 경우): 요약 셀에서 총액 추출
+    if (total === 0 && supply === 0) {
+      grid.forEach((row) => (row || []).forEach((c, ci) => {
+        const s = String(c == null ? "" : c).replace(/\s/g, "");
+        if (/총사용금액/.test(s)) total = numOf(c);
+        if (s === "총공급가액") supply = numOf((row[ci + 1] || ""));
+        if (s === "총세액") vat = numOf((row[ci + 1] || ""));
+        if (s === "총합계금액") total = numOf((row[ci + 1] || ""));
+      }));
+      if (!total) total = supply + vat;
+    }
+    return { type, store, supply, vat, total, count, fileName: file.name };
+  }
+
   return {
     num, str, parseDate,
     importExistingWorkbook,
     parseBankStatement,
     readGenericTable,
     applyPurchaseMapping,
+    parseHometaxEvidence,
     COLMAP,
   };
 })();

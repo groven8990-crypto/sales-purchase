@@ -332,5 +332,64 @@ const Modals = (function () {
     };
   }
 
-  return { importExisting, importBank, importPO, importPaste, editRow, close };
+  /* ===== 6) 홈택스 증빙 대조 ===== */
+  function importEvidence() {
+    open("🧾 홈택스 증빙 대조 (매입 금액 체크)",
+      `<p>홈택스에서 받은 <b>현금영수증 · 계산서 · 세금계산서</b> 파일을 올리면, 장부 매입과 자동 대조해요. (여러 개 한 번에 선택 가능)</p>
+       <div class="form-row"><label>대상 연/월</label><input id="ev-ym" placeholder="예: 2026-5" style="min-width:140px"></div>
+       <div class="form-row"><label>홈택스 파일 (.xls / .xlsx)</label><input type="file" id="ev-file" accept=".xls,.xlsx" multiple></div>
+       <div id="ev-result" class="preview"></div>`,
+      `<button class="btn" id="ev-cancel">닫기</button>`);
+    q("#ev-cancel").onclick = close;
+    q("#ev-file").onchange = async (e) => {
+      const files = [...e.target.files]; if (!files.length) return;
+      q("#ev-result").innerHTML = `<div class="ok">읽는 중…</div>`;
+      const parsed = [];
+      for (const f of files) {
+        try { parsed.push(await Parsers.parseHometaxEvidence(f)); }
+        catch (err) { parsed.push({ type: "", store: "", supply: 0, vat: 0, total: 0, fileName: f.name, err: err.message }); }
+      }
+      renderEvidenceCompare(parsed);
+    };
+  }
+
+  function renderEvidenceCompare(parsed) {
+    const ymM = (q("#ev-ym").value || "").match(/(\d{4})\D+(\d{1,2})/);
+    const year = ymM ? +ymM[1] : "";
+    const month = ymM ? +ymM[2] : "";
+    const storeNm = (s) => s === "yb" ? "옐브" : (s === "groven" ? "그로븐" : "?");
+    const ht = {};
+    parsed.forEach((p) => {
+      const k = (p.store || "?") + "|" + (p.type || "?");
+      ht[k] = ht[k] || { store: p.store, type: p.type, supply: 0, vat: 0, total: 0 };
+      ht[k].supply += p.supply; ht[k].vat += p.vat; ht[k].total += p.total;
+    });
+    const rows = Object.values(ht).map((h) => {
+      const book = S.filterBy(S.data.purchases, { store: h.store, year, month })
+        .filter((r) => (r.evidence || "") === h.type);
+      const bookTotal = book.reduce((a, r) => a + S.num(r.total || r.supply), 0);
+      return Object.assign(h, { bookTotal, diff: h.total - bookTotal });
+    });
+    const htSum = rows.reduce((a, r) => a + r.total, 0);
+    const bkSum = rows.reduce((a, r) => a + r.bookTotal, 0);
+    q("#ev-result").innerHTML = `
+      <div class="ok">✅ ${parsed.length}개 파일 인식 — 홈택스 매입 합계 ₩${won(htSum)}</div>
+      <div class="hint">홈택스 금액 = 받은 증빙 기준 / 장부 = 입력된 매입 (해당 증빙·연월·스토어). 차액이 0이면 일치예요.</div>
+      <div class="table-wrap"><table class="grid">
+        <thead><tr><th>스토어</th><th>증빙</th><th class="num">홈택스</th><th class="num">장부</th><th class="num">차액</th><th>판정</th></tr></thead>
+        <tbody>${rows.map((r) => `<tr>
+          <td>${storeNm(r.store)}</td><td>${E(r.type)}</td>
+          <td class="num">₩${won(r.total)}</td>
+          <td class="num">₩${won(r.bookTotal)}</td>
+          <td class="num" style="color:${r.diff === 0 ? "#0a8043" : "#dc2626"}">${r.diff > 0 ? "+" : ""}${won(r.diff)}</td>
+          <td>${r.diff === 0 ? "✅ 일치" : "🔴 차액"}</td></tr>`).join("")}
+          <tr style="font-weight:800;background:#f7f9fc"><td colspan="2">합계</td>
+          <td class="num">₩${won(htSum)}</td><td class="num">₩${won(bkSum)}</td>
+          <td class="num" style="color:${htSum - bkSum === 0 ? "#0a8043" : "#dc2626"}">${htSum - bkSum > 0 ? "+" : ""}${won(htSum - bkSum)}</td>
+          <td>${htSum - bkSum === 0 ? "✅" : "🔴"}</td></tr>
+        </tbody></table></div>
+      <p class="hint">※ 세금계산서엔 플랫폼 수수료(쿠팡·네이버 등)도 포함될 수 있어, 장부의 '상품매입'과는 다를 수 있어요.</p>`;
+  }
+
+  return { importExisting, importBank, importPO, importPaste, importEvidence, editRow, close };
 })();

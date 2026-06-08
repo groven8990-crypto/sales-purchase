@@ -289,6 +289,7 @@ const App = (function () {
           <button class="btn" data-act="import-bank">🏦 기업은행 통장내역</button>
           <button class="btn" data-act="import-po">🧾 발주서로 매입 정리</button>
           <button class="btn" data-act="import-paste">📋 매입 직접 추가(붙여넣기)</button>
+          <button class="btn" data-act="import-evidence">🧾 홈택스 증빙 대조</button>
         </div></div>
       <div class="card"><h3>매입처 취급품목</h3>
         <p class="hint">매입처마다 취급하는 품목을 적어두면 보고서 '매입처별 매입'에 표시됩니다.</p>
@@ -343,6 +344,7 @@ const App = (function () {
       else if (b.dataset.act === "import-bank") Modals.importBank();
       else if (b.dataset.act === "import-po") Modals.importPO();
       else if (b.dataset.act === "import-paste") Modals.importPaste();
+      else if (b.dataset.act === "import-evidence") Modals.importEvidence();
     }));
     $$("[data-go]", main).forEach((b) => b.addEventListener("click", () => go(b.dataset.go)));
   }
