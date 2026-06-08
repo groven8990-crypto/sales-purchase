@@ -582,20 +582,24 @@ const App = (function () {
     } catch (e) { console.warn("도넛 차트 실패", e); }
   }
 
-  // 보고서(.sheet)를 PNG로 저장 — 인쇄되는 모습대로(행추가·✕·입력테두리 숨김)
+  // 보고서(.sheet)를 PNG로 저장 — 인쇄본처럼, 섹션 단위로 A4 페이지 분할
   function exportSheetPng(main, label) {
     const node = main.querySelector(".sheet");
     if (!node) return;
     if (typeof html2canvas !== "function") { alert("이미지 변환 라이브러리를 불러오지 못했어요. 인터넷 연결을 확인해주세요."); return; }
     const today = new Date().toISOString().slice(0, 10);
+    // 섹션 제목들의 상대 위치(0~1) — 페이지는 이 경계에서만 나눔 (표 중간 안 잘림)
+    const sr = node.getBoundingClientRect();
+    const secRatios = [];
+    node.querySelectorAll(".doc-sec").forEach((h) => {
+      const r = (h.getBoundingClientRect().top - sr.top) / sr.height;
+      if (r > 0.03 && r < 0.98) secRatios.push(r);
+    });
     html2canvas(node, {
       scale: 2, backgroundColor: "#ffffff", useCORS: true,
       onclone: (doc) => {
-        // 편집용 요소 완전 제거 (행추가 버튼, ✕ 삭제, 빈 컬럼, 안내문구)
         doc.querySelectorAll(".no-print").forEach((el) => el.remove());
-        // 표는 자동 레이아웃으로 — 비어버린 ✕ 열이 0폭으로 접히게
         doc.querySelectorAll(".sheet table.doc-table").forEach((t) => { t.style.tableLayout = "auto"; });
-        // 입력칸(input/textarea)을 일반 텍스트로 교체 — 글자 안 잘리고, 숫자는 콤마
         doc.querySelectorAll(".mr-in").forEach((el) => {
           const isNum = el.classList.contains("n");
           const isArea = el.tagName === "TEXTAREA";
@@ -618,36 +622,38 @@ const App = (function () {
         for (let i = 0; i < d.length; i += 4) { if (d[i] < 247 || d[i + 1] < 247 || d[i + 2] < 247) return false; }
         return true;
       };
-      // 위·아래 빈 여백 잘라내 실제 내용 범위만
-      let top = 0; while (top < H - 1 && isWhiteRow(top)) top++;
-      let bottom = H - 1; while (bottom > top && isWhiteRow(bottom)) bottom--;
-      top = Math.max(0, top - 14); bottom = Math.min(H - 1, bottom + 14);
+      // 위·아래 빈 여백 제거
+      let topY = 0; while (topY < H - 1 && isWhiteRow(topY)) topY++;
+      let bottomY = H - 1; while (bottomY > topY && isWhiteRow(bottomY)) bottomY--;
+      topY = Math.max(0, topY - 14); bottomY = Math.min(H - 1, bottomY + 14);
       const pageH = Math.round(w * 297 / 210); // A4 비율
-      // 페이지 경계마다 위로 올라가며 흰 여백을 찾아 거기서 자름
-      const cuts = [top];
-      let start = top;
-      while (start + pageH < bottom) {
-        const target = start + pageH;
-        let found = -1;
-        for (let y = target; y > start + pageH * 0.55; y--) { if (isWhiteRow(y)) { found = y; break; } }
-        cuts.push(found > 0 ? found : target);
-        start = cuts[cuts.length - 1];
+      // 섹션 경계(픽셀) — 위/아래 잘린 영역 안의 것만
+      const bounds = [topY];
+      secRatios.map((r) => Math.round(r * H)).forEach((y) => { if (y > topY + 20 && y < bottomY - 20) bounds.push(y); });
+      bounds.push(bottomY + 1);
+      const bs = [...new Set(bounds)].sort((a, b) => a - b);
+      // 온전한 섹션들을 A4 높이에 맞춰 묶어서 페이지 컷 결정
+      const cuts = [bs[0]];
+      let startB = bs[0];
+      for (let i = 1; i < bs.length - 1; i++) {
+        if (bs[i + 1] - startB > pageH && bs[i] > startB) { cuts.push(bs[i]); startB = bs[i]; }
       }
-      cuts.push(bottom + 1);
-      const segs = [];
-      for (let p = 0; p < cuts.length - 1; p++) { const y0 = cuts[p], h = cuts[p + 1] - y0; if (h > 30) segs.push([y0, h]); }
-      const multi = segs.length > 1;
-      segs.forEach(([y0, h], i) => {
+      cuts.push(bs[bs.length - 1]);
+      const ucuts = [...new Set(cuts)].sort((a, b) => a - b);
+      const multi = ucuts.length - 1 > 1;
+      for (let p = 0; p < ucuts.length - 1; p++) {
+        const y0 = ucuts[p], h = ucuts[p + 1] - y0;
+        if (h < 30) continue;
         const slice = document.createElement("canvas");
         slice.width = w; slice.height = h;
         const ctx = slice.getContext("2d");
         ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, w, h);
         ctx.drawImage(canvas, 0, y0, w, h, 0, 0, w, h);
         const a = document.createElement("a");
-        a.download = `마감보고서_${label}_${today}${multi ? `_${i + 1}p` : ""}.png`;
+        a.download = `마감보고서_${label}_${today}${multi ? `_${p + 1}p` : ""}.png`;
         a.href = slice.toDataURL("image/png");
         a.click();
-      });
+      }
     }).catch((e) => alert("이미지 저장 실패: " + e));
   }
 
