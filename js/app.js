@@ -556,6 +556,25 @@ const App = (function () {
       R._pfFixCpay = true;
       S.save(true);
     }
+    // 2026년 5월 그로븐 플랫폼 수수료·광고비 세부 1회 자동 채움 (사용자 요청, 공장임대료 제외)
+    if (store === "groven" && String(yr) === "2026" && String(mo) === "5" && !R._pfSeeded && R.platform.length === 0) {
+      R.platform = [
+        { supplier: "십일번가", item: "상품전시", type: "광고비", amount: 50634 },
+        { supplier: "십일번가", item: "서비스이용료", type: "수수료", amount: 12817 },
+        { supplier: "네이버파이낸셜", item: "판매수수료", type: "수수료", amount: 5969 },
+        { supplier: "카카오", item: "카카오스토어 구매확정", type: "수수료", amount: 13753 },
+        { supplier: "쿠팡페이", item: "3P_영중소", type: "수수료", amount: -29842 },
+        { supplier: "쿠팡", item: "ProductAD", type: "광고비", amount: 503277 },
+        { supplier: "지마켓", item: "판매수수료", type: "수수료", amount: 730429 },
+        { supplier: "지마켓", item: "옥션 광고 서비스 이용료", type: "광고비", amount: 13170 },
+        { supplier: "지마켓", item: "옥션 서비스 이용료", type: "수수료", amount: 34015 },
+        { supplier: "지마켓", item: "G마켓 수수료", type: "수수료", amount: 47741 },
+        { supplier: "당근마켓", item: "커머스 판매수수료", type: "수수료", amount: 965 },
+        { supplier: "당근마켓", item: "커머스 잔액정산", type: "수수료", amount: -528 },
+      ];
+      R._pfSeeded = true;
+      S.save(true);
+    }
     const fullNm = store === "yb" ? "옐로우브릿지" : "그로븐";
     const tax = store === "yb" ? "과세" : "면세";
     const numIn = (sec, i, f, v) => `<input class="mr-in n" data-sec="${sec}" data-i="${i}" data-f="${f}" value="${S.num(v)}" inputmode="numeric">`;
