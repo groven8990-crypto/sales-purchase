@@ -372,8 +372,17 @@ const Modals = (function () {
     });
     const htSum = rows.reduce((a, r) => a + r.total, 0);
     const bkSum = rows.reduce((a, r) => a + r.bookTotal, 0);
+    // 자동 저장 (연/월 입력 시) → 보고서에서 다시 볼 수 있음
+    let savedMsg = "";
+    if (year && month) {
+      S.data.evidence[year + "-" + month] = rows.map((r) => ({ store: r.store, type: r.type, supply: r.supply, vat: r.vat, total: r.total }));
+      S.save();
+      savedMsg = ` · 💾 저장됨 (보고서에서 다시 볼 수 있어요)`;
+    } else {
+      savedMsg = ` · ⚠️ 저장하려면 위에 연/월을 입력하세요`;
+    }
     q("#ev-result").innerHTML = `
-      <div class="ok">✅ ${parsed.length}개 파일 인식 — 홈택스 매입 합계 ₩${won(htSum)}</div>
+      <div class="ok">✅ ${parsed.length}개 파일 인식 — 홈택스 매입 합계 ₩${won(htSum)}${savedMsg}</div>
       <div class="hint">홈택스 금액 = 받은 증빙 기준 / 장부 = 입력된 매입 (해당 증빙·연월·스토어). 차액이 0이면 일치예요.</div>
       <div class="table-wrap"><table class="grid">
         <thead><tr><th>스토어</th><th>증빙</th><th class="num">홈택스</th><th class="num">장부</th><th class="num">차액</th><th>판정</th></tr></thead>

@@ -180,6 +180,30 @@ const App = (function () {
   }
 
   /* ===================== 인쇄용 마감 보고서 (시안1) ===================== */
+  // Ⅵ. 홈택스 증빙 대조 (저장된 것 표시)
+  function evidenceSection(store, year, month) {
+    const saved = (S.data.evidence && S.data.evidence[year + "-" + month]) || [];
+    const rows = saved.filter((e) => !store || e.store === store);
+    if (!rows.length) return "";
+    const storeNm = (s) => s === "yb" ? "옐브" : (s === "groven" ? "그로븐" : "통합");
+    const body = rows.map((e) => {
+      const book = S.filterBy(S.data.purchases, { store: e.store, year, month })
+        .filter((r) => (r.evidence || "") === e.type)
+        .reduce((a, r) => a + S.num(r.total || r.supply), 0);
+      const diff = e.total - book;
+      return `<tr><td>${storeNm(e.store)}</td><td>${esc(e.type)}</td>
+        <td class="n">${won(e.total)}</td><td class="n">${won(book)}</td>
+        <td class="n ${diff === 0 ? "pos" : "neg"}">${diff > 0 ? "+" : ""}${won(diff)}</td>
+        <td>${diff === 0 ? "✅" : "🔴"}</td></tr>`;
+    }).join("");
+    const htSum = rows.reduce((a, e) => a + e.total, 0);
+    return `<h4 class="doc-sec">Ⅵ. 매입 증빙 대조 (홈택스)</h4>
+      <table class="doc-table">
+        <thead><tr><th style="width:60px">스토어</th><th>증빙</th><th class="n">홈택스</th><th class="n">장부</th><th class="n">차액</th><th style="width:44px">판정</th></tr></thead>
+        <tbody>${body}<tr class="sum"><td colspan="2">홈택스 합계</td><td class="n">${won(htSum)}</td><td class="n" colspan="3"></td></tr></tbody>
+      </table>`;
+  }
+
   function renderReport(main) {
     const { store, year, month } = scope;
     const sales = S.filterBy(S.data.sales, { store, year, month });
@@ -270,6 +294,7 @@ const App = (function () {
             <tr class="sum"><td>순증감</td><td class="n">${txns.length}</td><td class="n ${inSum - outSum >= 0 ? "pos" : "neg"}">${inSum - outSum >= 0 ? "+" : ""}${won(inSum - outSum)}</td><td></td></tr>
           </tbody>
         </table>
+        ${evidenceSection(store, year, month)}
       </div>`;
 
     $("#dl-xlsx").addEventListener("click", () => Report.download({ year, month }));
