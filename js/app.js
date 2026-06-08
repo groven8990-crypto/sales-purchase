@@ -267,7 +267,7 @@ const App = (function () {
         <div class="muted">사업장별로 거래처 충전·사용·잔액 (상단 스토어 탭으로 그로븐/YB만 보기)</div></div>
         <div class="row-actions"><button class="btn primary" data-act="import-deposit-file">📥 파일 올리기</button>
         <button class="btn" data-act="import-deposit-paste">📋 붙여넣기</button>
-        <button class="btn ghost" id="dp-png">📸 금일 사용 보고(PNG)</button>
+        <button class="btn ghost" id="dp-png">📸 현황 보고(PNG)</button>
         <button class="btn danger" id="dp-clear">🗑️ 전체삭제</button></div></div>
       ${sections || `<div class="kpibar"><div class="kb"><div class="l">아직 기록 없음</div></div></div>`}
       <div class="card"><h3>예치금 직접 입력</h3>
@@ -327,61 +327,85 @@ const App = (function () {
     $("#dp-png", main).addEventListener("click", () => depositUsageReport(deps));
   }
 
-  // 금일(오늘) 사용 내역만 보고서 형태로 PNG 저장
+  // 예치금·적립금 현황 보고서 PNG (① 현재 잔액 → ② 금일 사용)
   function depositUsageReport(deps) {
     const stNm = (s) => s === "yb" ? "YB" : (s === "groven" ? "그로븐" : "공통");
     const today = new Date().toISOString().slice(0, 10);
     const todayK = today.replace(/-/g, ".");
-    const rows = (deps || []).filter((d) => d.kind === "사용" && String(d.date).slice(0, 10) === today)
-      .sort((a, b) => `${a.store}|${a.vendor}`.localeCompare(`${b.store}|${b.vendor}`));
-    if (!rows.length) { alert("오늘(" + todayK + ") 사용한 예치금 내역이 없어요."); return; }
-    const total = rows.reduce((a, d) => a + S.num(d.amount), 0);
-    // 사용 후 현재 잔액 (전체 기준)
-    const balOf = (st, v) => {
-      const list = (S.data.deposits || []).filter((d) => (d.store || "") === st && d.vendor === v);
+    const data = deps || [];
+    // ① 현재 잔액 현황 (사업장·거래처별 충전-사용)
+    const keys = [...new Set(data.map((d) => `${d.store || ""}|${d.vendor}`))]
+      .sort((a, b) => a.localeCompare(b));
+    const balRows = keys.map((k) => {
+      const [st, v] = k.split("|");
+      const list = data.filter((d) => (d.store || "") === st && d.vendor === v);
       const chg = list.filter((d) => d.kind === "충전").reduce((a, d) => a + S.num(d.amount), 0);
       const use = list.filter((d) => d.kind === "사용").reduce((a, d) => a + S.num(d.amount), 0);
-      return chg - use;
-    };
-    const body = rows.map((d, i) => `<tr><td class="c">${i + 1}</td><td class="c">${stNm(d.store)}</td>
-      <td class="name">${esc(d.vendor)}</td><td class="n">${won(d.amount)}</td>
-      <td class="n">${won(balOf(d.store || "", d.vendor))}</td><td>${esc(d.memo || "")}</td></tr>`).join("");
+      return { st, v, chg, use, bal: chg - use };
+    }).filter((r) => r.chg || r.use);
+    // ② 금일 사용 현황
+    const useRows = data.filter((d) => d.kind === "사용" && String(d.date).slice(0, 10) === today)
+      .sort((a, b) => `${a.store}|${a.vendor}`.localeCompare(`${b.store}|${b.vendor}`));
+    if (!balRows.length && !useRows.length) { alert("표시할 예치금·적립금 기록이 없어요."); return; }
+    const useTotal = useRows.reduce((a, d) => a + S.num(d.amount), 0);
+    const balTotal = balRows.reduce((a, r) => a + r.bal, 0);
+
+    const TD = 'border:1px solid #bcc4d0;padding:6px 8px';
+    const TDc = TD + ';text-align:center';
+    const TDn = TD + ';text-align:right;font-variant-numeric:tabular-nums';
+    const TH = 'border:1px solid #bcc4d0;padding:7px;background:#eef1f6;font-weight:700';
+
+    // ① 잔액 표
+    const balBody = balRows.length ? balRows.map((r) => `<tr>
+      <td style="${TDc}">${stNm(r.st)}</td><td style="${TD};word-break:break-all">${esc(r.v)}</td>
+      <td style="${TDn}">${won(r.chg)}</td><td style="${TDn}">${won(r.use)}</td>
+      <td style="${TDn};font-weight:800;color:${r.bal < 0 ? "#dc2626" : "#1a3a6b"}">${won(r.bal)}</td></tr>`).join("")
+      : `<tr><td style="${TDc};color:#6b7588" colspan="5">기록 없음</td></tr>`;
+    const balTable = `<table style="width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed">
+      <thead><tr>
+        <th style="${TH};width:60px">사업장</th><th style="${TH}">거래처</th>
+        <th style="${TH};width:115px;text-align:right">총 충전</th>
+        <th style="${TH};width:115px;text-align:right">총 사용</th>
+        <th style="${TH};width:120px;text-align:right">현재 잔액</th>
+      </tr></thead><tbody>${balBody}
+      <tr style="background:#e7ebf2;font-weight:800"><td style="${TDc}" colspan="4">잔액 합계</td>
+        <td style="${TDn}">₩${won(balTotal)}</td></tr></tbody></table>`;
+
+    // ② 금일 사용 표
+    const useBody = useRows.length ? useRows.map((d, i) => `<tr>
+      <td style="${TDc}">${i + 1}</td><td style="${TDc}">${stNm(d.store)}</td>
+      <td style="${TD};word-break:break-all">${esc(d.vendor)}</td>
+      <td style="${TDn}">${won(d.amount)}</td><td style="${TD}">${esc(d.memo || "")}</td></tr>`).join("")
+      : `<tr><td style="${TDc};color:#6b7588" colspan="5">오늘 사용한 내역이 없습니다</td></tr>`;
+    const useTable = `<table style="width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed">
+      <thead><tr>
+        <th style="${TH};width:42px">순번</th><th style="${TH};width:60px">사업장</th>
+        <th style="${TH}">거래처</th><th style="${TH};width:120px;text-align:right">사용액</th>
+        <th style="${TH};width:150px">메모</th>
+      </tr></thead><tbody>${useBody}
+      ${useRows.length ? `<tr style="background:#e7ebf2;font-weight:800"><td style="${TDc}" colspan="3">금일 사용 합계</td>
+        <td style="${TDn}">₩${won(useTotal)}</td><td style="${TD}"></td></tr>` : ""}
+      </tbody></table>`;
+
     const host = document.createElement("div");
-    host.style.cssText = "position:fixed;left:-9999px;top:0;width:700px;background:#fff";
-    host.innerHTML = `<div id="dp-report" style="width:700px;background:#fff;padding:34px 36px;box-sizing:border-box;font-family:'Pretendard','Malgun Gothic',sans-serif;color:#1f2733">
-      <div style="text-align:center;border-bottom:3px double #222;padding-bottom:12px;margin-bottom:10px">
-        <div style="font-size:23px;font-weight:800;letter-spacing:6px">예치금 사용 보고</div>
-        <div style="font-size:12px;color:#6b7588;letter-spacing:2px;margin-top:4px">${scope.store ? stNm(scope.store) : "그로븐 · YB 통합"}</div>
+    host.style.cssText = "position:fixed;left:-9999px;top:0;width:720px;background:#fff";
+    host.innerHTML = `<div id="dp-report" style="width:720px;background:#fff;padding:34px 38px;box-sizing:border-box;font-family:'Pretendard','Malgun Gothic',sans-serif;color:#1f2733">
+      <div style="text-align:center;border-bottom:3px double #222;padding-bottom:12px;margin-bottom:14px">
+        <div style="font-size:23px;font-weight:800;letter-spacing:5px">예치금 · 적립금 현황 보고</div>
+        <div style="font-size:12px;color:#6b7588;letter-spacing:2px;margin-top:4px">${scope.store ? stNm(scope.store) : "그로븐 · YB 통합"} &nbsp;|&nbsp; ${todayK} 기준</div>
       </div>
-      <div style="display:flex;justify-content:space-between;font-size:13px;margin:10px 2px 14px">
-        <div>일자 : <b>${todayK}</b></div>
-        <div>금일 사용 합계 : <b style="color:#1a3a6b;font-size:15px">₩${won(total)}</b></div>
-      </div>
-      <table style="width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed">
-        <thead><tr style="background:#eef1f6">
-          <th style="border:1px solid #bcc4d0;padding:7px;width:42px">순번</th>
-          <th style="border:1px solid #bcc4d0;padding:7px;width:64px">사업장</th>
-          <th style="border:1px solid #bcc4d0;padding:7px">거래처</th>
-          <th style="border:1px solid #bcc4d0;padding:7px;width:120px;text-align:right">사용액</th>
-          <th style="border:1px solid #bcc4d0;padding:7px;width:120px;text-align:right">잔액</th>
-          <th style="border:1px solid #bcc4d0;padding:7px;width:130px">메모</th>
-        </tr></thead>
-        <tbody>${body.replace(/class="c"/g, 'style="border:1px solid #bcc4d0;padding:6px 7px;text-align:center"')
-          .replace(/class="name"/g, 'style="border:1px solid #bcc4d0;padding:6px 7px;word-break:break-all"')
-          .replace(/class="n"/g, 'style="border:1px solid #bcc4d0;padding:6px 7px;text-align:right;font-variant-numeric:tabular-nums"')
-          .replace(/<td>/g, '<td style="border:1px solid #bcc4d0;padding:6px 7px">')}
-        <tr style="background:#e7ebf2;font-weight:800"><td colspan="3" style="border:1px solid #bcc4d0;padding:7px;text-align:center">합계</td>
-          <td style="border:1px solid #bcc4d0;padding:7px;text-align:right">₩${won(total)}</td>
-          <td style="border:1px solid #bcc4d0;padding:7px"></td><td style="border:1px solid #bcc4d0;padding:7px"></td></tr>
-        </tbody></table>
-      <div style="margin-top:16px;font-size:11px;color:#6b7588;text-align:right">출력 : ${todayK}</div>
+      <div style="font-size:14px;font-weight:800;color:#1a3a6b;border-left:4px solid #1a3a6b;padding-left:9px;margin:6px 0 9px">Ⅰ. 현재 예치금·적립금 잔액</div>
+      ${balTable}
+      <div style="font-size:14px;font-weight:800;color:#1a3a6b;border-left:4px solid #1a3a6b;padding-left:9px;margin:22px 0 9px">Ⅱ. 금일 사용 현황 <span style="font-size:12px;font-weight:600;color:#6b7588">(${todayK})</span></div>
+      ${useTable}
+      <div style="margin-top:18px;font-size:11px;color:#6b7588;text-align:right">출력일 : ${todayK}</div>
     </div>`;
     document.body.appendChild(host);
     const node = host.querySelector("#dp-report");
     if (typeof html2canvas !== "function") { alert("이미지 변환 라이브러리를 불러오지 못했어요. 인터넷 연결을 확인해주세요."); host.remove(); return; }
     html2canvas(node, { scale: 2, backgroundColor: "#ffffff" }).then((canvas) => {
       const a = document.createElement("a");
-      a.download = `예치금사용보고_${today}.png`;
+      a.download = `예치금현황_${today}.png`;
       a.href = canvas.toDataURL("image/png");
       a.click();
       host.remove();
