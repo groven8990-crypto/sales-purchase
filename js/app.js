@@ -736,7 +736,15 @@ const App = (function () {
     };
     const memo = [g.memo, y.memo].filter(Boolean).join("\n");
 
-    const pf = [].concat(g.platform || [], y.platform || []);
+    const pfRaw = [].concat(g.platform || [], y.platform || []);
+    // 공급자+품목+구분이 같으면 합치기
+    const pfMap = {};
+    pfRaw.forEach((r) => {
+      const k = `${r.supplier || ""}|${r.item || ""}|${r.type || "수수료"}`;
+      if (!pfMap[k]) pfMap[k] = { supplier: r.supplier, item: r.item, type: r.type || "수수료", amount: 0 };
+      pfMap[k].amount += S.num(r.amount);
+    });
+    const pf = Object.values(pfMap).sort((a, b) => S.num(b.amount) - S.num(a.amount));
     const pfFeeR = pf.filter((r) => r.type !== "광고비"), pfAdR = pf.filter((r) => r.type === "광고비");
     const pfRow = (r, n) => `<tr><td class="c">${n}</td><td class="name">${esc(r.supplier)}</td>
       <td class="name">${esc(r.item)}</td><td class="c">${esc(r.type || "수수료")}</td><td class="n">${won(r.amount)}</td></tr>`;
