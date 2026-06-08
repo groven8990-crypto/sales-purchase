@@ -194,14 +194,26 @@ const SPC = (function () {
   const VENDOR_KEEP = ["푸드엔드베스트", "최고집", "도매꾹 이머니 충전", "해담별", "일비",
     "늘푸른", "다모아", "남부파머스", "소문난떡집", "생선상륙", "거풍푸드", "공덕농협",
     "충남마른김", "십일번가"];
+  // 부분일치: 이름 안에 이 키워드가 있으면 대표이름으로 (홈택스 정식명 매칭용)
+  const VENDOR_MATCH = {
+    "안동간고등어": "푸드엔드베스트", "푸드엔드베스트": "푸드엔드베스트", "푸드앤드베스트": "푸드엔드베스트",
+    "생선상륙": "생선상륙", "해담별": "해담별", "일비": "일비", "늘푸른": "늘푸른", "늘푸룬": "늘푸른",
+    "공덕농협": "공덕농협", "최고집": "최고집", "더자인": "최고집", "남부파머스": "남부파머스",
+    "거풍": "거풍푸드", "다모아": "다모아", "소문난떡": "소문난떡집", "충남마른김": "충남마른김",
+    "십일번가": "십일번가", "네이버": "네이버", "카카오": "카카오", "쿠팡": "쿠팡", "지마켓": "지마켓", "당근": "당근",
+  };
   function canonVendor(name) {
     let n = String(name || "").trim();
     if (!n) return "(미지정)";
     const userMap = (data && data.vendorAlias) || {};
-    // 법인격·공백 제거
-    let s = n.replace(/주식회사|㈜|\(주\)|\(유\)|농업회사법인|영농조합법인|유한회사|협동조합/g, "").replace(/\s/g, "").trim();
-    let cand = userMap[n] || userMap[s] || VENDOR_ALIAS[n] || VENDOR_ALIAS[s] || s || n;
-    if (VENDOR_KEEP.indexOf(cand) !== -1) return cand;
+    let s = n.replace(/주식회사|㈜|\(주\)|\(유\)|농업회사법인|영농조합법인|유한회사|협동조합/g, "").replace(/[\s\(\)（）]/g, "").trim();
+    if (userMap[n]) return userMap[n];
+    if (userMap[s]) return userMap[s];
+    if (VENDOR_ALIAS[n]) return VENDOR_ALIAS[n];
+    if (VENDOR_ALIAS[s]) return VENDOR_ALIAS[s];
+    // 부분일치 (정식명 안에 대표 키워드가 들어있으면)
+    for (const kw in VENDOR_MATCH) { if (s.indexOf(kw) !== -1) return VENDOR_MATCH[kw]; }
+    if (VENDOR_KEEP.indexOf(s) !== -1) return s;
     // 주 거래처가 아니면(=도매꾹에서 현금영수증으로 산 것) 도매꾹으로 묶음
     return "도매꾹 이머니 충전";
   }
@@ -271,7 +283,7 @@ const SPC = (function () {
     save, load, uid, num, byAmountDesc, filterBy,
     addSales, addPurchases, addTransactions, upsertVendor,
     remove, update, clearAll, clearKind,
-    monthlySummary, sum, groupSum, classify, classifyTxn, learnRule, lookupVendor,
+    monthlySummary, sum, groupSum, classify, classifyTxn, learnRule, lookupVendor, canonVendor,
     emptyData,
     exportJSON() { return JSON.stringify(data, null, 2); },
     importJSON(json) { data = Object.assign(emptyData(), JSON.parse(json)); save(); },

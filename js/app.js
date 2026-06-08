@@ -247,27 +247,28 @@ const App = (function () {
     }));
   }
 
-  // Ⅵ. 홈택스 증빙 대조 (저장된 것 표시)
+  // Ⅵ. 홈택스 증빙 대조 (거래처별, 저장된 것 표시)
   function evidenceSection(store, year, month) {
     const saved = (S.data.evidence && S.data.evidence[year + "-" + month]) || [];
     const rows = saved.filter((e) => !store || e.store === store);
     if (!rows.length) return "";
     const storeNm = (s) => s === "yb" ? "옐브" : (s === "groven" ? "그로븐" : "통합");
-    const body = rows.map((e) => {
+    const withBook = rows.map((e) => {
       const book = S.filterBy(S.data.purchases, { store: e.store, year, month })
-        .filter((r) => (r.evidence || "") === e.type)
-        .reduce((a, r) => a + S.num(r.total || r.supply), 0);
-      const diff = e.total - book;
-      return `<tr><td>${storeNm(e.store)}</td><td>${esc(e.type)}</td>
-        <td class="n">${won(e.total)}</td><td class="n">${won(book)}</td>
-        <td class="n ${diff === 0 ? "pos" : "neg"}">${diff > 0 ? "+" : ""}${won(diff)}</td>
-        <td>${diff === 0 ? "✅" : "🔴"}</td></tr>`;
-    }).join("");
-    const htSum = rows.reduce((a, e) => a + e.total, 0);
-    return `<h4 class="doc-sec">Ⅵ. 매입 증빙 대조 (홈택스)</h4>
+        .filter((r) => S.canonVendor(r.vendor) === e.vendor)
+        .reduce((a, r) => a + S.num(r.supply || r.total), 0);
+      return Object.assign({}, e, { book, diff: e.ht - book });
+    }).sort((a, b) => b.ht - a.ht);
+    const body = withBook.map((e) => `<tr><td class="name">${esc(e.vendor)}</td><td>${esc(e.type)}</td><td class="c">${storeNm(e.store)}</td>
+      <td class="n">${won(e.ht)}</td><td class="n">${won(e.book)}</td>
+      <td class="n ${e.diff === 0 ? "pos" : "neg"}">${e.diff > 0 ? "+" : ""}${won(e.diff)}</td>
+      <td class="c">${e.diff === 0 ? "✅" : "🔴"}</td></tr>`).join("");
+    const htSum = withBook.reduce((a, e) => a + e.ht, 0);
+    const bkSum = withBook.reduce((a, e) => a + e.book, 0);
+    return `<h4 class="doc-sec">Ⅵ. 매입 증빙 대조 (홈택스 발행 ↔ 장부)</h4>
       <table class="doc-table">
-        <thead><tr><th style="width:60px">스토어</th><th>증빙</th><th class="n">홈택스</th><th class="n">장부</th><th class="n">차액</th><th style="width:44px">판정</th></tr></thead>
-        <tbody>${body}<tr class="sum"><td colspan="2">홈택스 합계</td><td class="n">${won(htSum)}</td><td class="n" colspan="3"></td></tr></tbody>
+        <thead><tr><th>거래처</th><th style="width:80px">증빙</th><th class="c" style="width:50px">스토어</th><th class="n" style="width:96px">홈택스</th><th class="n" style="width:96px">장부</th><th class="n" style="width:88px">차액</th><th class="c" style="width:40px">판정</th></tr></thead>
+        <tbody>${body}<tr class="sum"><td colspan="3">합계</td><td class="n">${won(htSum)}</td><td class="n">${won(bkSum)}</td><td class="n ${htSum - bkSum === 0 ? "pos" : "neg"}">${won(htSum - bkSum)}</td><td></td></tr></tbody>
       </table>`;
   }
 

@@ -310,23 +310,33 @@ const Parsers = (function () {
       : (/그로븐|GROVEN|Groven/i.test(flat) ? "groven" : "");
 
     let supply = 0, vat = 0, total = 0, count = 0;
+    const byV = {};
 
-    if (type === "현금영수증") {
-      let hr = -1, h = null;
-      for (let i = 0; i < Math.min(grid.length, 10); i++) {
-        if ((grid[i] || []).some((c) => String(c).indexOf("매입금액") !== -1)) { hr = i; h = grid[i]; break; }
-      }
-      if (hr >= 0) {
-        const iS = h.findIndex((c) => String(c).indexOf("공급가액") !== -1);
-        const iV = h.findIndex((c) => String(c).indexOf("부가세") !== -1);
-        const iT = h.findIndex((c) => String(c).indexOf("매입금액") !== -1);
-        for (let r = hr + 1; r < grid.length; r++) {
-          const row = grid[r]; if (!row || !String(row[iT] || "").trim()) continue;
-          supply += numOf(row[iS]); vat += numOf(row[iV]); total += numOf(row[iT]); count++;
-        }
+    // 헤더 행 찾기 (가맹점명/상호/공급가액 포함)
+    let hr = -1, h = null;
+    for (let i = 0; i < Math.min(grid.length, 14); i++) {
+      const row = grid[i] || [];
+      if (row.some((c) => { const s = String(c).trim(); return s === "공급가액" || s === "가맹점명" || s === "매입금액"; })) { hr = i; h = row; break; }
+    }
+    if (hr >= 0) {
+      const ix = (nm) => h.findIndex((c) => String(c).trim() === nm);
+      let iVendor, iSupply, iVat, iTotal;
+      if (type === "현금영수증") { iVendor = ix("가맹점명"); iSupply = ix("공급가액"); iVat = ix("부가세"); iTotal = ix("매입금액"); }
+      else { iVendor = ix("상호"); iSupply = ix("공급가액"); iVat = ix("세액"); iTotal = ix("합계금액"); }
+      for (let r = hr + 1; r < grid.length; r++) {
+        const row = grid[r]; if (!row) continue;
+        const vn = iVendor >= 0 ? String(row[iVendor] || "").trim() : "";
+        if (!vn) continue;
+        const sp = iSupply >= 0 ? numOf(row[iSupply]) : 0;
+        const vt = iVat >= 0 ? numOf(row[iVat]) : 0;
+        const tt = iTotal >= 0 ? numOf(row[iTotal]) : 0;
+        if (!sp && !tt) continue;
+        byV[vn] = byV[vn] || { vendor: vn, supply: 0, vat: 0, total: 0, count: 0 };
+        byV[vn].supply += sp; byV[vn].vat += vt; byV[vn].total += (tt || sp); byV[vn].count++;
+        supply += sp; vat += vt; total += (tt || sp); count++;
       }
     }
-    // 계산서·세금계산서(또는 위에서 합계 못 구한 경우): 요약 셀에서 총액 추출
+    // 라인을 못 읽었으면 요약 셀에서 총액 추출
     if (total === 0 && supply === 0) {
       grid.forEach((row) => (row || []).forEach((c, ci) => {
         const s = String(c == null ? "" : c).replace(/\s/g, "");
@@ -337,7 +347,7 @@ const Parsers = (function () {
       }));
       if (!total) total = supply + vat;
     }
-    return { type, store, supply, vat, total, count, fileName: file.name };
+    return { type, store, supply, vat, total, count, byVendor: Object.values(byV), fileName: file.name };
   }
 
   return {

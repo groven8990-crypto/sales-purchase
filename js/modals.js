@@ -357,47 +357,42 @@ const Modals = (function () {
     const ymM = (q("#ev-ym").value || "").match(/(\d{4})\D+(\d{1,2})/);
     const year = ymM ? +ymM[1] : "";
     const month = ymM ? +ymM[2] : "";
-    const storeNm = (s) => s === "yb" ? "옐브" : (s === "groven" ? "그로븐" : "?");
-    const ht = {};
-    parsed.forEach((p) => {
-      const k = (p.store || "?") + "|" + (p.type || "?");
-      ht[k] = ht[k] || { store: p.store, type: p.type, supply: 0, vat: 0, total: 0 };
-      ht[k].supply += p.supply; ht[k].vat += p.vat; ht[k].total += p.total;
-    });
-    const rows = Object.values(ht).map((h) => {
-      const book = S.filterBy(S.data.purchases, { store: h.store, year, month })
-        .filter((r) => (r.evidence || "") === h.type);
-      const bookTotal = book.reduce((a, r) => a + S.num(r.total || r.supply), 0);
-      return Object.assign(h, { bookTotal, diff: h.total - bookTotal });
-    });
-    const htSum = rows.reduce((a, r) => a + r.total, 0);
-    const bkSum = rows.reduce((a, r) => a + r.bookTotal, 0);
-    // 자동 저장 (연/월 입력 시) → 보고서에서 다시 볼 수 있음
+    const storeNm = (s) => s === "yb" ? "옐브" : (s === "groven" ? "그로븐" : "통합");
+    // 거래처별 집계 (대표이름으로 묶음)
+    const agg = {};
+    parsed.forEach((p) => (p.byVendor || []).forEach((v) => {
+      const cv = S.canonVendor(v.vendor);
+      const k = cv + "|" + p.type + "|" + (p.store || "");
+      agg[k] = agg[k] || { vendor: cv, type: p.type, store: p.store, ht: 0 };
+      agg[k].ht += v.supply || v.total;
+    }));
+    const rows = Object.values(agg).map((a) => {
+      const book = S.filterBy(S.data.purchases, { store: a.store, year, month })
+        .filter((r) => S.canonVendor(r.vendor) === a.vendor)
+        .reduce((acc, r) => acc + S.num(r.supply || r.total), 0);
+      return Object.assign(a, { book, diff: a.ht - book });
+    }).sort((x, y) => y.ht - x.ht);
+    const htSum = rows.reduce((a, r) => a + r.ht, 0);
+
     let savedMsg = "";
     if (year && month) {
-      S.data.evidence[year + "-" + month] = rows.map((r) => ({ store: r.store, type: r.type, supply: r.supply, vat: r.vat, total: r.total }));
+      S.data.evidence[year + "-" + month] = rows.map((r) => ({ vendor: r.vendor, type: r.type, store: r.store, ht: r.ht }));
       S.save();
-      savedMsg = ` · 💾 저장됨 (보고서에서 다시 볼 수 있어요)`;
-    } else {
-      savedMsg = ` · ⚠️ 저장하려면 위에 연/월을 입력하세요`;
-    }
+      savedMsg = ` · 💾 저장됨 (보고서에 표시돼요)`;
+    } else { savedMsg = ` · ⚠️ 저장하려면 연/월을 입력하세요`; }
+
     q("#ev-result").innerHTML = `
-      <div class="ok">✅ ${parsed.length}개 파일 인식 — 홈택스 매입 합계 ₩${won(htSum)}${savedMsg}</div>
-      <div class="hint">홈택스 금액 = 받은 증빙 기준 / 장부 = 입력된 매입 (해당 증빙·연월·스토어). 차액이 0이면 일치예요.</div>
-      <div class="table-wrap"><table class="grid">
-        <thead><tr><th>스토어</th><th>증빙</th><th class="num">홈택스</th><th class="num">장부</th><th class="num">차액</th><th>판정</th></tr></thead>
+      <div class="ok">✅ ${parsed.length}개 파일 · 거래처 ${rows.length}곳 · 홈택스 발행 합계 ₩${won(htSum)}${savedMsg}</div>
+      <div class="hint">거래처별로 <b>홈택스 발행액(공급가)</b> 과 <b>장부 매입(공급가)</b> 을 대조해요. 차액 0이면 일치 ✅</div>
+      <div class="table-wrap scroll"><table class="grid">
+        <thead><tr><th>거래처</th><th>증빙</th><th>스토어</th><th class="num">홈택스</th><th class="num">장부</th><th class="num">차액</th><th>판정</th></tr></thead>
         <tbody>${rows.map((r) => `<tr>
-          <td>${storeNm(r.store)}</td><td>${E(r.type)}</td>
-          <td class="num">₩${won(r.total)}</td>
-          <td class="num">₩${won(r.bookTotal)}</td>
+          <td>${E(r.vendor)}</td><td>${E(r.type)}</td><td>${storeNm(r.store)}</td>
+          <td class="num">₩${won(r.ht)}</td><td class="num">₩${won(r.book)}</td>
           <td class="num" style="color:${r.diff === 0 ? "#0a8043" : "#dc2626"}">${r.diff > 0 ? "+" : ""}${won(r.diff)}</td>
-          <td>${r.diff === 0 ? "✅ 일치" : "🔴 차액"}</td></tr>`).join("")}
-          <tr style="font-weight:800;background:#f7f9fc"><td colspan="2">합계</td>
-          <td class="num">₩${won(htSum)}</td><td class="num">₩${won(bkSum)}</td>
-          <td class="num" style="color:${htSum - bkSum === 0 ? "#0a8043" : "#dc2626"}">${htSum - bkSum > 0 ? "+" : ""}${won(htSum - bkSum)}</td>
-          <td>${htSum - bkSum === 0 ? "✅" : "🔴"}</td></tr>
+          <td>${r.diff === 0 ? "✅" : "🔴"}</td></tr>`).join("")}
         </tbody></table></div>
-      <p class="hint">※ 세금계산서엔 플랫폼 수수료(쿠팡·네이버 등)도 포함될 수 있어, 장부의 '상품매입'과는 다를 수 있어요.</p>`;
+      <p class="hint">※ 세금계산서의 쿠팡·네이버·지마켓·당근 등은 플랫폼 수수료라 장부 상품매입엔 없을 수 있어요(차액 정상).</p>`;
   }
 
   return { importExisting, importBank, importPO, importPaste, importEvidence, editRow, close };
