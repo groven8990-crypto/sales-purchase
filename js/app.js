@@ -810,7 +810,7 @@ const App = (function () {
       requestAnimationFrame(() => {
         const cv = document.getElementById("mr-pf-ch");
         if (!cv) return;
-        const PAL = ["#1a3a6b", "#0ea5a5", "#d97706", "#0a8043", "#dc2626", "#7c3aed", "#0891b2", "#9ca3af"];
+        const PAL = ["#8fb3e0", "#9fd6ae", "#f5d08a", "#f2a9a9", "#c2b0e8", "#93cdd9", "#f3aecf", "#aeb8c9"];
         const top = pfChart.slice(0, 7);
         const etc = pfChart.slice(7).reduce((a, gg) => a + gg.sum, 0);
         const arr = etc > 0 ? top.concat([{ key: "기타", sum: etc }]) : top;

@@ -7,8 +7,9 @@ const Dashboard = (function () {
   const won = (n) => "₩" + Math.round(n).toLocaleString("ko-KR");
   const cheon = (n) => Math.round(n).toLocaleString("ko-KR"); // 원 단위
 
-  const PALETTE = ["#2563eb", "#16a34a", "#f59e0b", "#ef4444", "#8b5cf6",
-                   "#0891b2", "#db2777", "#65a30d", "#ea580c", "#475569"];
+  // 파스텔톤 팔레트 (사용자 선호: 연한 색)
+  const PALETTE = ["#8fb3e0", "#9fd6ae", "#f5d08a", "#f2a9a9", "#c2b0e8",
+                   "#93cdd9", "#f3aecf", "#c2dd95", "#f6c089", "#aeb8c9"];
 
   function destroy() {
     Object.values(charts).forEach((c) => c && c.destroy());
