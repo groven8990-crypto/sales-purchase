@@ -234,20 +234,23 @@ const App = (function () {
   }
 
   /* ===================== 예치금 충전현황 ===================== */
+  let depVendor = "";
   function renderDeposits(main) {
     const KNOWN = ["최고집", "늘푸른", "도매꾹 이머니 충전"];
     const all = S.data.deposits || [];
     const deps = scope.store ? all.filter((d) => (d.store || "") === scope.store) : all;
     const vendors = [...new Set(KNOWN.concat(deps.map((d) => d.vendor)).filter(Boolean))];
+    if (depVendor && vendors.indexOf(depVendor) === -1) depVendor = "";
     const stNm = (s) => s === "yb" ? "옐브" : (s === "groven" ? "그로븐" : "공통");
     const sumBy = (v, k) => deps.filter((d) => d.vendor === v && d.kind === k).reduce((a, d) => a + S.num(d.amount), 0);
     const cards = vendors.map((v) => {
       const chg = sumBy(v, "충전"), use = sumBy(v, "사용"), bal = chg - use;
-      return `<div class="kb"><div class="l">${esc(v)}</div>
+      return `<div class="kb" data-depv="${esc(v)}" style="cursor:pointer;${depVendor === v ? "outline:2px solid var(--navy)" : ""}"><div class="l">${esc(v)}${depVendor === v ? " ✓" : ""}</div>
         <div class="v" style="color:${bal >= 0 ? "var(--navy)" : "var(--red)"}">₩${won(bal)}</div>
         <div class="hint">충전 ₩${won(chg)} · 사용 ₩${won(use)}</div></div>`;
     }).join("");
-    const sorted = [...deps].sort((a, b) => String(b.date).localeCompare(String(a.date)));
+    const viewDeps = depVendor ? deps.filter((d) => d.vendor === depVendor) : deps;
+    const sorted = [...viewDeps].sort((a, b) => String(b.date).localeCompare(String(a.date)));
     main.innerHTML = `
       <div class="page-head"><div><h2>💳 예치금 충전현황 <span class="muted">${esc(scope.store ? stNm(scope.store) : "통합")}</span></h2>
         <div class="muted">사업장·거래처별 충전·사용·잔액 (상단 스토어 탭으로 그로븐/옐브 구분)</div></div>
@@ -288,6 +291,10 @@ const App = (function () {
     });
     $$("[data-deldep]", main).forEach((b) => b.addEventListener("click", () => {
       if (confirm("이 기록을 삭제할까요?")) { S.remove("deposits", b.dataset.deldep); renderDeposits(main); }
+    }));
+    $$("[data-depv]", main).forEach((c) => c.addEventListener("click", () => {
+      depVendor = depVendor === c.dataset.depv ? "" : c.dataset.depv;
+      renderDeposits(main);
     }));
     $("#dp-clear", main).addEventListener("click", () => {
       const label = scope.store ? (scope.store === "yb" ? "옐브" : "그로븐") : "전체";
