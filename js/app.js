@@ -580,7 +580,7 @@ const App = (function () {
           if (pct < 8) return; // 글자 안 들어갈 작은 조각은 생략
           const ang = (arc.startAngle + arc.endAngle) / 2;
           const r = (arc.innerRadius + arc.outerRadius) / 2;
-          ctx.fillText(Math.round(pct) + "%", arc.x + Math.cos(ang) * r, arc.y + Math.sin(ang) * r);
+          ctx.fillText(pct.toFixed(1) + "%", arc.x + Math.cos(ang) * r, arc.y + Math.sin(ang) * r);
         });
         ctx.restore();
       },
