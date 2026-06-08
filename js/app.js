@@ -574,14 +574,25 @@ const App = (function () {
       <td class="c no-print"><button class="icon-btn" data-rm="vendors" data-i="${i}">✕</button></td></tr>`).join("");
     const vnT = R.vendors.reduce((a, r) => a + S.num(r.supply), 0);
 
-    const pfBody = R.platform.map((r, i) => `<tr><td class="c">${i + 1}</td>
+    const pfRowHtml = (r, i, n) => `<tr><td class="c">${n}</td>
       <td>${txtIn("platform", i, "supplier", r.supplier, "공급자")}</td>
       <td>${txtIn("platform", i, "item", r.item, "품목")}</td>
       <td class="c">${selType(i, r.type)}</td>
       <td class="n">${numIn("platform", i, "amount", r.amount)}</td>
-      <td class="c no-print"><button class="icon-btn" data-rm="platform" data-i="${i}">✕</button></td></tr>`).join("");
-    const pfFee = R.platform.filter((r) => r.type !== "광고비").reduce((a, r) => a + S.num(r.amount), 0);
-    const pfAd = R.platform.filter((r) => r.type === "광고비").reduce((a, r) => a + S.num(r.amount), 0);
+      <td class="c no-print"><button class="icon-btn" data-rm="platform" data-i="${i}">✕</button></td></tr>`;
+    const pfIdx = R.platform.map((r, i) => ({ r, i }));
+    const feeRows = pfIdx.filter((x) => x.r.type !== "광고비");
+    const adRows = pfIdx.filter((x) => x.r.type === "광고비");
+    const pfFee = feeRows.reduce((a, x) => a + S.num(x.r.amount), 0);
+    const pfAd = adRows.reduce((a, x) => a + S.num(x.r.amount), 0);
+    const pfGroup = (rows, label) => `<tr style="background:#eef4ff"><td colspan="6" style="font-weight:700;color:var(--navy);padding:5px 9px">${label}</td></tr>`
+      + (rows.length ? rows.map((x, n) => pfRowHtml(x.r, x.i, n + 1)).join("") : `<tr><td colspan="6" class="empty">행추가로 입력하세요</td></tr>`);
+    const pfBody = R.platform.length
+      ? pfGroup(feeRows, "▸ 플랫폼 수수료") + `<tr class="sum"><td colspan="4">플랫폼 수수료 소계</td><td class="n" id="mr-pfFee">${won(pfFee)}</td><td class="no-print"></td></tr>`
+        + pfGroup(adRows, "▸ 플랫폼 광고비") + `<tr class="sum"><td colspan="4">플랫폼 광고비 소계</td><td class="n" id="mr-pfAd">${won(pfAd)}</td><td class="no-print"></td></tr>`
+      : `<tr><td colspan="6" class="empty">행추가로 플랫폼 수수료·광고비 세부를 입력하세요</td></tr>`
+        + `<tr class="sum"><td colspan="4">플랫폼 수수료 소계</td><td class="n" id="mr-pfFee">0</td><td class="no-print"></td></tr>`
+        + `<tr class="sum"><td colspan="4">플랫폼 광고비 소계</td><td class="n" id="mr-pfAd">0</td><td class="no-print"></td></tr>`;
 
     main.innerHTML = `
       <div class="page-head no-print">
@@ -614,9 +625,7 @@ const App = (function () {
 
         <h4 class="doc-sec">Ⅲ-1. 플랫폼 수수료·광고비 세부 <span class="muted" style="font-weight:400;font-size:11px">(위 매입처별 ‘플랫폼…’ 합계의 내역)</span> <button class="btn no-print" data-add="platform" style="padding:3px 9px;font-size:12px;margin-left:8px">➕ 행추가</button></h4>
         <table class="doc-table"><thead><tr><th class="c" style="width:40px">순번</th><th>공급자</th><th>품목</th><th class="c" style="width:80px">구분</th><th class="n" style="width:120px">금액</th><th class="no-print" style="width:30px"></th></tr></thead>
-          <tbody>${pfBody || `<tr><td colspan="6" class="empty">행추가로 플랫폼 수수료·광고비 세부를 입력하세요</td></tr>`}
-          <tr class="sum"><td colspan="4">플랫폼 수수료 소계</td><td class="n" id="mr-pfFee">${won(pfFee)}</td><td class="no-print"></td></tr>
-          <tr class="sum"><td colspan="4">플랫폼 광고비 소계</td><td class="n" id="mr-pfAd">${won(pfAd)}</td><td class="no-print"></td></tr></tbody></table>
+          <tbody>${pfBody}</tbody></table>
 
         <h4 class="doc-sec">Ⅳ. 비고</h4>
         <textarea class="mr-in" data-sec="memo" data-i="0" data-f="memo" rows="3" style="width:100%" placeholder="특이사항">${esc(R.memo || "")}</textarea>
@@ -646,9 +655,9 @@ const App = (function () {
         else if (sec === "memo") R.memo = val;
         else R[sec][i][f] = val;
       };
-      const handler = () => { upd(); recalc(); S.save(true); };
-      el.addEventListener("input", handler);
-      if (el.tagName === "SELECT") el.addEventListener("change", handler);
+      el.addEventListener("input", () => { upd(); recalc(); S.save(true); });
+      // 구분(수수료/광고비) 변경 시 해당 그룹으로 이동하도록 다시 그림
+      if (el.tagName === "SELECT") el.addEventListener("change", () => { upd(); reSave(true); });
     });
     main.querySelectorAll("[data-add]").forEach((b) => b.addEventListener("click", () => {
       const sec = b.dataset.add;
@@ -699,15 +708,18 @@ const App = (function () {
     const memo = [g.memo, y.memo].filter(Boolean).join("\n");
 
     const pf = [].concat(g.platform || [], y.platform || []);
-    const pfBody = pf.map((r, i) => `<tr><td class="c">${i + 1}</td><td class="name">${esc(r.supplier)}</td>
-      <td class="name">${esc(r.item)}</td><td class="c">${esc(r.type || "수수료")}</td><td class="n">${won(r.amount)}</td></tr>`).join("");
-    const pfFee = pf.filter((r) => r.type !== "광고비").reduce((a, r) => a + S.num(r.amount), 0);
-    const pfAd = pf.filter((r) => r.type === "광고비").reduce((a, r) => a + S.num(r.amount), 0);
+    const pfFeeR = pf.filter((r) => r.type !== "광고비"), pfAdR = pf.filter((r) => r.type === "광고비");
+    const pfRow = (r, n) => `<tr><td class="c">${n}</td><td class="name">${esc(r.supplier)}</td>
+      <td class="name">${esc(r.item)}</td><td class="c">${esc(r.type || "수수료")}</td><td class="n">${won(r.amount)}</td></tr>`;
+    const pfGrp = (rows, label) => `<tr style="background:#eef4ff"><td colspan="5" style="font-weight:700;color:var(--navy);padding:5px 9px">${label}</td></tr>`
+      + rows.map((r, n) => pfRow(r, n + 1)).join("");
+    const pfFee = pfFeeR.reduce((a, r) => a + S.num(r.amount), 0);
+    const pfAd = pfAdR.reduce((a, r) => a + S.num(r.amount), 0);
     const pfSection = pf.length ? `
         <h4 class="doc-sec">Ⅲ-1. 플랫폼 수수료·광고비 세부</h4>
         <table class="doc-table"><thead><tr><th class="c" style="width:40px">순번</th><th>공급자</th><th>품목</th><th class="c" style="width:80px">구분</th><th class="n" style="width:120px">금액</th></tr></thead>
-          <tbody>${pfBody}<tr class="sum"><td colspan="4">플랫폼 수수료 소계</td><td class="n">${won(pfFee)}</td></tr>
-          <tr class="sum"><td colspan="4">플랫폼 광고비 소계</td><td class="n">${won(pfAd)}</td></tr></tbody></table>` : "";
+          <tbody>${pfGrp(pfFeeR, "▸ 플랫폼 수수료")}<tr class="sum"><td colspan="4">플랫폼 수수료 소계</td><td class="n">${won(pfFee)}</td></tr>
+          ${pfGrp(pfAdR, "▸ 플랫폼 광고비")}<tr class="sum"><td colspan="4">플랫폼 광고비 소계</td><td class="n">${won(pfAd)}</td></tr></tbody></table>` : "";
 
     main.innerHTML = `
       <div class="page-head no-print">
