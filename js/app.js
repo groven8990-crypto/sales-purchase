@@ -251,7 +251,8 @@ const App = (function () {
     main.innerHTML = `
       <div class="page-head"><div><h2>💳 예치금 충전현황 <span class="muted">${esc(scope.store ? stNm(scope.store) : "통합")}</span></h2>
         <div class="muted">사업장·거래처별 충전·사용·잔액 (상단 스토어 탭으로 그로븐/옐브 구분)</div></div>
-        <div class="row-actions"><button class="btn primary" data-act="import-deposit-file">📥 예치금 이력 올리기</button></div></div>
+        <div class="row-actions"><button class="btn primary" data-act="import-deposit-file">📥 예치금 이력 올리기</button>
+        <button class="btn danger" id="dp-clear">🗑️ 전체삭제</button></div></div>
       <div class="kpibar">${cards || `<div class="kb"><div class="l">아직 기록 없음</div></div>`}</div>
       <div class="card"><h3>예치금 직접 입력</h3>
         <div class="form-row two">
@@ -288,6 +289,13 @@ const App = (function () {
     $$("[data-deldep]", main).forEach((b) => b.addEventListener("click", () => {
       if (confirm("이 기록을 삭제할까요?")) { S.remove("deposits", b.dataset.deldep); renderDeposits(main); }
     }));
+    $("#dp-clear", main).addEventListener("click", () => {
+      const label = scope.store ? (scope.store === "yb" ? "옐브" : "그로븐") : "전체";
+      if (deps.length === 0) { alert("삭제할 예치금 기록이 없어요."); return; }
+      if (!confirm(`${label} 예치금 기록 ${deps.length}건을 모두 삭제할까요? (되돌릴 수 없어요)`)) return;
+      S.data.deposits = (S.data.deposits || []).filter((d) => scope.store ? (d.store || "") !== scope.store : false);
+      S.save(); renderDeposits(main);
+    });
   }
 
   // Ⅶ. 예치금 현황 (사업장·거래처별 충전/사용/잔액)
