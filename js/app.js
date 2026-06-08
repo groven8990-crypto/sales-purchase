@@ -298,9 +298,16 @@ const App = (function () {
       renderDeposits(main);
     }));
     $("#dp-clear", main).addEventListener("click", () => {
-      const label = scope.store ? (scope.store === "yb" ? "옐브" : "그로븐") : "전체";
+      const stLabel = scope.store ? (scope.store === "yb" ? "옐브" : "그로븐") : "전체";
+      if (depVendor) {
+        const target = (S.data.deposits || []).filter((d) => d.vendor === depVendor && (!scope.store || (d.store || "") === scope.store));
+        if (!target.length) { alert("삭제할 기록이 없어요."); return; }
+        if (!confirm(`'${depVendor}' (${stLabel}) 예치금 ${target.length}건을 삭제할까요?`)) return;
+        S.data.deposits = (S.data.deposits || []).filter((d) => !(d.vendor === depVendor && (!scope.store || (d.store || "") === scope.store)));
+        depVendor = ""; S.save(); renderDeposits(main); return;
+      }
       if (deps.length === 0) { alert("삭제할 예치금 기록이 없어요."); return; }
-      if (!confirm(`${label} 예치금 기록 ${deps.length}건을 모두 삭제할까요? (되돌릴 수 없어요)`)) return;
+      if (!confirm(`${stLabel} 예치금 기록 ${deps.length}건을 모두 삭제할까요? (되돌릴 수 없어요)\n\n(특정 거래처만 지우려면 카드를 먼저 클릭하세요)`)) return;
       S.data.deposits = (S.data.deposits || []).filter((d) => scope.store ? (d.store || "") !== scope.store : false);
       S.save(); renderDeposits(main);
     });
