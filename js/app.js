@@ -808,7 +808,7 @@ const App = (function () {
           </div>
           <div style="width:240px;flex-shrink:0">
             <div style="position:relative;border:1px solid #d4dae4;border-radius:6px;padding:8px;height:240px"><canvas id="mr-pf-ch"></canvas></div>
-            <div class="muted" style="font-size:10px;text-align:center;margin-top:4px">플랫폼별 비용 비중</div>
+            <div class="muted" style="font-size:10px;text-align:center;margin-top:4px">플랫폼별 수수료·광고비 비용</div>
           </div>
         </div>
 
@@ -953,7 +953,7 @@ const App = (function () {
           </div>
           <div style="width:240px;flex-shrink:0">
             <div style="position:relative;border:1px solid #d4dae4;border-radius:6px;padding:8px;height:260px"><canvas id="mr-pf-ch"></canvas></div>
-            <div class="muted" style="font-size:10px;text-align:center;margin-top:4px">플랫폼별 비용 비중</div>
+            <div class="muted" style="font-size:10px;text-align:center;margin-top:4px">플랫폼별 수수료·광고비 비용</div>
           </div>
         </div>` : "";
 
