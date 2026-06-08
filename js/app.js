@@ -582,6 +582,20 @@ const App = (function () {
     } catch (e) { console.warn("도넛 차트 실패", e); }
   }
 
+  // 보고서(.sheet)를 PNG로 저장 (나중에 확인용 아카이브)
+  function exportSheetPng(main, label) {
+    const node = main.querySelector(".sheet");
+    if (!node) return;
+    if (typeof html2canvas !== "function") { alert("이미지 변환 라이브러리를 불러오지 못했어요. 인터넷 연결을 확인해주세요."); return; }
+    const today = new Date().toISOString().slice(0, 10);
+    html2canvas(node, { scale: 2, backgroundColor: "#ffffff", useCORS: true }).then((canvas) => {
+      const a = document.createElement("a");
+      a.download = `마감보고서_${label}_${today}.png`;
+      a.href = canvas.toDataURL("image/png");
+      a.click();
+    }).catch((e) => alert("이미지 저장 실패: " + e));
+  }
+
   function renderManualReport(main) {
     if (!scope.year || !scope.month) {
       main.innerHTML = `<div class="page-head"><div><h2>📝 마감보고서(수기)</h2></div></div>
@@ -661,7 +675,6 @@ const App = (function () {
     const tax = store === "yb" ? "과세" : "면세";
     const numIn = (sec, i, f, v) => `<input class="mr-in n" data-sec="${sec}" data-i="${i}" data-f="${f}" value="${S.num(v)}" inputmode="numeric">`;
     const txtIn = (sec, i, f, v, ph) => `<input class="mr-in" data-sec="${sec}" data-i="${i}" data-f="${f}" value="${esc(v || "")}" placeholder="${ph || ""}">`;
-    const selType = (i, v) => `<select class="mr-in" data-sec="platform" data-i="${i}" data-f="type"><option ${v === "광고비" ? "" : "selected"}>수수료</option><option ${v === "광고비" ? "selected" : ""}>광고비</option></select>`;
 
     // 공급가 많은 순으로 정렬 (빈 행은 자연히 아래로)
     R.channels.sort((a, b) => S.num(b.supply) - S.num(a.supply));
@@ -687,25 +700,28 @@ const App = (function () {
     const profit = chT - vnT;
     const rate = chT ? Math.round((chT - vnT) / chT * 100) : 0;
 
+    // 구분 컬럼 없이, 수수료/광고비 그룹으로 나눠서 표시 (5열: 순번·플랫폼·내용·금액·삭제)
     const pfRowHtml = (r, i, n) => `<tr><td class="c">${n}</td>
       <td>${txtIn("platform", i, "supplier", r.supplier, "플랫폼")}</td>
-      <td>${txtIn("platform", i, "item", r.item, "품목")}</td>
-      <td class="c">${selType(i, r.type)}</td>
+      <td>${txtIn("platform", i, "item", r.item, "내용")}</td>
       <td class="n">${numIn("platform", i, "amount", r.amount)}</td>
       <td class="c no-print"><button class="icon-btn" data-rm="platform" data-i="${i}">✕</button></td></tr>`;
     const pfIdx = R.platform.map((r, i) => ({ r, i }));
-    const feeRows = pfIdx.filter((x) => x.r.type !== "광고비");
-    const adRows = pfIdx.filter((x) => x.r.type === "광고비");
+    const byAmt = (a, b) => S.num(b.r.amount) - S.num(a.r.amount);
+    const feeRows = pfIdx.filter((x) => x.r.type !== "광고비").sort(byAmt);
+    const adRows = pfIdx.filter((x) => x.r.type === "광고비").sort(byAmt);
     const pfFee = feeRows.reduce((a, x) => a + S.num(x.r.amount), 0);
     const pfAd = adRows.reduce((a, x) => a + S.num(x.r.amount), 0);
-    const pfGroup = (rows, label) => `<tr style="background:#eef4ff"><td colspan="6" style="font-weight:700;color:var(--navy);padding:5px 9px">${label}</td></tr>`
-      + (rows.length ? rows.map((x, n) => pfRowHtml(x.r, x.i, n + 1)).join("") : `<tr><td colspan="6" class="empty">행추가로 입력하세요</td></tr>`);
-    const pfBody = R.platform.length
-      ? pfGroup(feeRows, "▸ 플랫폼 수수료") + `<tr class="sum"><td colspan="4">플랫폼 수수료 소계</td><td class="n" id="mr-pfFee">${won(pfFee)}</td><td class="no-print"></td></tr>`
-        + pfGroup(adRows, "▸ 플랫폼 광고비") + `<tr class="sum"><td colspan="4">플랫폼 광고비 소계</td><td class="n" id="mr-pfAd">${won(pfAd)}</td><td class="no-print"></td></tr>`
-      : `<tr><td colspan="6" class="empty">행추가로 플랫폼 수수료·광고비 세부를 입력하세요</td></tr>`
-        + `<tr class="sum"><td colspan="4">플랫폼 수수료 소계</td><td class="n" id="mr-pfFee">0</td><td class="no-print"></td></tr>`
-        + `<tr class="sum"><td colspan="4">플랫폼 광고비 소계</td><td class="n" id="mr-pfAd">0</td><td class="no-print"></td></tr>`;
+    const pfGroup = (rows, label, type) => `<tr style="background:#eef4ff"><td colspan="5" style="font-weight:700;color:var(--navy);padding:5px 9px">${label}<button class="btn no-print" data-addpf="${type}" style="padding:1px 8px;font-size:11px;margin-left:8px;font-weight:600">➕ 행추가</button></td></tr>`
+      + (rows.length ? rows.map((x, n) => pfRowHtml(x.r, x.i, n + 1)).join("") : `<tr><td colspan="5" class="empty">‘행추가’로 입력하세요</td></tr>`);
+    const pfBody = pfGroup(feeRows, "▸ 플랫폼 수수료", "수수료")
+      + `<tr class="sum"><td colspan="3">플랫폼 수수료 소계</td><td class="n" id="mr-pfFee">${won(pfFee)}</td><td class="no-print"></td></tr>`
+      + pfGroup(adRows, "▸ 플랫폼 광고비", "광고비")
+      + `<tr class="sum"><td colspan="3">플랫폼 광고비 소계</td><td class="n" id="mr-pfAd">${won(pfAd)}</td><td class="no-print"></td></tr>`;
+    // 플랫폼별 비용 비중 도넛용 (양수만)
+    const pfChMap = {};
+    R.platform.forEach((r) => { pfChMap[r.supplier || "(미입력)"] = (pfChMap[r.supplier || "(미입력)"] || 0) + S.num(r.amount); });
+    const pfChart = Object.entries(pfChMap).map(([k, v]) => ({ key: k, sum: v })).filter((g) => g.sum > 0).sort((a, b) => b.sum - a.sum);
 
     main.innerHTML = `
       <div class="page-head no-print">
@@ -713,6 +729,7 @@ const App = (function () {
           <div class="muted">처음 열면 실제 데이터로 자동 채워져요. 자유롭게 수정하세요. (자동 저장 · 통합 탭에서 합산본 확인)</div></div>
         <div class="row-actions">
           <button class="btn" id="mr-auto">📥 자동값 다시 불러오기</button>
+          <button class="btn" id="mr-png">📸 PNG 저장</button>
           <button class="btn primary" id="mr-print">🖨️ 인쇄</button></div>
       </div>
       <div class="sheet">
@@ -748,9 +765,17 @@ const App = (function () {
         <table class="doc-table"><thead><tr><th class="c" style="width:40px">순번</th><th>매입처</th><th style="width:160px">내용</th><th class="n" style="width:80px">건수</th><th class="n" style="width:130px">공급가</th><th class="no-print" style="width:30px"></th></tr></thead>
           <tbody>${vnBody || `<tr><td colspan="6" class="empty">행추가로 매입처를 입력하세요</td></tr>`}<tr class="sum"><td colspan="4">합계</td><td class="n" id="mr-vnT">${won(vnT)}</td><td class="no-print"></td></tr></tbody></table>
 
-        <h4 class="doc-sec">Ⅲ-1. 플랫폼 수수료·광고비 세부 <span class="muted" style="font-weight:400;font-size:11px">(위 매입처별 ‘플랫폼…’ 합계의 내역)</span> <button class="btn no-print" data-add="platform" style="padding:3px 9px;font-size:12px;margin-left:8px">➕ 행추가</button></h4>
-        <table class="doc-table"><thead><tr><th class="c" style="width:40px">순번</th><th>플랫폼</th><th>품목</th><th class="c" style="width:80px">구분</th><th class="n" style="width:120px">금액</th><th class="no-print" style="width:30px"></th></tr></thead>
-          <tbody>${pfBody}</tbody></table>
+        <h4 class="doc-sec">Ⅲ-1. 플랫폼 수수료·광고비 세부</h4>
+        <div class="mr-chart-row" style="display:flex;gap:14px;align-items:flex-start">
+          <div style="flex:1;min-width:0">
+            <table class="doc-table"><thead><tr><th class="c" style="width:40px">순번</th><th>플랫폼</th><th>내용</th><th class="n" style="width:120px">금액</th><th class="no-print" style="width:30px"></th></tr></thead>
+              <tbody>${pfBody}</tbody></table>
+          </div>
+          <div style="width:240px;flex-shrink:0">
+            <div style="position:relative;border:1px solid #d4dae4;border-radius:6px;padding:8px;height:240px"><canvas id="mr-pf-ch"></canvas></div>
+            <div class="muted" style="font-size:10px;text-align:center;margin-top:4px">플랫폼별 비용 비중</div>
+          </div>
+        </div>
 
         <h4 class="doc-sec">Ⅳ. 비고</h4>
         <textarea class="mr-in" data-sec="memo" data-i="0" data-f="memo" rows="3" style="width:100%" placeholder="특이사항">${esc(R.memo || "")}</textarea>
@@ -791,15 +816,18 @@ const App = (function () {
     });
     main.querySelectorAll("[data-add]").forEach((b) => b.addEventListener("click", () => {
       const sec = b.dataset.add;
-      R[sec].push(sec === "vendors" ? { name: "", note: "", count: 0, supply: 0 }
-        : sec === "platform" ? { supplier: "", item: "", type: "수수료", amount: 0 }
-        : { name: "", count: 0, supply: 0 });
+      R[sec].push(sec === "vendors" ? { name: "", note: "", count: 0, supply: 0 } : { name: "", count: 0, supply: 0 });
+      reSave(true);
+    }));
+    main.querySelectorAll("[data-addpf]").forEach((b) => b.addEventListener("click", () => {
+      R.platform.push({ supplier: "", item: "", type: b.dataset.addpf, amount: 0 });
       reSave(true);
     }));
     main.querySelectorAll("[data-rm]").forEach((b) => b.addEventListener("click", () => {
       R[b.dataset.rm].splice(+b.dataset.i, 1); reSave(true);
     }));
     $("#mr-print", main).addEventListener("click", () => window.print());
+    $("#mr-png", main).addEventListener("click", () => exportSheetPng(main, `${fullNm}_${yr}-${mo}`));
     $("#mr-auto", main).addEventListener("click", () => {
       if (!confirm(`${fullNm}의 수기 보고서를 현재 데이터 자동값으로 다시 채울까요? 지금 입력한 값은 덮어써져요. (플랫폼 세부내역은 유지됩니다)`)) return;
       const keepPf = R.platform;
@@ -807,13 +835,14 @@ const App = (function () {
       M[store].platform = keepPf || [];
       reSave(true);
     });
-    // 채널별 매출 추이·구성 차트
+    // 채널별 매출 추이·구성 + 플랫폼 비중 차트
     requestAnimationFrame(() => {
       salesTrendChart("mr-trend", trendSales(store));
       const chGroups = R.channels.filter((c) => S.num(c.supply) > 0)
         .map((c) => ({ key: c.name || "(미입력)", sum: S.num(c.supply) }))
         .sort((a, b) => b.sum - a.sum);
       pastelDoughnut("mr-ch-ch", chGroups);
+      pastelDoughnut("mr-pf-ch", pfChart);
     });
   }
 
@@ -893,7 +922,7 @@ const App = (function () {
       <div class="page-head no-print">
         <div><h2>📝 마감보고서(수기) · 통합 <span class="muted">${yr}년 ${mo}월</span></h2>
           <div class="muted">그로븐 · YB 수기 보고서를 자동 합산한 결과예요. (수정은 위 <b>그로븐 / 옐로우브릿지</b> 탭에서)</div></div>
-        <div class="row-actions"><button class="btn primary" id="mr-print">🖨️ 인쇄</button></div>
+        <div class="row-actions"><button class="btn" id="mr-png">📸 PNG 저장</button><button class="btn primary" id="mr-print">🖨️ 인쇄</button></div>
       </div>
       <div class="sheet">
         <div class="doc-head"><h1>월 마감 보고서</h1><div class="doc-sub">SALES · PURCHASE MONTHLY CLOSING REPORT (수기 · 통합)</div></div>
@@ -929,6 +958,7 @@ const App = (function () {
         ${memo ? `<h4 class="doc-sec">Ⅳ. 비고</h4><div style="white-space:pre-wrap;font-size:12px;padding:4px 2px">${esc(memo)}</div>` : ""}
       </div>`;
     $("#mr-print", main).addEventListener("click", () => window.print());
+    $("#mr-png", main).addEventListener("click", () => exportSheetPng(main, `통합_${yr}-${mo}`));
     requestAnimationFrame(() => {
       salesTrendChart("mr-trend", trendSales(""));
       const chGroups = chMerged.filter((c) => S.num(c.supply) > 0)
