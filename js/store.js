@@ -82,6 +82,7 @@ const SPC = (function () {
       vendorItems: {},  // 매입처별 취급품목 { 매입처명: "취급품목" }
       vendorAlias: {},  // 사용자 정의 거래처 별칭 { 별칭: 대표이름 }
       evidence: {},     // 홈택스 증빙 대조 { "YYYY-M": [{store,type,supply,vat,total}] }
+      deposits: [],     // 예치금 입출 { id, vendor, date, kind:'충전'|'사용', amount, memo }
     };
   }
 
