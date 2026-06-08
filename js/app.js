@@ -591,18 +591,40 @@ const App = (function () {
     html2canvas(node, {
       scale: 2, backgroundColor: "#ffffff", useCORS: true,
       onclone: (doc) => {
-        // 편집용 요소 숨기기 (행추가 버튼, ✕ 삭제, 빈 컬럼)
-        doc.querySelectorAll(".no-print").forEach((el) => { el.style.display = "none"; });
-        // 입력칸을 글자처럼 (테두리·배경 제거)
+        // 편집용 요소 완전 제거 (행추가 버튼, ✕ 삭제, 빈 컬럼, 안내문구)
+        doc.querySelectorAll(".no-print").forEach((el) => el.remove());
+        // 표는 자동 레이아웃으로 — 비어버린 ✕ 열이 0폭으로 접히게
+        doc.querySelectorAll(".sheet table.doc-table").forEach((t) => { t.style.tableLayout = "auto"; });
+        // 입력칸(input/textarea)을 일반 텍스트로 교체 — 글자 안 잘리고, 숫자는 콤마
         doc.querySelectorAll(".mr-in").forEach((el) => {
-          el.style.border = "none"; el.style.padding = "0"; el.style.background = "transparent"; el.style.boxShadow = "none";
+          const isNum = el.classList.contains("n");
+          const isArea = el.tagName === "TEXTAREA";
+          let v = (el.value != null ? el.value : el.textContent) || "";
+          if (isNum) v = won(S.num(v));
+          const span = doc.createElement("span");
+          span.textContent = v;
+          span.style.cssText = "display:block;font-size:12px;" +
+            (isNum ? "text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums;"
+                   : isArea ? "white-space:pre-wrap;" : "white-space:normal;word-break:break-all;");
+          el.parentNode.replaceChild(span, el);
         });
       },
     }).then((canvas) => {
-      const a = document.createElement("a");
-      a.download = `마감보고서_${label}_${today}.png`;
-      a.href = canvas.toDataURL("image/png");
-      a.click();
+      // A4 비율(210:297)로 페이지를 나눠 저장 — 인쇄처럼 여러 페이지
+      const pageH = Math.round(canvas.width * 297 / 210);
+      const pages = Math.max(1, Math.ceil(canvas.height / pageH));
+      for (let p = 0; p < pages; p++) {
+        const h = Math.min(pageH, canvas.height - p * pageH);
+        const slice = document.createElement("canvas");
+        slice.width = canvas.width; slice.height = h;
+        const ctx = slice.getContext("2d");
+        ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, slice.width, h);
+        ctx.drawImage(canvas, 0, p * pageH, canvas.width, h, 0, 0, canvas.width, h);
+        const a = document.createElement("a");
+        a.download = `마감보고서_${label}_${today}${pages > 1 ? `_${p + 1}p` : ""}.png`;
+        a.href = slice.toDataURL("image/png");
+        a.click();
+      }
     }).catch((e) => alert("이미지 저장 실패: " + e));
   }
 
@@ -743,12 +765,12 @@ const App = (function () {
           <button class="btn primary" id="mr-print">🖨️ 인쇄</button></div>
       </div>
       <div class="sheet">
-        <div class="doc-head"><h1>월 마감 보고서</h1><div class="doc-sub">${fullNm.toUpperCase ? fullNm : ""} MONTHLY CLOSING REPORT (수기)</div></div>
+        <div class="doc-head"><h1>${mo}월 마감 보고서</h1><div class="doc-sub">${fullNm} ${yr}년 ${mo}월 MONTHLY CLOSING REPORT</div></div>
         <div class="doc-meta"><div class="meta"><div><b>대상월</b> ${yr}년 ${mo}월</div>
           <div><b>사업장</b> ${fullNm} (${tax})</div><div><b>작성일</b> ${new Date().toLocaleDateString("ko-KR")}</div></div>
           <div class="approval"><div class="c head2">결재</div><div class="c"><div class="h">작성</div><div class="s"></div></div><div class="c"><div class="h">검토</div><div class="s"></div></div><div class="c"><div class="h">대표</div><div class="s"></div></div></div>
         </div>
-        <h4 class="doc-sec">Ⅰ. 손익 요약 (공급가 기준) <span class="muted" style="font-weight:400;font-size:11px">— 매출·매입은 아래 표 합계에서 자동</span></h4>
+        <h4 class="doc-sec">Ⅰ. 손익 요약 (공급가 기준) <span class="muted no-print" style="font-weight:400;font-size:11px">— 매출·매입은 아래 표 합계에서 자동</span></h4>
         <table class="doc-table"><thead><tr><th>사업장</th><th>구분</th><th class="n">매출</th><th class="n">매입</th><th class="n">손익</th><th class="n">마진율</th></tr></thead>
           <tbody><tr><td>${fullNm}</td><td>${tax}</td>
             <td class="n" id="mr-saleSum">${won(chT)}</td>
@@ -935,7 +957,7 @@ const App = (function () {
         <div class="row-actions"><button class="btn" id="mr-png">📸 PNG 저장</button><button class="btn primary" id="mr-print">🖨️ 인쇄</button></div>
       </div>
       <div class="sheet">
-        <div class="doc-head"><h1>월 마감 보고서</h1><div class="doc-sub">SALES · PURCHASE MONTHLY CLOSING REPORT (수기 · 통합)</div></div>
+        <div class="doc-head"><h1>${mo}월 마감 보고서</h1><div class="doc-sub">그로븐 · 옐로우브릿지 ${yr}년 ${mo}월 통합</div></div>
         <div class="doc-meta"><div class="meta"><div><b>대상월</b> ${yr}년 ${mo}월</div>
           <div><b>사업장</b> 그로븐(면세) · 옐로우브릿지(과세)</div><div><b>작성일</b> ${new Date().toLocaleDateString("ko-KR")}</div></div>
           <div class="approval"><div class="c head2">결재</div><div class="c"><div class="h">작성</div><div class="s"></div></div><div class="c"><div class="h">검토</div><div class="s"></div></div><div class="c"><div class="h">대표</div><div class="s"></div></div></div>
