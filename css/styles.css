@@ -143,14 +143,16 @@ table.grid tbody tr:hover{background:#fafbff}
 
 @media(max-width:760px){.doc-2col,.doc-charts{flex-direction:column}.sheet{padding:14px}}
 @media print{
+  /* 브라우저 머릿말·꼬리말(날짜·제목·URL·페이지번호) 제거 — 페이지 여백 0 */
+  @page{ size:A4; margin:0 }
   .topbar,.sidebar,.page-head,.no-print{display:none!important}
   body{background:#fff}.content{padding:0}
-  .sheet{box-shadow:none;border:0;width:auto;padding:0;margin:0}
+  /* 페이지 여백은 보고서 안쪽 패딩으로 (머릿말 자리 안 만듦) */
+  .sheet{box-shadow:none;border:0;width:auto;padding:12mm 10mm!important;margin:0}
   .doc-charts .cbox{break-inside:avoid}
-  /* 제목은 바로 다음 내용(표 첫 줄)과 붙어 다니게 — 제목만 페이지 끝에 안 남음 */
+  /* 섹션(제목+표)이 페이지 중간에 끊기지 않게 — 통째로 다음 페이지로 */
   .doc-sec{break-after:avoid;page-break-after:avoid}
-  /* 표는 페이지를 채우며 행 단위로 나뉘고(여백 최소화), 머리글은 매 페이지 반복 */
-  .doc-table{table-layout:auto}
+  .doc-table{table-layout:auto;break-inside:avoid;page-break-inside:avoid}
   .doc-table thead{display:table-header-group}
   .doc-table tr{break-inside:avoid;page-break-inside:avoid}
   .doc-table td,.doc-table th{padding:3px 6px}
