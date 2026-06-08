@@ -799,7 +799,7 @@ const App = (function () {
           <div><b>사업장</b> ${fullNm} (${tax})</div><div><b>작성일</b> ${new Date().toLocaleDateString("ko-KR")}</div></div>
           <div class="approval"><div class="c head2">결재</div><div class="c"><div class="h">작성</div><div class="s"></div></div><div class="c"><div class="h">검토</div><div class="s"></div></div><div class="c"><div class="h">대표</div><div class="s"></div></div></div>
         </div>
-        <h4 class="doc-sec">Ⅰ. 손익 요약 (공급가 기준) <span class="muted no-print" style="font-weight:400;font-size:11px">— 매출·매입은 아래 표 합계에서 자동</span></h4>
+        <h4 class="doc-sec">Ⅰ. 손익 요약${store === "yb" ? " (공급가 기준)" : ""} <span class="muted no-print" style="font-weight:400;font-size:11px">— 매출·매입은 아래 표 합계에서 자동</span></h4>
         <table class="doc-table"><thead><tr><th>사업장</th><th>구분</th><th class="n">매출</th><th class="n">매입</th><th class="n">손익</th><th class="n">마진율</th></tr></thead>
           <tbody><tr><td>${fullNm}</td><td>${tax}</td>
             <td class="n" id="mr-saleSum">${won(chT)}</td>
