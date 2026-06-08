@@ -469,18 +469,27 @@ const Modals = (function () {
       if (!table) return;
       const store = q("#de-store").value, vendor = q("#de-vendor").value.trim() || "예치금";
       const H = table.headers;
-      const col = (kw) => { const h = H.find((x) => String(x.name).replace(/\s/g, "").indexOf(kw) !== -1); return h ? h.index : -1; };
-      const iDate = col("발생일") >= 0 ? col("발생일") : col("일시");
-      const iMemo = col("내용"), iUp = col("적립"), iDown = col("차감");
+      const nm = (h) => String(h.name).replace(/\s/g, "");
+      const find = (pred) => { const h = H.find(pred); return h ? h.index : -1; };
+      const iDate = find((h) => /발생일|일시|날짜/.test(nm(h)));
+      const iMemo = find((h) => /내용|내역|적요/.test(nm(h)));
+      const iCash = find((h) => nm(h) === "현금변동");
+      const iCard = find((h) => nm(h) === "카드변동");
+      const iVar = find((h) => nm(h) === "변동" || /변동액|변동금액/.test(nm(h)));
+      const iUp = find((h) => nm(h) === "적립" || nm(h) === "충전" || nm(h) === "적립금" || nm(h) === "적립금액" || nm(h) === "입금");
+      const iDown = find((h) => nm(h) === "차감" || nm(h) === "사용" || nm(h) === "차감금액" || nm(h) === "출금");
       const out = [];
       table.body.forEach((r) => {
-        const up = Parsers.num(r[iUp]), down = Math.abs(Parsers.num(r[iDown]));
         const date = String((iDate >= 0 ? r[iDate] : "") || "").slice(0, 10);
         const memo = iMemo >= 0 ? Parsers.str(r[iMemo]) : "";
-        if (up > 0) out.push({ store, vendor, date, kind: "충전", amount: up, memo });
-        else if (down > 0) out.push({ store, vendor, date, kind: "사용", amount: down, memo });
+        let change = 0, up = 0, down = 0;
+        if (iCash >= 0 || iCard >= 0) change = (iCash >= 0 ? Parsers.num(r[iCash]) : 0) + (iCard >= 0 ? Parsers.num(r[iCard]) : 0);
+        else if (iVar >= 0) change = Parsers.num(r[iVar]);
+        else { up = Parsers.num(iUp >= 0 ? r[iUp] : 0); down = Math.abs(Parsers.num(iDown >= 0 ? r[iDown] : 0)); }
+        if (change > 0 || up > 0) out.push({ store, vendor, date, kind: "충전", amount: change > 0 ? change : up, memo });
+        else if (change < 0 || down > 0) out.push({ store, vendor, date, kind: "사용", amount: change < 0 ? Math.abs(change) : down, memo });
       });
-      if (!out.length) { q("#de-prev").innerHTML = `<div class="err">적립·차감 값을 못 읽었어요. 열 이름을 확인해주세요.</div>`; return; }
+      if (!out.length) { q("#de-prev").innerHTML = `<div class="err">금액 열(적립/차감 또는 현금변동·카드변동)을 못 읽었어요.</div>`; return; }
       out.forEach((d) => S.data.deposits.push(Object.assign({ id: S.uid() }, d)));
       S.save(); close(); App.go("deposits");
     };
