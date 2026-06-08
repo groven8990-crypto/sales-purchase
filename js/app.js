@@ -458,33 +458,76 @@ const App = (function () {
   }
 
   /* ===================== 수기 마감보고서 ===================== */
+  function blankStoreReport() {
+    return { sales: 0, purchase: 0, channels: [], vendors: [], bank: { inCnt: 0, inSum: 0, outCnt: 0, outSum: 0 }, memo: "" };
+  }
+  // 실제 데이터(매출·매입·통장)에서 한 사업장 보고서를 자동 생성
+  function autoFillStoreReport(st, yr, mo) {
+    const r = blankStoreReport();
+    const sl = S.filterBy(S.data.sales, { store: st, year: yr, month: mo });
+    const pl = S.filterBy(S.data.purchases, { store: st, year: yr, month: mo });
+    r.sales = S.sum(sl, "supply");
+    r.purchase = S.sum(pl, "supply");
+    r.channels = S.groupSum(sl, "channel", "supply").map((g) => ({ name: g.key, count: g.count, supply: g.sum }));
+    r.vendors = S.groupSum(pl, "vendor", "supply").map((g) => ({ name: g.key, note: (S.data.vendorItems && S.data.vendorItems[g.key]) || "", count: g.count, supply: g.sum }));
+    const tx = S.filterBy(S.data.transactions, { store: st, year: yr, month: mo });
+    const ins = tx.filter((t) => t.type === "in"), outs = tx.filter((t) => t.type === "out");
+    r.bank = { inCnt: ins.length, inSum: S.sum(ins, "amount"), outCnt: outs.length, outSum: S.sum(outs, "amount") };
+    return r;
+  }
+  // 통합용: 두 사업장 detail 합치기 (이름 기준)
+  function mergeDetail(a, b, hasNote) {
+    const m = {};
+    [].concat(a || [], b || []).forEach((r) => {
+      const k = r.name || "";
+      if (!m[k]) m[k] = { name: k, note: "", count: 0, supply: 0 };
+      m[k].count += S.num(r.count);
+      m[k].supply += S.num(r.supply);
+      if (hasNote && r.note && !m[k].note) m[k].note = r.note;
+    });
+    return Object.values(m).sort((x, y) => S.num(y.supply) - S.num(x.supply));
+  }
+
   function renderManualReport(main) {
     if (!scope.year || !scope.month) {
       main.innerHTML = `<div class="page-head"><div><h2>📝 마감보고서(수기)</h2></div></div>
         <div class="card"><p>상단에서 <b>연도·월</b>을 먼저 골라주세요. (예: 2026년 / 5월)</p></div>`;
       return;
     }
-    const ym = scope.year + "-" + scope.month;
+    const ym = scope.year + "-" + scope.month, yr = scope.year, mo = scope.month;
     if (!S.data.manualReport) S.data.manualReport = {};
-    if (!S.data.manualReport[ym]) S.data.manualReport[ym] = {
-      income: [{ store: "groven", sales: 0, purchase: 0 }, { store: "yb", sales: 0, purchase: 0 }],
-      channels: [], vendors: [], bank: { inCnt: 0, inSum: 0, outCnt: 0, outSum: 0 }, memo: "",
-    };
-    const R = S.data.manualReport[ym];
-    const numIn = (sec, i, f, v) => `<input class="mr-in n" data-sec="${sec}" data-i="${i}" data-f="${f}" value="${v || 0}" inputmode="numeric">`;
-    const txtIn = (sec, i, f, v, ph) => `<input class="mr-in" data-sec="${sec}" data-i="${i}" data-f="${f}" value="${esc(v || "")}" placeholder="${ph || ""}">`;
-    const stNm = (s) => s === "yb" ? "옐로우브릿지" : "그로븐";
+    let M = S.data.manualReport[ym];
+    // 구버전(통합 단일) → 사업장별 구조로 이전
+    if (M && M.income && !M.groven) {
+      const conv = {};
+      ["groven", "yb"].forEach((st, idx) => {
+        const r = autoFillStoreReport(st, yr, mo);
+        if (M.income[idx]) { r.sales = S.num(M.income[idx].sales); r.purchase = S.num(M.income[idx].purchase); }
+        conv[st] = r;
+      });
+      if (M.memo) conv.groven.memo = M.memo;
+      M = S.data.manualReport[ym] = conv;
+    }
+    if (!M) M = S.data.manualReport[ym] = {};
+    // 첫 진입 시 실제 데이터로 자동 채움 (이후엔 수정값 유지)
+    let filled = false;
+    ["groven", "yb"].forEach((st) => { if (!M[st]) { M[st] = autoFillStoreReport(st, yr, mo); filled = true; } });
+    if (filled) S.save();
 
-    const incBody = R.income.map((r, i) => {
-      const profit = S.num(r.sales) - S.num(r.purchase);
-      const rate = S.num(r.sales) ? Math.round(S.num(r.purchase) / S.num(r.sales) * 100) : 0;
-      return `<tr><td>${stNm(r.store)}</td><td>${r.store === "yb" ? "과세" : "면세"}</td>
-        <td class="n">${numIn("income", i, "sales", r.sales)}</td>
-        <td class="n">${numIn("income", i, "purchase", r.purchase)}</td>
-        <td class="n ${profit >= 0 ? "pos" : "neg"}">${won(profit)}</td><td class="n">${rate}%</td></tr>`;
-    }).join("");
-    const incSaleT = R.income.reduce((a, r) => a + S.num(r.sales), 0);
-    const incBuyT = R.income.reduce((a, r) => a + S.num(r.purchase), 0);
+    if (scope.store === "groven" || scope.store === "yb") renderManualStore(main, M, scope.store, ym, yr, mo);
+    else renderManualCombined(main, M, ym, yr, mo);
+  }
+
+  // 사업장별 수기 보고서 (편집 가능)
+  function renderManualStore(main, M, store, ym, yr, mo) {
+    const R = M[store];
+    const fullNm = store === "yb" ? "옐로우브릿지" : "그로븐";
+    const tax = store === "yb" ? "과세" : "면세";
+    const numIn = (sec, i, f, v) => `<input class="mr-in n" data-sec="${sec}" data-i="${i}" data-f="${f}" value="${S.num(v)}" inputmode="numeric">`;
+    const txtIn = (sec, i, f, v, ph) => `<input class="mr-in" data-sec="${sec}" data-i="${i}" data-f="${f}" value="${esc(v || "")}" placeholder="${ph || ""}">`;
+
+    const profit = S.num(R.sales) - S.num(R.purchase);
+    const rate = S.num(R.sales) ? Math.round(S.num(R.purchase) / S.num(R.sales) * 100) : 0;
 
     const chBody = R.channels.map((r, i) => `<tr><td class="c">${i + 1}</td>
       <td>${txtIn("channels", i, "name", r.name, "채널명")}</td>
@@ -503,22 +546,24 @@ const App = (function () {
 
     main.innerHTML = `
       <div class="page-head no-print">
-        <div><h2>📝 마감보고서(수기) <span class="muted">${scope.year}년 ${scope.month}월</span></h2>
-          <div class="muted">직접 입력하는 보고서예요. (입력은 자동 저장)</div></div>
+        <div><h2>📝 마감보고서(수기) · ${fullNm} <span class="muted">${yr}년 ${mo}월</span></h2>
+          <div class="muted">처음 열면 실제 데이터로 자동 채워져요. 자유롭게 수정하세요. (자동 저장 · 통합 탭에서 합산본 확인)</div></div>
         <div class="row-actions">
-          <button class="btn" id="mr-auto">📥 자동값 불러오기</button>
+          <button class="btn" id="mr-auto">📥 자동값 다시 불러오기</button>
           <button class="btn primary" id="mr-print">🖨️ 인쇄</button></div>
       </div>
       <div class="sheet">
-        <div class="doc-head"><h1>월 마감 보고서</h1><div class="doc-sub">SALES · PURCHASE MONTHLY CLOSING REPORT (수기)</div></div>
-        <div class="doc-meta"><div class="meta"><div><b>대상월</b> ${scope.year}년 ${scope.month}월</div>
-          <div><b>사업장</b> 그로븐(면세) · 옐로우브릿지(과세)</div><div><b>작성일</b> ${new Date().toLocaleDateString("ko-KR")}</div></div>
+        <div class="doc-head"><h1>월 마감 보고서</h1><div class="doc-sub">${fullNm.toUpperCase ? fullNm : ""} MONTHLY CLOSING REPORT (수기)</div></div>
+        <div class="doc-meta"><div class="meta"><div><b>대상월</b> ${yr}년 ${mo}월</div>
+          <div><b>사업장</b> ${fullNm} (${tax})</div><div><b>작성일</b> ${new Date().toLocaleDateString("ko-KR")}</div></div>
           <div class="approval"><div class="c head2">결재</div><div class="c"><div class="h">작성</div><div class="s"></div></div><div class="c"><div class="h">검토</div><div class="s"></div></div><div class="c"><div class="h">대표</div><div class="s"></div></div></div>
         </div>
         <h4 class="doc-sec">Ⅰ. 손익 요약 (공급가 기준)</h4>
         <table class="doc-table"><thead><tr><th>사업장</th><th>구분</th><th class="n">매출</th><th class="n">매입</th><th class="n">손익</th><th class="n">원가율</th></tr></thead>
-          <tbody>${incBody}<tr class="sum"><td colspan="2">합계</td><td class="n">${won(incSaleT)}</td><td class="n">${won(incBuyT)}</td>
-            <td class="n ${incSaleT - incBuyT >= 0 ? "pos" : "neg"}">${won(incSaleT - incBuyT)}</td><td class="n">${incSaleT ? Math.round(incBuyT / incSaleT * 100) : 0}%</td></tr></tbody></table>
+          <tbody><tr><td>${fullNm}</td><td>${tax}</td>
+            <td class="n">${numIn("totals", 0, "sales", R.sales)}</td>
+            <td class="n">${numIn("totals", 0, "purchase", R.purchase)}</td>
+            <td class="n ${profit >= 0 ? "pos" : "neg"}">${won(profit)}</td><td class="n">${rate}%</td></tr></tbody></table>
 
         <h4 class="doc-sec">Ⅱ. 채널별 매출 <button class="btn no-print" data-add="channels" style="padding:3px 9px;font-size:12px;margin-left:8px">➕ 행추가</button></h4>
         <table class="doc-table"><thead><tr><th class="c" style="width:40px">순번</th><th>채널</th><th class="n" style="width:90px">건수</th><th class="n" style="width:140px">공급가</th><th class="no-print" style="width:30px"></th></tr></thead>
@@ -544,7 +589,8 @@ const App = (function () {
         const sec = el.dataset.sec, i = +el.dataset.i, f = el.dataset.f;
         const isNum = el.classList.contains("n") || /Cnt|Sum|count|supply|sales|purchase/.test(f);
         const val = isNum ? S.num(el.value) : el.value;
-        if (sec === "bank") R.bank[f] = val;
+        if (sec === "totals") R[f] = val;
+        else if (sec === "bank") R.bank[f] = val;
         else if (sec === "memo") R.memo = val;
         else R[sec][i][f] = val;
       };
@@ -561,20 +607,74 @@ const App = (function () {
     }));
     $("#mr-print", main).addEventListener("click", () => window.print());
     $("#mr-auto", main).addEventListener("click", () => {
-      if (!confirm("현재 데이터(매출·매입·통장)의 자동 계산값으로 채울까요? 지금 입력한 수기 값은 덮어써져요.")) return;
-      const yr = scope.year, mo = scope.month;
-      ["groven", "yb"].forEach((st, idx) => {
-        const sl = S.filterBy(S.data.sales, { store: st, year: yr, month: mo });
-        const pl = S.filterBy(S.data.purchases, { store: st, year: yr, month: mo });
-        R.income[idx] = { store: st, sales: S.sum(sl, "supply"), purchase: S.sum(pl, "supply") };
-      });
-      R.channels = S.groupSum(S.filterBy(S.data.sales, { year: yr, month: mo }), "channel", "supply").map((g) => ({ name: g.key, count: g.count, supply: g.sum }));
-      R.vendors = S.groupSum(S.filterBy(S.data.purchases, { year: yr, month: mo }), "vendor", "supply").map((g) => ({ name: g.key, note: S.data.vendorItems[g.key] || "", count: g.count, supply: g.sum }));
-      const tx = S.filterBy(S.data.transactions, { year: yr, month: mo });
-      const ins = tx.filter((t) => t.type === "in"), outs = tx.filter((t) => t.type === "out");
-      R.bank = { inCnt: ins.length, inSum: S.sum(ins, "amount"), outCnt: outs.length, outSum: S.sum(outs, "amount") };
+      if (!confirm(`${fullNm}의 수기 보고서를 현재 데이터 자동값으로 다시 채울까요? 지금 입력한 값은 덮어써져요.`)) return;
+      M[store] = autoFillStoreReport(store, yr, mo);
       reSave(true);
     });
+  }
+
+  // 통합 수기 보고서 (그로븐+YB 자동 합산, 읽기 전용)
+  function renderManualCombined(main, M, ym, yr, mo) {
+    const g = M.groven, y = M.yb;
+    const incRows = [["groven", "그로븐", "면세", g], ["yb", "옐로우브릿지", "과세", y]];
+    const incBody = incRows.map(([st, nm, tax, R]) => {
+      const profit = S.num(R.sales) - S.num(R.purchase);
+      const rate = S.num(R.sales) ? Math.round(S.num(R.purchase) / S.num(R.sales) * 100) : 0;
+      return `<tr><td>${nm}</td><td>${tax}</td><td class="n">${won(R.sales)}</td><td class="n">${won(R.purchase)}</td>
+        <td class="n ${profit >= 0 ? "pos" : "neg"}">${won(profit)}</td><td class="n">${rate}%</td></tr>`;
+    }).join("");
+    const saleT = S.num(g.sales) + S.num(y.sales), buyT = S.num(g.purchase) + S.num(y.purchase);
+
+    const chMerged = mergeDetail(g.channels, y.channels, false);
+    const chBody = chMerged.map((r, i) => `<tr><td class="c">${i + 1}</td><td class="name">${esc(r.name)}</td>
+      <td class="n">${won(r.count)}</td><td class="n">${won(r.supply)}</td></tr>`).join("");
+    const chT = chMerged.reduce((a, r) => a + S.num(r.supply), 0);
+
+    const vnMerged = mergeDetail(g.vendors, y.vendors, true);
+    const vnBody = vnMerged.map((r, i) => `<tr><td class="c">${i + 1}</td><td class="name">${esc(r.name)}</td>
+      <td class="name">${esc(r.note)}</td><td class="n">${won(r.count)}</td><td class="n">${won(r.supply)}</td></tr>`).join("");
+    const vnT = vnMerged.reduce((a, r) => a + S.num(r.supply), 0);
+
+    const bk = {
+      inCnt: S.num(g.bank.inCnt) + S.num(y.bank.inCnt), inSum: S.num(g.bank.inSum) + S.num(y.bank.inSum),
+      outCnt: S.num(g.bank.outCnt) + S.num(y.bank.outCnt), outSum: S.num(g.bank.outSum) + S.num(y.bank.outSum),
+    };
+    const memo = [g.memo, y.memo].filter(Boolean).join("\n");
+
+    main.innerHTML = `
+      <div class="page-head no-print">
+        <div><h2>📝 마감보고서(수기) · 통합 <span class="muted">${yr}년 ${mo}월</span></h2>
+          <div class="muted">그로븐 · YB 수기 보고서를 자동 합산한 결과예요. (수정은 위 <b>그로븐 / 옐로우브릿지</b> 탭에서)</div></div>
+        <div class="row-actions"><button class="btn primary" id="mr-print">🖨️ 인쇄</button></div>
+      </div>
+      <div class="sheet">
+        <div class="doc-head"><h1>월 마감 보고서</h1><div class="doc-sub">SALES · PURCHASE MONTHLY CLOSING REPORT (수기 · 통합)</div></div>
+        <div class="doc-meta"><div class="meta"><div><b>대상월</b> ${yr}년 ${mo}월</div>
+          <div><b>사업장</b> 그로븐(면세) · 옐로우브릿지(과세)</div><div><b>작성일</b> ${new Date().toLocaleDateString("ko-KR")}</div></div>
+          <div class="approval"><div class="c head2">결재</div><div class="c"><div class="h">작성</div><div class="s"></div></div><div class="c"><div class="h">검토</div><div class="s"></div></div><div class="c"><div class="h">대표</div><div class="s"></div></div></div>
+        </div>
+        <h4 class="doc-sec">Ⅰ. 손익 요약 (공급가 기준)</h4>
+        <table class="doc-table"><thead><tr><th>사업장</th><th>구분</th><th class="n">매출</th><th class="n">매입</th><th class="n">손익</th><th class="n">원가율</th></tr></thead>
+          <tbody>${incBody}<tr class="sum"><td colspan="2">합계</td><td class="n">${won(saleT)}</td><td class="n">${won(buyT)}</td>
+            <td class="n ${saleT - buyT >= 0 ? "pos" : "neg"}">${won(saleT - buyT)}</td><td class="n">${saleT ? Math.round(buyT / saleT * 100) : 0}%</td></tr></tbody></table>
+
+        <h4 class="doc-sec">Ⅱ. 채널별 매출</h4>
+        <table class="doc-table"><thead><tr><th class="c" style="width:40px">순번</th><th>채널</th><th class="n" style="width:90px">건수</th><th class="n" style="width:140px">공급가</th></tr></thead>
+          <tbody>${chBody || `<tr><td colspan="4" class="empty">자료 없음</td></tr>`}<tr class="sum"><td colspan="3">합계</td><td class="n">${won(chT)}</td></tr></tbody></table>
+
+        <h4 class="doc-sec">Ⅲ. 매입처별 매입</h4>
+        <table class="doc-table"><thead><tr><th class="c" style="width:40px">순번</th><th>매입처</th><th style="width:160px">내용</th><th class="n" style="width:80px">건수</th><th class="n" style="width:130px">공급가</th></tr></thead>
+          <tbody>${vnBody || `<tr><td colspan="5" class="empty">자료 없음</td></tr>`}<tr class="sum"><td colspan="4">합계</td><td class="n">${won(vnT)}</td></tr></tbody></table>
+
+        <h4 class="doc-sec">Ⅳ. 입출금 정산</h4>
+        <table class="doc-table"><thead><tr><th>구분</th><th class="n">건수</th><th class="n">금액</th></tr></thead>
+          <tbody><tr><td>입금 (매출 정산)</td><td class="n">${won(bk.inCnt)}</td><td class="n">${won(bk.inSum)}</td></tr>
+          <tr><td>출금 (매입·비용)</td><td class="n">${won(bk.outCnt)}</td><td class="n">${won(bk.outSum)}</td></tr>
+          <tr class="sum"><td>순증감</td><td class="n"></td><td class="n ${bk.inSum - bk.outSum >= 0 ? "pos" : "neg"}">${won(bk.inSum - bk.outSum)}</td></tr></tbody></table>
+
+        ${memo ? `<h4 class="doc-sec">Ⅴ. 비고</h4><div style="white-space:pre-wrap;font-size:12px;padding:4px 2px">${esc(memo)}</div>` : ""}
+      </div>`;
+    $("#mr-print", main).addEventListener("click", () => window.print());
   }
 
   function renderReport(main) {
