@@ -40,7 +40,7 @@ const Dashboard = (function () {
         ${kpiCard("총 매출 (공급가)", won(totalSales), `${sales.length}건`, "blue")}
         ${kpiCard("총 매입 (공급가)", won(totalPurchase), `${purchases.length}건`, "amber")}
         ${kpiCard("손익 (매출-매입)", won(profit), profit >= 0 ? "흑자" : "적자", profit >= 0 ? "green" : "red")}
-        ${kpiCard("매입/매출 비율", totalSales ? Math.round(totalPurchase / totalSales * 100) + "%" : "-", "원가율", "slate")}
+        ${kpiCard("마진율 (손익/매출)", totalSales ? Math.round((totalSales - totalPurchase) / totalSales * 100) + "%" : "-", "마진율", "slate")}
       </div>
       <div class="chart-grid">
         <div class="card"><h3>월별 매출·매입 추이</h3><canvas id="ch-trend"></canvas></div>

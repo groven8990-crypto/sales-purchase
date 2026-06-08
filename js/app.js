@@ -119,7 +119,7 @@ const App = (function () {
           `<button class="btn" data-go="transactions">입출금 보기</button>
            <button class="btn ghost" data-act="import-bank">🏦 통장내역 올리기</button>`)}
         ${step(4, sales.length + purch.length > 0, "손익 · 보고", "마감 보고서 작성·결재",
-          `손익 <b>${sv - pv >= 0 ? "+" : ""}₩${won(sv - pv)}</b> · 원가율 ${sv ? Math.round(pv / sv * 100) : 0}%`,
+          `손익 <b>${sv - pv >= 0 ? "+" : ""}₩${won(sv - pv)}</b> · 마진율 ${sv ? Math.round((sv - pv) / sv * 100) : 0}%`,
           `<button class="btn primary" data-go="report">📄 보고서 보기</button>`)}
       </div>`;
 
@@ -582,7 +582,11 @@ const App = (function () {
     const selType = (i, v) => `<select class="mr-in" data-sec="platform" data-i="${i}" data-f="type"><option ${v === "광고비" ? "" : "selected"}>수수료</option><option ${v === "광고비" ? "selected" : ""}>광고비</option></select>`;
 
     const profit = S.num(R.sales) - S.num(R.purchase);
-    const rate = S.num(R.sales) ? Math.round(S.num(R.purchase) / S.num(R.sales) * 100) : 0;
+    const rate = S.num(R.sales) ? Math.round((S.num(R.sales) - S.num(R.purchase)) / S.num(R.sales) * 100) : 0;
+
+    // 공급가 많은 순으로 정렬 (빈 행은 자연히 아래로)
+    R.channels.sort((a, b) => S.num(b.supply) - S.num(a.supply));
+    R.vendors.sort((a, b) => S.num(b.supply) - S.num(a.supply));
 
     const chBody = R.channels.map((r, i) => `<tr><td class="c">${i + 1}</td>
       <td>${txtIn("channels", i, "name", r.name, "채널명")}</td>
@@ -634,7 +638,7 @@ const App = (function () {
           <div class="approval"><div class="c head2">결재</div><div class="c"><div class="h">작성</div><div class="s"></div></div><div class="c"><div class="h">검토</div><div class="s"></div></div><div class="c"><div class="h">대표</div><div class="s"></div></div></div>
         </div>
         <h4 class="doc-sec">Ⅰ. 손익 요약 (공급가 기준)</h4>
-        <table class="doc-table"><thead><tr><th>사업장</th><th>구분</th><th class="n">매출</th><th class="n">매입</th><th class="n">손익</th><th class="n">원가율</th></tr></thead>
+        <table class="doc-table"><thead><tr><th>사업장</th><th>구분</th><th class="n">매출</th><th class="n">매입</th><th class="n">손익</th><th class="n">마진율</th></tr></thead>
           <tbody><tr><td>${fullNm}</td><td>${tax}</td>
             <td class="n">${numIn("totals", 0, "sales", R.sales)}</td>
             <td class="n">${numIn("totals", 0, "purchase", R.purchase)}</td>
@@ -660,7 +664,7 @@ const App = (function () {
     // 합계·손익만 제자리에서 갱신 (전체 다시 그리지 않음 → 포커스/스크롤 유지)
     const recalc = () => {
       const pf = S.num(R.sales) - S.num(R.purchase);
-      const rt = S.num(R.sales) ? Math.round(S.num(R.purchase) / S.num(R.sales) * 100) : 0;
+      const rt = S.num(R.sales) ? Math.round((S.num(R.sales) - S.num(R.purchase)) / S.num(R.sales) * 100) : 0;
       const pe = $("#mr-profit", main); if (pe) { pe.textContent = won(pf); pe.className = "n " + (pf >= 0 ? "pos" : "neg"); }
       const re = $("#mr-rate", main); if (re) re.textContent = rt + "%";
       const ce = $("#mr-chT", main); if (ce) ce.textContent = won(R.channels.reduce((a, r) => a + S.num(r.supply), 0));
@@ -710,7 +714,7 @@ const App = (function () {
     const incRows = [["groven", "그로븐", "면세", g], ["yb", "옐로우브릿지", "과세", y]];
     const incBody = incRows.map(([st, nm, tax, R]) => {
       const profit = S.num(R.sales) - S.num(R.purchase);
-      const rate = S.num(R.sales) ? Math.round(S.num(R.purchase) / S.num(R.sales) * 100) : 0;
+      const rate = S.num(R.sales) ? Math.round((S.num(R.sales) - S.num(R.purchase)) / S.num(R.sales) * 100) : 0;
       return `<tr><td>${nm}</td><td>${tax}</td><td class="n">${won(R.sales)}</td><td class="n">${won(R.purchase)}</td>
         <td class="n ${profit >= 0 ? "pos" : "neg"}">${won(profit)}</td><td class="n">${rate}%</td></tr>`;
     }).join("");
@@ -759,9 +763,9 @@ const App = (function () {
           <div class="approval"><div class="c head2">결재</div><div class="c"><div class="h">작성</div><div class="s"></div></div><div class="c"><div class="h">검토</div><div class="s"></div></div><div class="c"><div class="h">대표</div><div class="s"></div></div></div>
         </div>
         <h4 class="doc-sec">Ⅰ. 손익 요약 (공급가 기준)</h4>
-        <table class="doc-table"><thead><tr><th>사업장</th><th>구분</th><th class="n">매출</th><th class="n">매입</th><th class="n">손익</th><th class="n">원가율</th></tr></thead>
+        <table class="doc-table"><thead><tr><th>사업장</th><th>구분</th><th class="n">매출</th><th class="n">매입</th><th class="n">손익</th><th class="n">마진율</th></tr></thead>
           <tbody>${incBody}<tr class="sum"><td colspan="2">합계</td><td class="n">${won(saleT)}</td><td class="n">${won(buyT)}</td>
-            <td class="n ${saleT - buyT >= 0 ? "pos" : "neg"}">${won(saleT - buyT)}</td><td class="n">${saleT ? Math.round(buyT / saleT * 100) : 0}%</td></tr></tbody></table>
+            <td class="n ${saleT - buyT >= 0 ? "pos" : "neg"}">${won(saleT - buyT)}</td><td class="n">${saleT ? Math.round((saleT - buyT) / saleT * 100) : 0}%</td></tr></tbody></table>
 
         <h4 class="doc-sec">Ⅱ. 채널별 매출</h4>
         <table class="doc-table"><thead><tr><th class="c" style="width:40px">순번</th><th>채널</th><th class="n" style="width:90px">건수</th><th class="n" style="width:140px">공급가</th></tr></thead>
@@ -836,15 +840,15 @@ const App = (function () {
 
         <h4 class="doc-sec">Ⅰ. 손익 요약 (공급가 기준)</h4>
         <table class="doc-table">
-          <thead><tr><th>사업장</th><th>구분</th><th class="n">매출</th><th class="n">매입</th><th class="n">손익</th><th class="n">원가율</th></tr></thead>
+          <thead><tr><th>사업장</th><th>구분</th><th class="n">매출</th><th class="n">매입</th><th class="n">손익</th><th class="n">마진율</th></tr></thead>
           <tbody>
             ${summary.map((r) => `<tr><td>${r.nm}</td><td>${r.tax}</td>
               <td class="n">${won(r.v)}</td><td class="n">${won(r.p)}</td>
               <td class="n ${r.profit >= 0 ? "pos" : "neg"}">${r.profit >= 0 ? "+" : ""}${won(r.profit)}</td>
-              <td class="n">${r.v ? Math.round(r.p / r.v * 100) : 0}%</td></tr>`).join("")}
+              <td class="n">${r.v ? Math.round((r.v - r.p) / r.v * 100) : 0}%</td></tr>`).join("")}
             <tr class="sum"><td>합계</td><td>-</td><td class="n">${won(tSv)}</td><td class="n">${won(tPv)}</td>
               <td class="n ${tSv - tPv >= 0 ? "pos" : "neg"}">${tSv - tPv >= 0 ? "+" : ""}${won(tSv - tPv)}</td>
-              <td class="n">${tSv ? Math.round(tPv / tSv * 100) : 0}%</td></tr>
+              <td class="n">${tSv ? Math.round((tSv - tPv) / tSv * 100) : 0}%</td></tr>
           </tbody>
         </table>
 
