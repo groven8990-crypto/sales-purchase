@@ -446,12 +446,14 @@ const Modals = (function () {
   /* ===== 8) 예치금 충전현황 파일 올리기 ===== */
   function importDeposits() {
     open("💳 예치금 이력 올리기",
-      `<p>예치금 충전·사용 이력 엑셀을 올려요. (열: 발생일시·내용·적립·차감 형태) 어느 거래처·사업장인지 골라주세요.</p>
+      `<p>예치금 충전·사용 이력 엑셀을 올려요. (열: 발생일·내용·카드/현금변동 또는 적립·차감) 어느 거래처·사업장인지 골라주세요.</p>
        <div class="form-row two">
          <span><label>사업장(스토어)</label>${storeSelect("de-store")}</span>
          <span><label>거래처</label><input id="de-vendor" placeholder="예: 도매꾹 이머니 충전" style="width:100%"></span>
        </div>
        <div class="form-row"><label>예치금 이력 파일</label><input type="file" id="de-file" accept=".xlsx,.xls,.csv"></div>
+       <div class="form-row"><label>당일(시각만 표시된) 거래의 날짜 <span class="muted" style="font-weight:400">— 도매꾹은 오늘 거래에 날짜 대신 시각만 나와요</span></label>
+         <input type="date" id="de-today" value="${ymd(new Date())}" style="min-width:180px"></div>
        <div id="de-prev" class="preview"></div>`,
       `<button class="btn" id="de-cancel">취소</button><button class="btn primary" id="de-apply" disabled>예치금에 추가</button>`);
     let table = null;
@@ -459,8 +461,13 @@ const Modals = (function () {
       const f = e.target.files[0]; if (!f) return;
       try {
         table = await Parsers.readGenericTable(f);
-        const cnt = table.body.length;
-        q("#de-prev").innerHTML = `<div class="ok">✅ ${cnt}행 인식 — 적립=충전, 차감=사용으로 등록돼요</div>`;
+        // 시각만 있는(날짜 없는) 행 개수 세기 → 보고서 발행일로 보정 안내
+        const iDateP = table.headers.findIndex((h) => /발생일|일시|날짜/.test(String(h.name).replace(/\s/g, "")));
+        let timeOnly = 0;
+        if (iDateP >= 0) table.body.forEach((r) => { const d = fmtDateTime(r[iDateP]); if (!d.date && d.time) timeOnly++; });
+        if (table.wbDate) q("#de-today").value = ymd(new Date(table.wbDate));
+        const note = timeOnly ? ` · 날짜 없이 시각만 있는 ${timeOnly}건은 위 '당일 날짜'(${q("#de-today").value})로 처리돼요` : "";
+        q("#de-prev").innerHTML = `<div class="ok">✅ ${table.body.length}행 인식 — 충전/사용 자동 구분${note}</div>`;
         q("#de-apply").disabled = false;
       } catch (err) { q("#de-prev").innerHTML = `<div class="err">❌ ${E(err.message)}</div>`; }
     };
@@ -468,6 +475,7 @@ const Modals = (function () {
     q("#de-apply").onclick = () => {
       if (!table) return;
       const store = q("#de-store").value, vendor = q("#de-vendor").value.trim() || "예치금";
+      const todayStr = q("#de-today").value || ymd(new Date());
       const H = table.headers;
       const nm = (h) => String(h.name).replace(/\s/g, "");
       const find = (pred) => { const h = H.find(pred); return h ? h.index : -1; };
@@ -480,7 +488,9 @@ const Modals = (function () {
       const iDown = find((h) => nm(h) === "차감" || nm(h) === "사용" || nm(h) === "차감금액" || nm(h) === "출금");
       const out = [];
       table.body.forEach((r) => {
-        const { date, at } = fmtDateTime(iDate >= 0 ? r[iDate] : "");
+        const dt = fmtDateTime(iDate >= 0 ? r[iDate] : "");
+        const date = dt.date || todayStr;            // 시각만 있으면 당일 날짜로
+        const at = dt.time ? `${date} ${dt.time}` : date;
         const memo = iMemo >= 0 ? Parsers.str(r[iMemo]) : "";
         let change = 0, up = 0, down = 0;
         if (iCash >= 0 || iCard >= 0) change = (iCash >= 0 ? Parsers.num(r[iCash]) : 0) + (iCard >= 0 ? Parsers.num(r[iCard]) : 0);
@@ -496,31 +506,29 @@ const Modals = (function () {
     };
   }
 
-  // 셀(Date 객체·문자열·엑셀 일련번호) → { date:"YYYY-MM-DD", at:"YYYY-MM-DD HH:MM:SS" }
+  // 셀(Date 객체·문자열·엑셀 일련번호) → { date:"YYYY-MM-DD" 또는 "", time:"HH:MM:SS" 또는 "" }
+  // 날짜 없이 시각만 있는 경우(도매꾹 당일거래)는 date:"" 로 두고 호출부에서 보정
   function fmtDateTime(v) {
     const p2 = (n) => String(n).padStart(2, "0");
-    const fromDate = (d) => {
-      const date = `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}`;
-      const hasT = d.getHours() || d.getMinutes() || d.getSeconds();
-      return { date, at: hasT ? `${date} ${p2(d.getHours())}:${p2(d.getMinutes())}:${p2(d.getSeconds())}` : date };
-    };
-    if (v instanceof Date && !isNaN(v)) return fromDate(v);
-    // 엑셀 일련번호(날짜) 형태의 순수 숫자
+    if (v instanceof Date && !isNaN(v)) {
+      const date = v.getFullYear() <= 1900 ? "" : `${v.getFullYear()}-${p2(v.getMonth() + 1)}-${p2(v.getDate())}`;
+      const hasT = v.getHours() || v.getMinutes() || v.getSeconds();
+      return { date, time: hasT ? `${p2(v.getHours())}:${p2(v.getMinutes())}:${p2(v.getSeconds())}` : "" };
+    }
     if (typeof v === "number" && v > 20000 && v < 80000) {
       const d = new Date(Date.UTC(1899, 11, 30) + Math.round(v * 86400000));
-      return fromDate(d);
+      return { date: `${d.getUTCFullYear()}-${p2(d.getUTCMonth() + 1)}-${p2(d.getUTCDate())}`, time: "" };
     }
     const s = String(v == null ? "" : v).trim();
     let dm = s.match(/(\d{4})[-./](\d{1,2})[-./](\d{1,2})/), yr, mo, dy;
     if (dm) { yr = +dm[1]; mo = +dm[2]; dy = +dm[3]; }
     else { dm = s.match(/(\d{2})[-./](\d{1,2})[-./](\d{1,2})/); if (dm) { yr = 2000 + +dm[1]; mo = +dm[2]; dy = +dm[3]; } }
-    if (yr) {
-      const date = `${yr}-${p2(mo)}-${p2(dy)}`;
-      const tm = s.match(/(\d{1,2}):(\d{2})(?::(\d{2}))?/);
-      return { date, at: tm ? `${date} ${p2(tm[1])}:${tm[2]}:${tm[3] || "00"}` : date };
-    }
-    return { date: s.slice(0, 10), at: s };
+    const date = yr ? `${yr}-${p2(mo)}-${p2(dy)}` : "";
+    const tm = s.match(/(\d{1,2}):(\d{2})(?::(\d{2}))?/);
+    const time = tm ? `${p2(tm[1])}:${tm[2]}:${tm[3] || "00"}` : "";
+    return { date, time };
   }
+  const ymd = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
   // 중복 건너뛰고 추가. 같은 파일 재업로드만 거르고, 같은 날 반복거래는 살림
   // (발생일시 전체 + 금액 + 구분 기준. 한 배치 안의 동일키는 순번으로 구분해 모두 추가)
@@ -562,7 +570,9 @@ const Modals = (function () {
       const out = [];
       lines.forEach((line) => {
         const dm = line.match(/\d{4}[-./]\d{1,2}[-./]\d{1,2}(\s+\d{1,2}:\d{2}(:\d{2})?)?/);
-        const { date, at } = dm ? fmtDateTime(dm[0]) : { date: "", at: "" };
+        const dt = dm ? fmtDateTime(dm[0]) : { date: "", time: "" };
+        const date = dt.date;
+        const at = date ? (dt.time ? `${date} ${dt.time}` : date) : "";
         const rest = dm ? line.replace(dm[0], " ") : line;
         const memo = (rest.match(/[가-힣]{2,}/) || [""])[0];
         const nums = (rest.match(/-?[\d,]+/g) || []).map((x) => Parsers.num(x)).filter((n) => !isNaN(n));

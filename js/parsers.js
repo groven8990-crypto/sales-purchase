@@ -30,7 +30,7 @@ const Parsers = (function () {
   /* ---- 워크북 읽기 ---------------------------------------- */
   async function readWorkbook(file) {
     const buf = await file.arrayBuffer();
-    return XLSX.read(buf, { type: "array", cellDates: true });
+    return XLSX.read(buf, { type: "array", cellDates: true, cellNF: false, bookProps: true });
   }
 
   function sheetToRows(ws) {
@@ -255,7 +255,15 @@ const Parsers = (function () {
     }
     const headers = (rows[hi] || []).map((c, i) => ({ index: i, name: str(c) || `열${i + 1}` }));
     const body = rows.slice(hi + 1);
-    return { headers, body, sheetNames: wb.SheetNames };
+    // 워크북 생성일(보고서 발행일) — 도매꾹 등 '당일=시각만' 파일의 날짜 보정용
+    let wbDate = null;
+    try {
+      const cd = wb.Props && wb.Props.CreatedDate;
+      const d = cd instanceof Date ? cd : (cd ? new Date(cd) : null);
+      if (d && !isNaN(d)) wbDate = d;
+    } catch (e) { /* ignore */ }
+    if (!wbDate && file.lastModified) { const d = new Date(file.lastModified); if (!isNaN(d)) wbDate = d; }
+    return { headers, body, sheetNames: wb.SheetNames, wbDate };
   }
 
   // 매핑 {field: colIndex} 적용 → 매입행 생성
