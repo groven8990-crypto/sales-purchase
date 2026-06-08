@@ -500,6 +500,25 @@ const App = (function () {
     return Object.values(m).sort((x, y) => S.num(y.supply) - S.num(x.supply));
   }
 
+  // 파스텔 도넛 차트 (범례 하단). groups: [{key, sum}]
+  function pastelDoughnut(canvasId, groups) {
+    const cv = document.getElementById(canvasId);
+    if (!cv || !window.Chart || !groups || !groups.length) return;
+    const PAL = ["#8fb3e0", "#9fd6ae", "#f5d08a", "#f2a9a9", "#c2b0e8", "#93cdd9", "#f3aecf", "#aeb8c9"];
+    const top = groups.slice(0, 7);
+    const etc = groups.slice(7).reduce((a, g) => a + g.sum, 0);
+    const arr = etc > 0 ? top.concat([{ key: "기타", sum: etc }]) : top;
+    try {
+      new Chart(cv, {
+        type: "doughnut",
+        data: { labels: arr.map((d) => d.key), datasets: [{ data: arr.map((d) => d.sum), backgroundColor: arr.map((_, i) => PAL[i % PAL.length]), borderWidth: 1 }] },
+        options: { responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { position: "bottom", labels: { boxWidth: 10, font: { size: 9 }, padding: 5 } },
+            tooltip: { callbacks: { label: (c) => `${c.label}: ${won(c.parsed)}` } } } },
+      });
+    } catch (e) { console.warn("도넛 차트 실패", e); }
+  }
+
   function renderManualReport(main) {
     if (!scope.year || !scope.month) {
       main.innerHTML = `<div class="page-head"><div><h2>📝 마감보고서(수기)</h2></div></div>
@@ -650,6 +669,18 @@ const App = (function () {
         <table class="doc-table"><thead><tr><th class="c" style="width:40px">순번</th><th>채널</th><th class="n" style="width:90px">건수</th><th class="n" style="width:140px">공급가</th><th class="no-print" style="width:30px"></th></tr></thead>
           <tbody>${chBody || `<tr><td colspan="5" class="empty">행추가로 채널을 입력하세요</td></tr>`}<tr class="sum"><td colspan="3">합계</td><td class="n" id="mr-chT">${won(chT)}</td><td class="no-print"></td></tr></tbody></table>
 
+        <h4 class="doc-sec">Ⅱ-1. 채널별 매출 추이·구성</h4>
+        <div style="display:flex;gap:14px;align-items:flex-start">
+          <div style="flex:1;min-width:0">
+            <div style="position:relative;border:1px solid #d4dae4;border-radius:6px;padding:8px;height:240px"><canvas id="mr-trend"></canvas></div>
+            <div class="muted" style="font-size:10px;text-align:center;margin-top:4px">월별 매출·매입·손익 추이</div>
+          </div>
+          <div style="width:240px;flex-shrink:0">
+            <div style="position:relative;border:1px solid #d4dae4;border-radius:6px;padding:8px;height:240px"><canvas id="mr-ch-ch"></canvas></div>
+            <div class="muted" style="font-size:10px;text-align:center;margin-top:4px">채널별 매출 비중</div>
+          </div>
+        </div>
+
         <h4 class="doc-sec">Ⅲ. 매입처별 매입 <button class="btn no-print" data-add="vendors" style="padding:3px 9px;font-size:12px;margin-left:8px">➕ 행추가</button></h4>
         <table class="doc-table"><thead><tr><th class="c" style="width:40px">순번</th><th>매입처</th><th style="width:160px">내용</th><th class="n" style="width:80px">건수</th><th class="n" style="width:130px">공급가</th><th class="no-print" style="width:30px"></th></tr></thead>
           <tbody>${vnBody || `<tr><td colspan="6" class="empty">행추가로 매입처를 입력하세요</td></tr>`}<tr class="sum"><td colspan="4">합계</td><td class="n" id="mr-vnT">${won(vnT)}</td><td class="no-print"></td></tr></tbody></table>
@@ -712,6 +743,16 @@ const App = (function () {
       M[store] = autoFillStoreReport(store, yr, mo);
       M[store].platform = keepPf || [];
       reSave(true);
+    });
+    // 채널별 매출 추이(실제 데이터)·구성(수기 채널) 차트
+    requestAnimationFrame(() => {
+      if (window.Dashboard && typeof Dashboard.renderTrend === "function") {
+        try { Dashboard.renderTrend("mr-trend", S.monthlySummary(store)); } catch (e) { console.warn("추이 차트 실패", e); }
+      }
+      const chGroups = R.channels.filter((c) => S.num(c.supply) > 0)
+        .map((c) => ({ key: c.name || "(미입력)", sum: S.num(c.supply) }))
+        .sort((a, b) => b.sum - a.sum);
+      pastelDoughnut("mr-ch-ch", chGroups);
     });
   }
 
@@ -808,6 +849,18 @@ const App = (function () {
         <table class="doc-table"><thead><tr><th class="c" style="width:40px">순번</th><th>채널</th><th class="n" style="width:90px">건수</th><th class="n" style="width:140px">공급가</th></tr></thead>
           <tbody>${chBody || `<tr><td colspan="4" class="empty">자료 없음</td></tr>`}<tr class="sum"><td colspan="3">합계</td><td class="n">${won(chT)}</td></tr></tbody></table>
 
+        <h4 class="doc-sec">Ⅱ-1. 채널별 매출 추이·구성</h4>
+        <div style="display:flex;gap:14px;align-items:flex-start">
+          <div style="flex:1;min-width:0">
+            <div style="position:relative;border:1px solid #d4dae4;border-radius:6px;padding:8px;height:240px"><canvas id="mr-trend"></canvas></div>
+            <div class="muted" style="font-size:10px;text-align:center;margin-top:4px">월별 매출·매입·손익 추이 (통합)</div>
+          </div>
+          <div style="width:240px;flex-shrink:0">
+            <div style="position:relative;border:1px solid #d4dae4;border-radius:6px;padding:8px;height:240px"><canvas id="mr-ch-ch"></canvas></div>
+            <div class="muted" style="font-size:10px;text-align:center;margin-top:4px">채널별 매출 비중</div>
+          </div>
+        </div>
+
         <h4 class="doc-sec">Ⅲ. 매입처별 매입</h4>
         <table class="doc-table"><thead><tr><th class="c" style="width:40px">순번</th><th>매입처</th><th style="width:160px">내용</th><th class="n" style="width:80px">건수</th><th class="n" style="width:130px">공급가</th></tr></thead>
           <tbody>${vnBody || `<tr><td colspan="5" class="empty">자료 없음</td></tr>`}<tr class="sum"><td colspan="4">합계</td><td class="n">${won(vnT)}</td></tr></tbody></table>
@@ -815,26 +868,15 @@ const App = (function () {
         ${memo ? `<h4 class="doc-sec">Ⅳ. 비고</h4><div style="white-space:pre-wrap;font-size:12px;padding:4px 2px">${esc(memo)}</div>` : ""}
       </div>`;
     $("#mr-print", main).addEventListener("click", () => window.print());
-    // 도넛 차트 (범례는 아래로 — 박스가 좁아도 도넛이 보이게)
-    if (pfChart.length && window.Chart) {
-      requestAnimationFrame(() => {
-        const cv = document.getElementById("mr-pf-ch");
-        if (!cv) return;
-        const PAL = ["#8fb3e0", "#9fd6ae", "#f5d08a", "#f2a9a9", "#c2b0e8", "#93cdd9", "#f3aecf", "#aeb8c9"];
-        const top = pfChart.slice(0, 7);
-        const etc = pfChart.slice(7).reduce((a, gg) => a + gg.sum, 0);
-        const arr = etc > 0 ? top.concat([{ key: "기타", sum: etc }]) : top;
-        try {
-          new Chart(cv, {
-            type: "doughnut",
-            data: { labels: arr.map((d) => d.key), datasets: [{ data: arr.map((d) => d.sum), backgroundColor: arr.map((_, i) => PAL[i % PAL.length]), borderWidth: 1 }] },
-            options: { responsive: true, maintainAspectRatio: false,
-              plugins: { legend: { position: "bottom", labels: { boxWidth: 10, font: { size: 9 }, padding: 5 } },
-                tooltip: { callbacks: { label: (c) => `${c.label}: ${won(c.parsed)}` } } } },
-          });
-        } catch (e) { console.warn("플랫폼 차트 실패", e); }
-      });
-    }
+    requestAnimationFrame(() => {
+      if (window.Dashboard && typeof Dashboard.renderTrend === "function") {
+        try { Dashboard.renderTrend("mr-trend", S.monthlySummary("")); } catch (e) { console.warn("추이 차트 실패", e); }
+      }
+      const chGroups = chMerged.filter((c) => S.num(c.supply) > 0)
+        .map((c) => ({ key: c.name || "(미입력)", sum: S.num(c.supply) })).sort((a, b) => b.sum - a.sum);
+      pastelDoughnut("mr-ch-ch", chGroups);
+      pastelDoughnut("mr-pf-ch", pfChart);
+    });
   }
 
   function renderReport(main) {
