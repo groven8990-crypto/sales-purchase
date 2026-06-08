@@ -395,5 +395,96 @@ const Modals = (function () {
       <p class="hint">※ 세금계산서의 쿠팡·네이버·지마켓·당근 등은 플랫폼 수수료라 장부 상품매입엔 없을 수 있어요(차액 정상).</p>`;
   }
 
-  return { importExisting, importBank, importPO, importPaste, importEvidence, editRow, close };
+  /* ===== 7) 발주서 → 발주내역 ===== */
+  const OD_FIELDS = [["date", "일자"], ["vendor", "거래처(매입처)"], ["desc", "품목명"], ["qty", "수량"]];
+  function importOrders() {
+    open("📦 발주서 올리기 (발주내역)",
+      `<p>발주서 엑셀을 올리면 <b>발주내역</b>으로 등록돼요. (매입 증빙과 별개) 각 항목이 어느 열인지 골라주세요.</p>
+       <div class="form-row two">
+         <span><label>스토어</label>${storeSelect("od-store")}</span>
+         <span><label>기본 연/월</label><input id="od-ym" placeholder="예: 2026-5" style="width:100%"></span>
+       </div>
+       <div class="form-row"><label>기본 거래처(열에 없을 때)</label><input id="od-vendor" placeholder="예: 일비"></div>
+       <div class="form-row"><label>발주서 파일</label><input type="file" id="od-file" accept=".xlsx,.xls,.csv"></div>
+       <div id="od-map"></div><div id="od-prev" class="preview"></div>`,
+      `<button class="btn" id="od-cancel">취소</button><button class="btn primary" id="od-apply" disabled>발주내역에 추가</button>`);
+    let table = null;
+    q("#od-file").onchange = async (e) => {
+      const f = e.target.files[0]; if (!f) return;
+      try { table = await Parsers.readGenericTable(f); renderODMap(table); }
+      catch (err) { q("#od-prev").innerHTML = `<div class="err">❌ ${E(err.message)}</div>`; }
+    };
+    q("#od-cancel").onclick = close;
+    q("#od-apply").onclick = () => {
+      if (!table) return;
+      const map = {}; OD_FIELDS.forEach(([f]) => { const v = q(`#od-f-${f}`).value; if (v !== "") map[f] = +v; });
+      const ymM = (q("#od-ym").value || "").match(/(\d{4})\D+(\d{1,2})/);
+      const store = q("#od-store").value, baseV = q("#od-vendor").value.trim();
+      const yr = ymM ? +ymM[1] : new Date().getFullYear(), mo = ymM ? +ymM[2] : "";
+      const out = [];
+      table.body.forEach((r) => {
+        const get = (f) => map[f] != null ? r[map[f]] : null;
+        const desc = Parsers.str(get("desc")), vendor = Parsers.str(get("vendor")) || baseV;
+        const qty = Parsers.num(get("qty"));
+        if (!desc && !vendor) return;
+        const d = Parsers.parseDate(get("date"));
+        out.push({ store, year: d.y || yr, month: d.m || mo, day: d.d || "", vendor, desc, qty, note: "발주서" });
+      });
+      if (!out.length) { q("#od-prev").innerHTML = `<div class="err">읽을 행이 없어요.</div>`; return; }
+      S.addOrders(out); close(); App.go("orders");
+    };
+  }
+  function renderODMap(table) {
+    const opts = (sel) => `<option value="">(없음)</option>` +
+      table.headers.map((h) => `<option value="${h.index}" ${guess(sel, h.name) ? "selected" : ""}>${E(h.name)}</option>`).join("");
+    q("#od-map").innerHTML = `<div class="map-grid">${OD_FIELDS.map(([f, l]) =>
+      `<span><label>${l}</label><select id="od-f-${f}">${opts(f)}</select></span>`).join("")}</div>`;
+    q("#od-prev").innerHTML = `<div class="ok">✅ ${table.body.length}행 인식</div>`;
+    q("#od-apply").disabled = false;
+  }
+
+  /* ===== 8) 예치금 충전현황 파일 올리기 ===== */
+  function importDeposits() {
+    open("💳 예치금 이력 올리기",
+      `<p>예치금 충전·사용 이력 엑셀을 올려요. (열: 발생일시·내용·적립·차감 형태) 어느 거래처·사업장인지 골라주세요.</p>
+       <div class="form-row two">
+         <span><label>사업장(스토어)</label>${storeSelect("de-store")}</span>
+         <span><label>거래처</label><input id="de-vendor" placeholder="예: 도매꾹 이머니 충전" style="width:100%"></span>
+       </div>
+       <div class="form-row"><label>예치금 이력 파일</label><input type="file" id="de-file" accept=".xlsx,.xls,.csv"></div>
+       <div id="de-prev" class="preview"></div>`,
+      `<button class="btn" id="de-cancel">취소</button><button class="btn primary" id="de-apply" disabled>예치금에 추가</button>`);
+    let table = null;
+    q("#de-file").onchange = async (e) => {
+      const f = e.target.files[0]; if (!f) return;
+      try {
+        table = await Parsers.readGenericTable(f);
+        const cnt = table.body.length;
+        q("#de-prev").innerHTML = `<div class="ok">✅ ${cnt}행 인식 — 적립=충전, 차감=사용으로 등록돼요</div>`;
+        q("#de-apply").disabled = false;
+      } catch (err) { q("#de-prev").innerHTML = `<div class="err">❌ ${E(err.message)}</div>`; }
+    };
+    q("#de-cancel").onclick = close;
+    q("#de-apply").onclick = () => {
+      if (!table) return;
+      const store = q("#de-store").value, vendor = q("#de-vendor").value.trim() || "예치금";
+      const H = table.headers;
+      const col = (kw) => { const h = H.find((x) => String(x.name).replace(/\s/g, "").indexOf(kw) !== -1); return h ? h.index : -1; };
+      const iDate = col("발생일") >= 0 ? col("발생일") : col("일시");
+      const iMemo = col("내용"), iUp = col("적립"), iDown = col("차감");
+      const out = [];
+      table.body.forEach((r) => {
+        const up = Parsers.num(r[iUp]), down = Math.abs(Parsers.num(r[iDown]));
+        const date = String((iDate >= 0 ? r[iDate] : "") || "").slice(0, 10);
+        const memo = iMemo >= 0 ? Parsers.str(r[iMemo]) : "";
+        if (up > 0) out.push({ store, vendor, date, kind: "충전", amount: up, memo });
+        else if (down > 0) out.push({ store, vendor, date, kind: "사용", amount: down, memo });
+      });
+      if (!out.length) { q("#de-prev").innerHTML = `<div class="err">적립·차감 값을 못 읽었어요. 열 이름을 확인해주세요.</div>`; return; }
+      out.forEach((d) => S.data.deposits.push(Object.assign({ id: S.uid() }, d)));
+      S.save(); close(); App.go("deposits");
+    };
+  }
+
+  return { importExisting, importBank, importPO, importPaste, importEvidence, importOrders, importDeposits, editRow, close };
 })();

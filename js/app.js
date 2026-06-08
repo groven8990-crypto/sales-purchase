@@ -55,6 +55,7 @@ const App = (function () {
     else if (scope.view === "sales") renderTable(main, "sales");
     else if (scope.view === "purchases") renderTable(main, "purchases");
     else if (scope.view === "transactions") renderTable(main, "transactions");
+    else if (scope.view === "orders") renderOrders(main);
     else if (scope.view === "deposits") renderDeposits(main);
     else if (scope.view === "report") renderReport(main);
     else if (scope.view === "data") renderData(main);
@@ -198,11 +199,47 @@ const App = (function () {
   }
 
   /* ===================== 인쇄용 마감 보고서 (시안1) ===================== */
+  /* ===================== 발주내역 ===================== */
+  function renderOrders(main) {
+    let rows = S.filterBy(S.data.orders || [], { store: scope.store, year: scope.year, month: scope.month });
+    rows = rows.slice().sort((a, b) => `${b.year}-${b.month}-${b.day}`.localeCompare(`${a.year}-${a.month}-${a.day}`));
+    const sText = (r) => [r.vendor, r.desc, r.note].map((x) => String(x == null ? "" : x)).join(" ").toLowerCase();
+    main.innerHTML = `
+      <div class="page-head">
+        <div><h2>📦 발주내역 <span class="muted" id="od-cnt">(${rows.length}건)</span></h2>
+          <div class="muted">${esc(scopeLabel())} · 발주서 기준 (매입 증빙과 별개)</div></div>
+        <div class="row-actions"><button class="btn primary" data-act="import-orders">📦 발주서 올리기</button></div>
+      </div>
+      <div class="card" style="padding:10px 14px"><input id="od-search" placeholder="🔍 검색 (거래처·품목)" style="width:100%;border:1px solid var(--line);border-radius:9px;padding:9px 12px;font-size:13.5px"></div>
+      <div class="table-wrap"><table class="grid">
+        <thead><tr><th>일자</th><th>거래처</th><th>품목/내용</th><th class="num">수량</th><th>스토어</th><th>메모</th><th></th></tr></thead>
+        <tbody>${rows.map((r) => `<tr data-s="${esc(sText(r))}">
+          <td>${esc((r.month || "") + "." + (r.day || ""))}</td><td>${esc(r.vendor || "")}</td>
+          <td>${esc(r.desc || "")}</td><td class="num">${esc(r.qty || "")}</td>
+          <td>${r.store === "yb" ? "옐브" : (r.store === "groven" ? "그로븐" : "")}</td>
+          <td>${esc(r.note || "")}</td>
+          <td class="row-actions"><button class="icon-btn" data-delod="${r.id}" title="삭제">✕</button></td></tr>`).join("") ||
+          `<tr><td colspan="7" class="empty">발주 내역이 없어요. '발주서 올리기'로 추가하세요.</td></tr>`}
+        </tbody></table></div>`;
+    wire(main);
+    const sIn = $("#od-search", main);
+    if (sIn) sIn.addEventListener("input", () => {
+      const q = sIn.value.trim().toLowerCase(); let n = 0;
+      $$("tbody tr", main).forEach((tr) => { const ok = !q || (tr.dataset.s || "").includes(q); tr.style.display = ok ? "" : "none"; if (ok) n++; });
+      const c = $("#od-cnt", main); if (c) c.textContent = `(${n}건)`;
+    });
+    $$("[data-delod]", main).forEach((b) => b.addEventListener("click", () => {
+      if (confirm("이 발주 건을 삭제할까요?")) { S.remove("orders", b.dataset.delod); renderOrders(main); }
+    }));
+  }
+
   /* ===================== 예치금 충전현황 ===================== */
   function renderDeposits(main) {
     const KNOWN = ["최고집", "늘푸른", "도매꾹 이머니 충전"];
-    const deps = S.data.deposits || [];
+    const all = S.data.deposits || [];
+    const deps = scope.store ? all.filter((d) => (d.store || "") === scope.store) : all;
     const vendors = [...new Set(KNOWN.concat(deps.map((d) => d.vendor)).filter(Boolean))];
+    const stNm = (s) => s === "yb" ? "옐브" : (s === "groven" ? "그로븐" : "공통");
     const sumBy = (v, k) => deps.filter((d) => d.vendor === v && d.kind === k).reduce((a, d) => a + S.num(d.amount), 0);
     const cards = vendors.map((v) => {
       const chg = sumBy(v, "충전"), use = sumBy(v, "사용"), bal = chg - use;
@@ -212,14 +249,19 @@ const App = (function () {
     }).join("");
     const sorted = [...deps].sort((a, b) => String(b.date).localeCompare(String(a.date)));
     main.innerHTML = `
-      <div class="page-head"><div><h2>💳 예치금 충전현황</h2>
-        <div class="muted">거래처별 충전·사용·잔액을 기록합니다</div></div></div>
+      <div class="page-head"><div><h2>💳 예치금 충전현황 <span class="muted">${esc(scope.store ? stNm(scope.store) : "통합")}</span></h2>
+        <div class="muted">사업장·거래처별 충전·사용·잔액 (상단 스토어 탭으로 그로븐/옐브 구분)</div></div>
+        <div class="row-actions"><button class="btn primary" data-act="import-deposit-file">📥 예치금 이력 올리기</button></div></div>
       <div class="kpibar">${cards || `<div class="kb"><div class="l">아직 기록 없음</div></div>`}</div>
-      <div class="card"><h3>예치금 입력</h3>
+      <div class="card"><h3>예치금 직접 입력</h3>
         <div class="form-row two">
+          <span><label>사업장</label><select id="dp-store" style="width:100%;border:1px solid var(--line);border-radius:8px;padding:7px 9px"><option value="groven">그로븐</option><option value="yb" ${scope.store === "yb" ? "selected" : ""}>옐로우브릿지</option></select></span>
           <span><label>거래처</label><input id="dp-vendor" list="dp-vendors" placeholder="예: 도매꾹 이머니 충전" style="width:100%;border:1px solid var(--line);border-radius:8px;padding:7px 9px">
             <datalist id="dp-vendors">${vendors.map((v) => `<option>${esc(v)}</option>`).join("")}</datalist></span>
+        </div>
+        <div class="form-row two">
           <span><label>날짜</label><input id="dp-date" type="date" value="${new Date().toISOString().slice(0, 10)}" style="width:100%;border:1px solid var(--line);border-radius:8px;padding:7px 9px"></span>
+          <span></span>
         </div>
         <div class="form-row two">
           <span><label>구분</label><select id="dp-kind" style="width:100%;border:1px solid var(--line);border-radius:8px;padding:7px 9px"><option>충전</option><option>사용</option></select></span>
@@ -228,23 +270,44 @@ const App = (function () {
         <div class="form-row"><label>메모</label><input id="dp-memo" placeholder="(선택)" style="width:100%;border:1px solid var(--line);border-radius:8px;padding:7px 9px"></div>
         <button class="btn primary" id="dp-add">➕ 추가</button></div>
       <div class="table-wrap"><table class="grid">
-        <thead><tr><th>날짜</th><th>거래처</th><th>구분</th><th class="num">금액</th><th>메모</th><th></th></tr></thead>
-        <tbody>${sorted.map((d) => `<tr><td>${esc(d.date)}</td><td>${esc(d.vendor)}</td>
+        <thead><tr><th>날짜</th><th>사업장</th><th>거래처</th><th>구분</th><th class="num">금액</th><th>메모</th><th></th></tr></thead>
+        <tbody>${sorted.map((d) => `<tr><td>${esc(d.date)}</td><td>${stNm(d.store)}</td><td>${esc(d.vendor)}</td>
           <td><span class="tag ${d.kind === "충전" ? "in" : "out"}">${d.kind}</span></td>
           <td class="num">₩${won(d.amount)}</td><td>${esc(d.memo || "")}</td>
           <td class="row-actions"><button class="icon-btn" data-deldep="${d.id}" title="삭제">✕</button></td></tr>`).join("") ||
-          `<tr><td colspan="6" class="empty">기록이 없어요. 위에서 추가하세요.</td></tr>`}
+          `<tr><td colspan="7" class="empty">기록이 없어요. 위에서 추가하거나 파일을 올리세요.</td></tr>`}
         </tbody></table></div>`;
+    wire(main);
     $("#dp-add", main).addEventListener("click", () => {
       const vendor = $("#dp-vendor", main).value.trim();
       const amount = S.num($("#dp-amount", main).value);
       if (!vendor || !amount) { alert("거래처와 금액을 입력하세요."); return; }
-      S.data.deposits.push({ id: S.uid(), vendor, date: $("#dp-date", main).value, kind: $("#dp-kind", main).value, amount, memo: $("#dp-memo", main).value.trim() });
+      S.data.deposits.push({ id: S.uid(), store: $("#dp-store", main).value, vendor, date: $("#dp-date", main).value, kind: $("#dp-kind", main).value, amount, memo: $("#dp-memo", main).value.trim() });
       S.save(); renderDeposits(main);
     });
     $$("[data-deldep]", main).forEach((b) => b.addEventListener("click", () => {
       if (confirm("이 기록을 삭제할까요?")) { S.remove("deposits", b.dataset.deldep); renderDeposits(main); }
     }));
+  }
+
+  // Ⅶ. 예치금 현황 (사업장·거래처별 충전/사용/잔액)
+  function depositSection(store) {
+    const all = (S.data.deposits || []).filter((d) => !store || (d.store || "") === store);
+    if (!all.length) return "";
+    const stNm = (s) => s === "yb" ? "옐브" : (s === "groven" ? "그로븐" : "공통");
+    const keys = [...new Set(all.map((d) => (d.store || "") + "|" + d.vendor))];
+    const rows = keys.map((k) => {
+      const [st, v] = k.split("|");
+      const chg = all.filter((d) => (d.store || "") === st && d.vendor === v && d.kind === "충전").reduce((a, d) => a + S.num(d.amount), 0);
+      const use = all.filter((d) => (d.store || "") === st && d.vendor === v && d.kind === "사용").reduce((a, d) => a + S.num(d.amount), 0);
+      return { st, v, chg, use, bal: chg - use };
+    }).sort((a, b) => b.bal - a.bal);
+    const body = rows.map((r) => `<tr><td class="c">${stNm(r.st)}</td><td class="name">${esc(r.v)}</td>
+      <td class="n">${won(r.chg)}</td><td class="n">${won(r.use)}</td><td class="n" style="font-weight:700">${won(r.bal)}</td></tr>`).join("");
+    return `<h4 class="doc-sec">Ⅶ. 예치금 충전현황</h4>
+      <table class="doc-table">
+        <thead><tr><th class="c" style="width:54px">사업장</th><th>거래처</th><th class="n" style="width:120px">충전</th><th class="n" style="width:120px">사용</th><th class="n" style="width:120px">잔액</th></tr></thead>
+        <tbody>${body}</tbody></table>`;
   }
 
   // Ⅵ. 홈택스 증빙 대조 (거래처별, 저장된 것 표시)
@@ -363,6 +426,7 @@ const App = (function () {
           </tbody>
         </table>
         ${evidenceSection(store, year, month)}
+        ${depositSection(store)}
       </div>`;
 
     $("#dl-xlsx").addEventListener("click", () => Report.download({ year, month }));
@@ -438,6 +502,8 @@ const App = (function () {
       else if (b.dataset.act === "import-po") Modals.importPO();
       else if (b.dataset.act === "import-paste") Modals.importPaste();
       else if (b.dataset.act === "import-evidence") Modals.importEvidence();
+      else if (b.dataset.act === "import-orders") Modals.importOrders();
+      else if (b.dataset.act === "import-deposit-file") Modals.importDeposits();
     }));
     $$("[data-go]", main).forEach((b) => b.addEventListener("click", () => go(b.dataset.go)));
   }

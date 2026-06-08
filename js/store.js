@@ -83,6 +83,7 @@ const SPC = (function () {
       vendorAlias: {},  // 사용자 정의 거래처 별칭 { 별칭: 대표이름 }
       evidence: {},     // 홈택스 증빙 대조 { "YYYY-M": [{store,type,supply,vat,total}] }
       deposits: [],     // 예치금 입출 { id, vendor, date, kind:'충전'|'사용', amount, memo }
+      orders: [],       // 발주내역 { id, store, year, month, day, vendor, desc, qty, note }
     };
   }
 
@@ -137,6 +138,7 @@ const SPC = (function () {
   function addSales(rows) { rows.forEach((r) => data.sales.push(Object.assign({ id: uid() }, r))); save(); }
   function addPurchases(rows) { rows.forEach((r) => data.purchases.push(Object.assign({ id: uid() }, r))); save(); }
   function addTransactions(rows) { rows.forEach((r) => data.transactions.push(Object.assign({ id: uid() }, r))); save(); }
+  function addOrders(rows) { rows.forEach((r) => data.orders.push(Object.assign({ id: uid() }, r))); save(); }
 
   function upsertVendor(v) {
     if (!v || !v.name) return;
@@ -281,7 +283,7 @@ const SPC = (function () {
     KEY, STORES, CATEGORIES, EVIDENCES, CHANNELS,
     get data() { return data; },
     save, load, uid, num, byAmountDesc, filterBy,
-    addSales, addPurchases, addTransactions, upsertVendor,
+    addSales, addPurchases, addTransactions, addOrders, upsertVendor,
     remove, update, clearAll, clearKind,
     monthlySummary, sum, groupSum, classify, classifyTxn, learnRule, lookupVendor, canonVendor,
     emptyData,
