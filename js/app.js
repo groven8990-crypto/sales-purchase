@@ -522,6 +522,23 @@ const App = (function () {
     return rows;
   }
 
+  // 월별 매출만 막대로 그리는 추이 차트 (파스텔)
+  function salesTrendChart(canvasId, monthly) {
+    const cv = document.getElementById(canvasId);
+    if (!cv || !window.Chart || !monthly.length) return;
+    const fmt = (v) => Math.abs(v) >= 10000 ? Math.round(v / 10000) + "만" : v;
+    try {
+      new Chart(cv, {
+        type: "bar",
+        data: { labels: monthly.map((r) => `${String(r.y).slice(2)}.${r.m}`),
+          datasets: [{ label: "매출", data: monthly.map((r) => r.sales), backgroundColor: "#8fb3e0", borderRadius: 4, maxBarThickness: 30 }] },
+        options: { plugins: { legend: { display: false }, tooltip: { callbacks: { label: (c) => `₩${won(c.parsed.y)}` } } },
+          scales: { y: { ticks: { font: { size: 10 }, callback: fmt } }, x: { ticks: { font: { size: 10 } } } },
+          responsive: true, maintainAspectRatio: false },
+      });
+    } catch (e) { console.warn("매출추이 차트 실패", e); }
+  }
+
   // 파스텔 도넛 차트 (범례 하단). groups: [{key, sum}]
   function pastelDoughnut(canvasId, groups) {
     const cv = document.getElementById(canvasId);
@@ -695,7 +712,7 @@ const App = (function () {
         <div style="display:flex;gap:14px;align-items:flex-start">
           <div style="flex:1;min-width:0">
             <div style="position:relative;border:1px solid #d4dae4;border-radius:6px;padding:8px;height:240px"><canvas id="mr-trend"></canvas></div>
-            <div class="muted" style="font-size:10px;text-align:center;margin-top:4px">월별 매출·매입·손익 추이</div>
+            <div class="muted" style="font-size:10px;text-align:center;margin-top:4px">월별 매출 추이</div>
           </div>
           <div style="width:240px;flex-shrink:0">
             <div style="position:relative;border:1px solid #d4dae4;border-radius:6px;padding:8px;height:240px"><canvas id="mr-ch-ch"></canvas></div>
@@ -766,11 +783,9 @@ const App = (function () {
       M[store].platform = keepPf || [];
       reSave(true);
     });
-    // 채널별 매출 추이(실제 데이터)·구성(수기 채널) 차트
+    // 채널별 매출 추이·구성 차트
     requestAnimationFrame(() => {
-      if (window.Dashboard && typeof Dashboard.renderTrend === "function") {
-        try { Dashboard.renderTrend("mr-trend", trendSales(store)); } catch (e) { console.warn("추이 차트 실패", e); }
-      }
+      salesTrendChart("mr-trend", trendSales(store));
       const chGroups = R.channels.filter((c) => S.num(c.supply) > 0)
         .map((c) => ({ key: c.name || "(미입력)", sum: S.num(c.supply) }))
         .sort((a, b) => b.sum - a.sum);
@@ -875,7 +890,7 @@ const App = (function () {
         <div style="display:flex;gap:14px;align-items:flex-start">
           <div style="flex:1;min-width:0">
             <div style="position:relative;border:1px solid #d4dae4;border-radius:6px;padding:8px;height:240px"><canvas id="mr-trend"></canvas></div>
-            <div class="muted" style="font-size:10px;text-align:center;margin-top:4px">월별 매출·매입·손익 추이 (통합)</div>
+            <div class="muted" style="font-size:10px;text-align:center;margin-top:4px">월별 매출 추이 (통합)</div>
           </div>
           <div style="width:240px;flex-shrink:0">
             <div style="position:relative;border:1px solid #d4dae4;border-radius:6px;padding:8px;height:240px"><canvas id="mr-ch-ch"></canvas></div>
@@ -891,9 +906,7 @@ const App = (function () {
       </div>`;
     $("#mr-print", main).addEventListener("click", () => window.print());
     requestAnimationFrame(() => {
-      if (window.Dashboard && typeof Dashboard.renderTrend === "function") {
-        try { Dashboard.renderTrend("mr-trend", trendSales("")); } catch (e) { console.warn("추이 차트 실패", e); }
-      }
+      salesTrendChart("mr-trend", trendSales(""));
       const chGroups = chMerged.filter((c) => S.num(c.supply) > 0)
         .map((c) => ({ key: c.name || "(미입력)", sum: S.num(c.supply) })).sort((a, b) => b.sum - a.sum);
       pastelDoughnut("mr-ch-ch", chGroups);
