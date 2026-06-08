@@ -737,11 +737,13 @@ const App = (function () {
     const memo = [g.memo, y.memo].filter(Boolean).join("\n");
 
     const pfRaw = [].concat(g.platform || [], y.platform || []);
-    // 공급자+품목+구분이 같으면 합치기
+    // 공급자+품목+구분이 같으면 합치기 (앞뒤·중간 공백 차이는 무시)
+    const pfNorm = (s) => String(s || "").trim().replace(/\s+/g, " ");
     const pfMap = {};
     pfRaw.forEach((r) => {
-      const k = `${r.supplier || ""}|${r.item || ""}|${r.type || "수수료"}`;
-      if (!pfMap[k]) pfMap[k] = { supplier: r.supplier, item: r.item, type: r.type || "수수료", amount: 0 };
+      const sup = pfNorm(r.supplier), it = pfNorm(r.item), ty = r.type || "수수료";
+      const k = `${sup}|${it}|${ty}`;
+      if (!pfMap[k]) pfMap[k] = { supplier: sup, item: it, type: ty, amount: 0 };
       pfMap[k].amount += S.num(r.amount);
     });
     const pf = Object.values(pfMap).sort((a, b) => S.num(b.amount) - S.num(a.amount));
