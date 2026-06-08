@@ -500,6 +500,28 @@ const App = (function () {
     return Object.values(m).sort((x, y) => S.num(y.supply) - S.num(x.supply));
   }
 
+  // 과거 월별 매출 이력 (업로드 마감엑셀 '매출' 탭 기준, 공급가)
+  const SALES_HISTORY = {
+    groven: { "2025-12": 400280, "2026-1": 3023550, "2026-2": 4186620, "2026-3": 4654764, "2026-4": 16660140 },
+    yb: { "2026-3": 439681, "2026-4": 10800136 },
+  };
+  // 실제 데이터 월별집계에 과거 매출 이력을 얹어 추이용 데이터 생성
+  function trendSales(store) {
+    const combined = {};
+    ["groven", "yb"].forEach((s) => Object.entries(SALES_HISTORY[s]).forEach(([ym, a]) => { combined[ym] = (combined[ym] || 0) + a; }));
+    const hist = store ? SALES_HISTORY[store] : combined;
+    const base = {};
+    S.monthlySummary(store).forEach((r) => { base[r.y + "-" + r.m] = { y: r.y, m: r.m, sales: r.sales, purchase: r.purchase }; });
+    Object.entries(hist || {}).forEach(([ym, amt]) => {
+      const [y, m] = ym.split("-").map(Number);
+      if (!base[ym]) base[ym] = { y, m, sales: 0, purchase: 0 };
+      if (amt > base[ym].sales) base[ym].sales = amt; // 실제값이 더 크면 유지
+    });
+    const rows = Object.values(base).sort((a, b) => a.y - b.y || a.m - b.m);
+    let cum = 0; rows.forEach((r) => { r.profit = r.sales - r.purchase; cum += r.profit; r.cumulative = cum; });
+    return rows;
+  }
+
   // 파스텔 도넛 차트 (범례 하단). groups: [{key, sum}]
   function pastelDoughnut(canvasId, groups) {
     const cv = document.getElementById(canvasId);
@@ -747,7 +769,7 @@ const App = (function () {
     // 채널별 매출 추이(실제 데이터)·구성(수기 채널) 차트
     requestAnimationFrame(() => {
       if (window.Dashboard && typeof Dashboard.renderTrend === "function") {
-        try { Dashboard.renderTrend("mr-trend", S.monthlySummary(store)); } catch (e) { console.warn("추이 차트 실패", e); }
+        try { Dashboard.renderTrend("mr-trend", trendSales(store)); } catch (e) { console.warn("추이 차트 실패", e); }
       }
       const chGroups = R.channels.filter((c) => S.num(c.supply) > 0)
         .map((c) => ({ key: c.name || "(미입력)", sum: S.num(c.supply) }))
@@ -870,7 +892,7 @@ const App = (function () {
     $("#mr-print", main).addEventListener("click", () => window.print());
     requestAnimationFrame(() => {
       if (window.Dashboard && typeof Dashboard.renderTrend === "function") {
-        try { Dashboard.renderTrend("mr-trend", S.monthlySummary("")); } catch (e) { console.warn("추이 차트 실패", e); }
+        try { Dashboard.renderTrend("mr-trend", trendSales("")); } catch (e) { console.warn("추이 차트 실패", e); }
       }
       const chGroups = chMerged.filter((c) => S.num(c.supply) > 0)
         .map((c) => ({ key: c.name || "(미입력)", sum: S.num(c.supply) })).sort((a, b) => b.sum - a.sum);

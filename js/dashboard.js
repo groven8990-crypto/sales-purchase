@@ -131,9 +131,9 @@ const Dashboard = (function () {
       data: {
         labels: monthly.map((r) => `${String(r.y).slice(2)}.${r.m}`),
         datasets: [
-          { type: "bar", label: "매출", data: monthly.map((r) => r.sales), backgroundColor: "#1a3a6b", borderRadius: 4, maxBarThickness: 26 },
-          { type: "bar", label: "매입", data: monthly.map((r) => r.purchase), backgroundColor: "#9aa7bd", borderRadius: 4, maxBarThickness: 26 },
-          { type: "line", label: "손익", data: monthly.map((r) => r.profit), borderColor: "#0ea5a5", backgroundColor: "#0ea5a5", tension: .3 },
+          { type: "bar", label: "매출", data: monthly.map((r) => r.sales), backgroundColor: "#8fb3e0", borderRadius: 4, maxBarThickness: 26 },
+          { type: "bar", label: "매입", data: monthly.map((r) => r.purchase), backgroundColor: "#c8cfdb", borderRadius: 4, maxBarThickness: 26 },
+          { type: "line", label: "손익", data: monthly.map((r) => r.profit), borderColor: "#7fc5be", backgroundColor: "#7fc5be", tension: .3 },
         ],
       },
       options: { plugins: { legend: { position: "bottom", labels: { boxWidth: 12, font: { size: 11 } } } },
