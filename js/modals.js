@@ -317,8 +317,8 @@ const Modals = (function () {
         if (p.length < 3) return;
         const vendor = p[0];
         const store = normStore(p[1]);
-        const amount = S.num(p[2]);
-        const count = p[3] ? S.num(p[3]) : 1;
+        const amount = Parsers.num(p[2]);
+        const count = p[3] ? Parsers.num(p[3]) : 1;
         if (!vendor || !amount) return;
         rows.push({
           store, year, month, day: "", evidence: store === "yb" ? "세금계산서" : "계산서",
@@ -518,7 +518,7 @@ const Modals = (function () {
         const date = dm ? dm[0].slice(0, 10).replace(/[./]/g, "-") : "";
         const rest = dm ? line.replace(dm[0], " ") : line;
         const memo = (rest.match(/[가-힣]{2,}/) || [""])[0];
-        const nums = (rest.match(/-?[\d,]+/g) || []).map((x) => S.num(x)).filter((n) => !isNaN(n));
+        const nums = (rest.match(/-?[\d,]+/g) || []).map((x) => Parsers.num(x)).filter((n) => !isNaN(n));
         if (nums.length < 2) return;
         // 맨 앞=No, 맨 뒤=잔여, 가운데=적립/사용
         const mid = nums.slice(1, nums.length - 1);

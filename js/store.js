@@ -119,7 +119,7 @@ const SPC = (function () {
   function uid() { return "r" + (_seq++).toString(36); }
 
   /* ---- 조회/필터 ------------------------------------------ */
-  function num(v) { const n = Number(v); return isFinite(n) ? n : 0; }
+  function num(v) { if (typeof v === "string") v = v.replace(/[,₩\s]/g, ""); const n = Number(v); return isFinite(n) ? n : 0; }
 
   // 금액 큰 것부터 정렬 (사용자 요구사항: 순번은 무조건 큰 것부터)
   function byAmountDesc(arr, field) {
