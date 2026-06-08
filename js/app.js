@@ -236,6 +236,19 @@ const App = (function () {
 
   /* ===================== 예치금 충전현황 ===================== */
   let depFilter = ""; // "store|vendor"
+  // 현재 잔액: 잔액(bal)이 기록된 항목이 있으면 가장 최근 거래의 잔액을 사용
+  // (중복 누적·부분 명세서여도 실제 잔액이 정확). 없으면 충전−사용 합계.
+  function depBalance(list) {
+    const withBal = list.filter((d) => d.bal != null && d.bal !== "" && !isNaN(Number(d.bal)));
+    if (withBal.length) {
+      const latest = withBal.reduce((a, b) => (String(b.at || b.date) >= String(a.at || a.date) ? b : a));
+      return S.num(latest.bal);
+    }
+    const chg = list.filter((d) => d.kind === "충전").reduce((a, d) => a + S.num(d.amount), 0);
+    const use = list.filter((d) => d.kind === "사용").reduce((a, d) => a + S.num(d.amount), 0);
+    return chg - use;
+  }
+
   function renderDeposits(main) {
     const SUGGEST = ["도매꾹", "도매꾹 이머니 충전", "늘푸른우리", "최고집", "11번가 적립금"];
     const all = S.data.deposits || [];
@@ -247,7 +260,7 @@ const App = (function () {
       const list = deps.filter((d) => (d.store || "") === st && d.vendor === v);
       const chg = list.filter((d) => d.kind === "충전").reduce((a, d) => a + S.num(d.amount), 0);
       const use = list.filter((d) => d.kind === "사용").reduce((a, d) => a + S.num(d.amount), 0);
-      const bal = chg - use, key = `${st}|${v}`, on = depFilter === key;
+      const bal = depBalance(list), key = `${st}|${v}`, on = depFilter === key;
       return `<div class="kb" data-depk="${esc(key)}" style="cursor:pointer;${on ? "outline:2px solid var(--navy)" : ""}"><div class="l">${esc(v)}${on ? " ✓" : ""}</div>
         <div class="v" style="color:${bal >= 0 ? "var(--navy)" : "var(--red)"}">₩${won(bal)}</div>
         <div class="hint">충전 ₩${won(chg)} · 사용 ₩${won(use)}</div></div>`;
@@ -353,7 +366,7 @@ const App = (function () {
       const list = data.filter((d) => (d.store || "") === st && d.vendor === v);
       const chg = list.filter((d) => d.kind === "충전").reduce((a, d) => a + S.num(d.amount), 0);
       const use = list.filter((d) => d.kind === "사용").reduce((a, d) => a + S.num(d.amount), 0);
-      return { st, v, chg, use, bal: chg - use };
+      return { st, v, chg, use, bal: depBalance(list) };
     }).filter((r) => r.chg || r.use);
     // ② 금일 사용 현황
     const useRows = data.filter((d) => d.kind === "사용" && String(d.date).slice(0, 10) === today)
@@ -432,9 +445,10 @@ const App = (function () {
     const keys = [...new Set(all.map((d) => (d.store || "") + "|" + d.vendor))];
     const rows = keys.map((k) => {
       const [st, v] = k.split("|");
-      const chg = all.filter((d) => (d.store || "") === st && d.vendor === v && d.kind === "충전").reduce((a, d) => a + S.num(d.amount), 0);
-      const use = all.filter((d) => (d.store || "") === st && d.vendor === v && d.kind === "사용").reduce((a, d) => a + S.num(d.amount), 0);
-      return { st, v, chg, use, bal: chg - use };
+      const list = all.filter((d) => (d.store || "") === st && d.vendor === v);
+      const chg = list.filter((d) => d.kind === "충전").reduce((a, d) => a + S.num(d.amount), 0);
+      const use = list.filter((d) => d.kind === "사용").reduce((a, d) => a + S.num(d.amount), 0);
+      return { st, v, chg, use, bal: depBalance(list) };
     }).sort((a, b) => b.bal - a.bal);
     const body = rows.map((r) => `<tr><td class="c">${stNm(r.st)}</td><td class="name">${esc(r.v)}</td>
       <td class="n">${won(r.chg)}</td><td class="n">${won(r.use)}</td><td class="n" style="font-weight:700">${won(r.bal)}</td></tr>`).join("");
