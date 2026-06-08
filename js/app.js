@@ -944,7 +944,7 @@ const App = (function () {
     const supGrp = (rows, label) => `<tr style="background:#eef4ff"><td colspan="3" style="font-weight:700;color:var(--navy);padding:5px 9px">${label}</td></tr>`
       + (rows.length ? rows.map((g, n) => `<tr><td class="c">${n + 1}</td><td class="name">${esc(g.key)}</td><td class="n">${won(g.sum)}</td></tr>`).join("") : `<tr><td colspan="3" class="empty">없음</td></tr>`);
     const pfSection = pf.length ? `
-        <h4 class="doc-sec">Ⅲ-1. 플랫폼 수수료·광고비</h4>
+        <h4 class="doc-sec">Ⅲ-1. 플랫폼 수수료·광고비 세부</h4>
         <div class="mr-chart-row" style="display:flex;gap:14px;align-items:flex-start">
           <div style="flex:1;min-width:0">
             <table class="doc-table"><thead><tr><th class="c" style="width:40px">순번</th><th>플랫폼</th><th class="n" style="width:140px">금액</th></tr></thead>
