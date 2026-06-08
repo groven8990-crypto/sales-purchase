@@ -713,12 +713,13 @@ const App = (function () {
     R.channels.sort((a, b) => S.num(b.supply) - S.num(a.supply));
     R.vendors.sort((a, b) => S.num(b.supply) - S.num(a.supply));
 
+    const chT = R.channels.reduce((a, r) => a + S.num(r.supply), 0);
     const chBody = R.channels.map((r, i) => `<tr><td class="c">${i + 1}</td>
       <td>${txtIn("channels", i, "name", r.name, "채널명")}</td>
       <td class="n">${numIn("channels", i, "count", r.count)}</td>
       <td class="n">${numIn("channels", i, "supply", r.supply)}</td>
+      <td class="n mr-chpct" data-pi="${i}">${chT ? (S.num(r.supply) / chT * 100).toFixed(1) : "0.0"}%</td>
       <td class="c no-print"><button class="icon-btn" data-rm="channels" data-i="${i}">✕</button></td></tr>`).join("");
-    const chT = R.channels.reduce((a, r) => a + S.num(r.supply), 0);
 
     const vnBody = R.vendors.map((r, i) => `<tr><td class="c">${i + 1}</td>
       <td>${txtIn("vendors", i, "name", r.name, "매입처")}</td>
@@ -779,8 +780,8 @@ const App = (function () {
             <td class="n ${profit >= 0 ? "pos" : "neg"}" id="mr-profit">${won(profit)}</td><td class="n" id="mr-rate">${rate}%</td></tr></tbody></table>
 
         <h4 class="doc-sec">Ⅱ. 채널별 매출 <button class="btn no-print" data-add="channels" style="padding:3px 9px;font-size:12px;margin-left:8px">➕ 행추가</button></h4>
-        <table class="doc-table"><thead><tr><th class="c" style="width:40px">순번</th><th>채널</th><th class="n" style="width:90px">건수</th><th class="n" style="width:140px">공급가</th><th class="no-print" style="width:30px"></th></tr></thead>
-          <tbody>${chBody || `<tr><td colspan="5" class="empty">행추가로 채널을 입력하세요</td></tr>`}<tr class="sum"><td colspan="3">합계</td><td class="n" id="mr-chT">${won(chT)}</td><td class="no-print"></td></tr></tbody></table>
+        <table class="doc-table"><thead><tr><th class="c" style="width:40px">순번</th><th>채널</th><th class="n" style="width:80px">건수</th><th class="n" style="width:130px">공급가</th><th class="n" style="width:64px">비중</th><th class="no-print" style="width:30px"></th></tr></thead>
+          <tbody>${chBody || `<tr><td colspan="6" class="empty">행추가로 채널을 입력하세요</td></tr>`}<tr class="sum"><td colspan="3">합계</td><td class="n" id="mr-chT">${won(chT)}</td><td class="n">100%</td><td class="no-print"></td></tr></tbody></table>
 
         <h4 class="doc-sec">Ⅱ-1. 채널별 매출 추이·구성</h4>
         <div class="mr-chart-row" style="display:flex;gap:14px;align-items:flex-start">
@@ -828,6 +829,7 @@ const App = (function () {
       const re = $("#mr-rate", main); if (re) re.textContent = rt + "%";
       const ce = $("#mr-chT", main); if (ce) ce.textContent = won(chTotal);
       const ve = $("#mr-vnT", main); if (ve) ve.textContent = won(vnTotal);
+      $$(".mr-chpct", main).forEach((el) => { const r = R.channels[+el.dataset.pi]; if (r) el.textContent = (chTotal ? (S.num(r.supply) / chTotal * 100).toFixed(1) : "0.0") + "%"; });
       const net = S.num(R.bank.inSum) - S.num(R.bank.outSum);
       const be = $("#mr-bankNet", main); if (be) { be.textContent = won(net); be.className = "n " + (net >= 0 ? "pos" : "neg"); }
       const fe = $("#mr-pfFee", main); if (fe) fe.textContent = won(R.platform.filter((r) => r.type !== "광고비").reduce((a, r) => a + S.num(r.amount), 0));
@@ -895,9 +897,10 @@ const App = (function () {
     const saleT = sSum(g) + sSum(y), buyT = pSum(g) + pSum(y);
 
     const chMerged = mergeDetail(g.channels, y.channels, false);
-    const chBody = chMerged.map((r, i) => `<tr><td class="c">${i + 1}</td><td class="name">${esc(r.name)}</td>
-      <td class="n">${won(r.count)}</td><td class="n">${won(r.supply)}</td></tr>`).join("");
     const chT = chMerged.reduce((a, r) => a + S.num(r.supply), 0);
+    const chBody = chMerged.map((r, i) => `<tr><td class="c">${i + 1}</td><td class="name">${esc(r.name)}</td>
+      <td class="n">${won(r.count)}</td><td class="n">${won(r.supply)}</td>
+      <td class="n">${chT ? (S.num(r.supply) / chT * 100).toFixed(1) : "0.0"}%</td></tr>`).join("");
 
     const vnMerged = mergeDetail(g.vendors, y.vendors, true);
     const vnBody = vnMerged.map((r, i) => `<tr><td class="c">${i + 1}</td><td class="name">${esc(r.name)}</td>
@@ -969,8 +972,8 @@ const App = (function () {
             <td class="n ${saleT - buyT >= 0 ? "pos" : "neg"}">${won(saleT - buyT)}</td><td class="n">${saleT ? Math.round((saleT - buyT) / saleT * 100) : 0}%</td></tr></tbody></table>
 
         <h4 class="doc-sec">Ⅱ. 채널별 매출</h4>
-        <table class="doc-table"><thead><tr><th class="c" style="width:40px">순번</th><th>채널</th><th class="n" style="width:90px">건수</th><th class="n" style="width:140px">공급가</th></tr></thead>
-          <tbody>${chBody || `<tr><td colspan="4" class="empty">자료 없음</td></tr>`}<tr class="sum"><td colspan="3">합계</td><td class="n">${won(chT)}</td></tr></tbody></table>
+        <table class="doc-table"><thead><tr><th class="c" style="width:40px">순번</th><th>채널</th><th class="n" style="width:80px">건수</th><th class="n" style="width:130px">공급가</th><th class="n" style="width:64px">비중</th></tr></thead>
+          <tbody>${chBody || `<tr><td colspan="5" class="empty">자료 없음</td></tr>`}<tr class="sum"><td colspan="3">합계</td><td class="n">${won(chT)}</td><td class="n">100%</td></tr></tbody></table>
 
         <h4 class="doc-sec">Ⅱ-1. 채널별 매출 추이·구성</h4>
         <div class="mr-chart-row" style="display:flex;gap:14px;align-items:flex-start">
