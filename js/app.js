@@ -612,11 +612,14 @@ const App = (function () {
       const r = (h.getBoundingClientRect().top - sr.top) / sr.height;
       if (r > 0.03 && r < 0.98) secRatios.push(r);
     });
+    // 입력칸 원래 높이 — 글자로 바꿔도 줄 높이가 안 변하게(페이지 어긋남 방지)
+    const inH = [...node.querySelectorAll(".mr-in")].map((el) => el.offsetHeight);
     html2canvas(node, {
       scale: 2, backgroundColor: "#ffffff", useCORS: true,
       onclone: (doc) => {
         doc.querySelectorAll(".no-print").forEach((el) => el.remove());
         doc.querySelectorAll(".sheet table.doc-table").forEach((t) => { t.style.tableLayout = "auto"; });
+        let k = 0;
         doc.querySelectorAll(".mr-in").forEach((el) => {
           const isNum = el.classList.contains("n");
           const isArea = el.tagName === "TEXTAREA";
@@ -624,9 +627,11 @@ const App = (function () {
           if (isNum) v = won(S.num(v));
           const span = doc.createElement("span");
           span.textContent = v;
-          span.style.cssText = "display:block;font-size:12px;" +
+          const hh = inH[k++] || 0;
+          span.style.cssText = "display:block;font-size:12px;box-sizing:border-box;" +
+            (hh ? `min-height:${hh}px;line-height:${hh}px;` : "") +
             (isNum ? "text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums;"
-                   : isArea ? "white-space:pre-wrap;" : "white-space:normal;word-break:break-all;");
+                   : isArea ? `white-space:pre-wrap;line-height:1.3;` : "white-space:normal;word-break:break-all;");
           el.parentNode.replaceChild(span, el);
         });
       },
@@ -645,8 +650,14 @@ const App = (function () {
       topY = Math.max(0, topY - 14); bottomY = Math.min(H - 1, bottomY + 14);
       const pageH = Math.round(w * 297 / 210); // A4 비율
       // 섹션 경계(픽셀) — 위/아래 잘린 영역 안의 것만
+      // 섹션 제목 위 여백(흰 줄)으로 컷을 살짝 보정해 어긋남 흡수
+      const snap = (y) => {
+        const win = Math.round(pageH * 0.06);
+        for (let o = 0; o <= win; o++) { if (isWhiteRow(y - o)) return y - o; if (isWhiteRow(y + o)) return y + o; }
+        return y;
+      };
       const bounds = [topY];
-      secRatios.map((r) => Math.round(r * H)).forEach((y) => { if (y > topY + 20 && y < bottomY - 20) bounds.push(y); });
+      secRatios.map((r) => Math.round(r * H)).forEach((y) => { const s = snap(y); if (s > topY + 20 && s < bottomY - 20) bounds.push(s); });
       bounds.push(bottomY + 1);
       const bs = [...new Set(bounds)].sort((a, b) => a - b);
       // 온전한 섹션들을 A4 높이에 맞춰 묶어서 페이지 컷 결정
