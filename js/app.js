@@ -236,10 +236,10 @@ const App = (function () {
   /* ===================== 예치금 충전현황 ===================== */
   let depVendor = "";
   function renderDeposits(main) {
-    const KNOWN = ["최고집", "늘푸른", "도매꾹 이머니 충전"];
+    const SUGGEST = ["도매꾹", "도매꾹 이머니 충전", "늘푸른우리", "최고집", "11번가 적립금"];
     const all = S.data.deposits || [];
     const deps = scope.store ? all.filter((d) => (d.store || "") === scope.store) : all;
-    const vendors = [...new Set(KNOWN.concat(deps.map((d) => d.vendor)).filter(Boolean))];
+    const vendors = [...new Set(deps.map((d) => d.vendor).filter(Boolean))]; // 실제 데이터 있는 거래처만
     if (depVendor && vendors.indexOf(depVendor) === -1) depVendor = "";
     const stNm = (s) => s === "yb" ? "옐브" : (s === "groven" ? "그로븐" : "공통");
     const sumBy = (v, k) => deps.filter((d) => d.vendor === v && d.kind === k).reduce((a, d) => a + S.num(d.amount), 0);
@@ -254,14 +254,15 @@ const App = (function () {
     main.innerHTML = `
       <div class="page-head"><div><h2>💳 예치금 충전현황 <span class="muted">${esc(scope.store ? stNm(scope.store) : "통합")}</span></h2>
         <div class="muted">사업장·거래처별 충전·사용·잔액 (상단 스토어 탭으로 그로븐/옐브 구분)</div></div>
-        <div class="row-actions"><button class="btn primary" data-act="import-deposit-file">📥 예치금 이력 올리기</button>
+        <div class="row-actions"><button class="btn primary" data-act="import-deposit-file">📥 파일 올리기</button>
+        <button class="btn" data-act="import-deposit-paste">📋 붙여넣기</button>
         <button class="btn danger" id="dp-clear">🗑️ 전체삭제</button></div></div>
       <div class="kpibar">${cards || `<div class="kb"><div class="l">아직 기록 없음</div></div>`}</div>
       <div class="card"><h3>예치금 직접 입력</h3>
         <div class="form-row two">
           <span><label>사업장</label><select id="dp-store" style="width:100%;border:1px solid var(--line);border-radius:8px;padding:7px 9px"><option value="groven">그로븐</option><option value="yb" ${scope.store === "yb" ? "selected" : ""}>옐로우브릿지</option></select></span>
           <span><label>거래처</label><input id="dp-vendor" list="dp-vendors" placeholder="예: 도매꾹 이머니 충전" style="width:100%;border:1px solid var(--line);border-radius:8px;padding:7px 9px">
-            <datalist id="dp-vendors">${vendors.map((v) => `<option>${esc(v)}</option>`).join("")}</datalist></span>
+            <datalist id="dp-vendors">${[...new Set(SUGGEST.concat(vendors))].map((v) => `<option>${esc(v)}</option>`).join("")}</datalist></span>
         </div>
         <div class="form-row two">
           <span><label>날짜</label><input id="dp-date" type="date" value="${new Date().toISOString().slice(0, 10)}" style="width:100%;border:1px solid var(--line);border-radius:8px;padding:7px 9px"></span>
@@ -519,6 +520,7 @@ const App = (function () {
       else if (b.dataset.act === "import-evidence") Modals.importEvidence();
       else if (b.dataset.act === "import-orders") Modals.importOrders();
       else if (b.dataset.act === "import-deposit-file") Modals.importDeposits();
+      else if (b.dataset.act === "import-deposit-paste") Modals.importDepositPaste();
     }));
     $$("[data-go]", main).forEach((b) => b.addEventListener("click", () => go(b.dataset.go)));
   }

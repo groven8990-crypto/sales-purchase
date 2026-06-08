@@ -495,5 +495,44 @@ const Modals = (function () {
     };
   }
 
-  return { importExisting, importBank, importPO, importPaste, importEvidence, importOrders, importDeposits, editRow, close };
+  /* ===== 9) 예치금/적립금 붙여넣기 (엑셀 다운 안 될 때) ===== */
+  function importDepositPaste() {
+    open("📋 예치금/적립금 붙여넣기",
+      `<p>다운로드가 안 되는 적립금 화면은, <b>표를 마우스로 긁어 복사 → 여기 붙여넣기</b> 하면 돼요.<br>
+        날짜·적립·사용 금액을 자동으로 찾아 등록해요.</p>
+       <div class="form-row two">
+         <span><label>사업장</label>${storeSelect("dpp-store")}</span>
+         <span><label>거래처</label><input id="dpp-vendor" placeholder="예: 11번가 적립금" style="width:100%"></span>
+       </div>
+       <div class="form-row"><label>표 붙여넣기</label>
+         <textarea id="dpp-text" rows="10" style="width:100%;font-family:monospace;font-size:12px" placeholder="15  2026-06-08 09:21:51  주문결제  0  -7,700  44,000"></textarea></div>
+       <div id="dpp-prev" class="preview"></div>`,
+      `<button class="btn" id="dpp-cancel">취소</button><button class="btn primary" id="dpp-apply">예치금에 추가</button>`);
+    q("#dpp-cancel").onclick = close;
+    q("#dpp-apply").onclick = () => {
+      const store = q("#dpp-store").value, vendor = q("#dpp-vendor").value.trim() || "적립금";
+      const lines = q("#dpp-text").value.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+      const out = [];
+      lines.forEach((line) => {
+        const dm = line.match(/\d{4}[-./]\d{1,2}[-./]\d{1,2}(\s+\d{1,2}:\d{2}(:\d{2})?)?/);
+        const date = dm ? dm[0].slice(0, 10).replace(/[./]/g, "-") : "";
+        const rest = dm ? line.replace(dm[0], " ") : line;
+        const memo = (rest.match(/[가-힣]{2,}/) || [""])[0];
+        const nums = (rest.match(/-?[\d,]+/g) || []).map((x) => S.num(x)).filter((n) => !isNaN(n));
+        if (nums.length < 2) return;
+        // 맨 앞=No, 맨 뒤=잔여, 가운데=적립/사용
+        const mid = nums.slice(1, nums.length - 1);
+        let up = 0, down = 0;
+        mid.forEach((n) => { if (n < 0) down = Math.abs(n); else if (n > 0) up = n; });
+        if (up > 0) out.push({ store, vendor, date, kind: "충전", amount: up, memo });
+        else if (down > 0) out.push({ store, vendor, date, kind: "사용", amount: down, memo });
+      });
+      if (!out.length) { q("#dpp-prev").innerHTML = `<div class="err">읽을 줄이 없어요. 표를 복사해서 붙여넣었는지 확인해주세요.</div>`; return; }
+      q("#dpp-prev").innerHTML = `<div class="ok">✅ ${out.length}건 인식 (충전 ${out.filter((o) => o.kind === "충전").length} · 사용 ${out.filter((o) => o.kind === "사용").length})</div>`;
+      out.forEach((d) => S.data.deposits.push(Object.assign({ id: S.uid() }, d)));
+      S.save(); setTimeout(() => { close(); App.go("deposits"); }, 600);
+    };
+  }
+
+  return { importExisting, importBank, importPO, importPaste, importEvidence, importOrders, importDeposits, importDepositPaste, editRow, close };
 })();
