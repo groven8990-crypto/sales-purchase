@@ -541,13 +541,19 @@ const App = (function () {
         { supplier: "십일번가", item: "서비스이용료", type: "수수료", amount: 67631 },
         { supplier: "네이버파이낸셜", item: "판매수수료", type: "수수료", amount: 1995 },
         { supplier: "카카오", item: "카카오스토어", type: "수수료", amount: 1997 },
-        { supplier: "쿠팡페이", item: "3P_영중소", type: "광고비", amount: -28909 },
+        { supplier: "쿠팡페이", item: "3P_영중소", type: "수수료", amount: -28909 },
         { supplier: "쿠팡", item: "ProductAD", type: "광고비", amount: 937049 },
         { supplier: "쿠팡", item: "판매수수료", type: "수수료", amount: 807581 },
         { supplier: "지마켓", item: "옥션 광고", type: "광고비", amount: 485195 },
         { supplier: "지마켓", item: "옥션 서비스", type: "수수료", amount: 68534 },
       ];
       R._pfSeeded = true;
+      S.save(true);
+    }
+    // 이미 채워진 5월 YB 데이터: 쿠팡페이 광고비 → 수수료 1회 보정
+    if (store === "yb" && String(yr) === "2026" && String(mo) === "5" && !R._pfFixCpay) {
+      R.platform.forEach((r) => { if (r.supplier === "쿠팡페이" && r.type === "광고비") r.type = "수수료"; });
+      R._pfFixCpay = true;
       S.save(true);
     }
     const fullNm = store === "yb" ? "옐로우브릿지" : "그로븐";
