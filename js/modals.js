@@ -490,9 +490,26 @@ const Modals = (function () {
         else if (change < 0 || down > 0) out.push({ store, vendor, date, kind: "사용", amount: change < 0 ? Math.abs(change) : down, memo });
       });
       if (!out.length) { q("#de-prev").innerHTML = `<div class="err">금액 열(적립/차감 또는 현금변동·카드변동)을 못 읽었어요.</div>`; return; }
-      out.forEach((d) => S.data.deposits.push(Object.assign({ id: S.uid() }, d)));
+      const { added, skipped } = addDepositsDedup(out);
       S.save(); close(); App.go("deposits");
+      if (skipped) alert(`${added}건 추가, 중복 ${skipped}건은 건너뛰었어요.`);
     };
+  }
+
+  // 중복(사업장·거래처·날짜·구분·금액·메모 동일) 건너뛰고 추가
+  function addDepositsDedup(rows) {
+    if (!S.data.deposits) S.data.deposits = [];
+    const sig = (d) => `${d.store || ""}|${d.vendor}|${String(d.date).slice(0, 10)}|${d.kind}|${S.num(d.amount)}|${(d.memo || "").trim()}`;
+    const seen = new Set(S.data.deposits.map(sig));
+    let added = 0, skipped = 0;
+    rows.forEach((d) => {
+      const k = sig(d);
+      if (seen.has(k)) { skipped++; return; }
+      seen.add(k);
+      S.data.deposits.push(Object.assign({ id: S.uid() }, d));
+      added++;
+    });
+    return { added, skipped };
   }
 
   /* ===== 9) 예치금/적립금 붙여넣기 (엑셀 다운 안 될 때) ===== */
@@ -528,8 +545,8 @@ const Modals = (function () {
         else if (down > 0) out.push({ store, vendor, date, kind: "사용", amount: down, memo });
       });
       if (!out.length) { q("#dpp-prev").innerHTML = `<div class="err">읽을 줄이 없어요. 표를 복사해서 붙여넣었는지 확인해주세요.</div>`; return; }
-      q("#dpp-prev").innerHTML = `<div class="ok">✅ ${out.length}건 인식 (충전 ${out.filter((o) => o.kind === "충전").length} · 사용 ${out.filter((o) => o.kind === "사용").length})</div>`;
-      out.forEach((d) => S.data.deposits.push(Object.assign({ id: S.uid() }, d)));
+      const { added, skipped } = addDepositsDedup(out);
+      q("#dpp-prev").innerHTML = `<div class="ok">✅ ${out.length}건 인식 → ${added}건 추가${skipped ? `, 중복 ${skipped}건 건너뜀` : ""} (충전 ${out.filter((o) => o.kind === "충전").length} · 사용 ${out.filter((o) => o.kind === "사용").length})</div>`;
       S.save(); setTimeout(() => { close(); App.go("deposits"); }, 600);
     };
   }
