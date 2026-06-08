@@ -597,29 +597,17 @@ const App = (function () {
     } catch (e) { console.warn("도넛 차트 실패", e); }
   }
 
-  // 보고서(.sheet)를 PNG로 저장 — 인쇄본처럼, 섹션 단위로 A4 페이지 분할
+  // 보고서(.sheet)를 한 장의 PNG로 저장 (인쇄용 요소 숨기고 깔끔하게)
   function exportSheetPng(main, label) {
     const node = main.querySelector(".sheet");
     if (!node) return;
     if (typeof html2canvas !== "function") { alert("이미지 변환 라이브러리를 불러오지 못했어요. 인터넷 연결을 확인해주세요."); return; }
     const today = new Date().toISOString().slice(0, 10);
-    // 큰 섹션(Ⅰ·Ⅱ·Ⅲ·Ⅳ) 제목 위치에서만 페이지 분할 — 하위(Ⅱ-1·Ⅲ-1)는 상위와 함께 묶음
-    const sr = node.getBoundingClientRect();
-    const secRatios = [];
-    node.querySelectorAll(".doc-sec").forEach((h) => {
-      const t = (h.textContent || "").slice(0, 10);
-      if (/-\d/.test(t)) return; // Ⅱ-1, Ⅲ-1 등 하위 섹션은 분할 기준에서 제외
-      const r = (h.getBoundingClientRect().top - sr.top) / sr.height;
-      if (r > 0.03 && r < 0.98) secRatios.push(r);
-    });
-    // 입력칸 원래 높이 — 글자로 바꿔도 줄 높이가 안 변하게(페이지 어긋남 방지)
-    const inH = [...node.querySelectorAll(".mr-in")].map((el) => el.offsetHeight);
     html2canvas(node, {
       scale: 2, backgroundColor: "#ffffff", useCORS: true,
       onclone: (doc) => {
         doc.querySelectorAll(".no-print").forEach((el) => el.remove());
         doc.querySelectorAll(".sheet table.doc-table").forEach((t) => { t.style.tableLayout = "auto"; });
-        let k = 0;
         doc.querySelectorAll(".mr-in").forEach((el) => {
           const isNum = el.classList.contains("n");
           const isArea = el.tagName === "TEXTAREA";
@@ -627,61 +615,17 @@ const App = (function () {
           if (isNum) v = won(S.num(v));
           const span = doc.createElement("span");
           span.textContent = v;
-          const hh = inH[k++] || 0;
-          span.style.cssText = "display:block;font-size:12px;box-sizing:border-box;" +
-            (hh ? `min-height:${hh}px;line-height:${hh}px;` : "") +
+          span.style.cssText = "display:block;font-size:12px;padding:2px 0;" +
             (isNum ? "text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums;"
-                   : isArea ? `white-space:pre-wrap;line-height:1.3;` : "white-space:normal;word-break:break-all;");
+                   : isArea ? "white-space:pre-wrap;" : "white-space:normal;word-break:break-all;");
           el.parentNode.replaceChild(span, el);
         });
       },
     }).then((canvas) => {
-      const w = canvas.width, H = canvas.height;
-      const sctx = canvas.getContext("2d");
-      const isWhiteRow = (y) => {
-        if (y < 0 || y >= H) return true;
-        let d; try { d = sctx.getImageData(0, y, w, 1).data; } catch (e) { return false; }
-        for (let i = 0; i < d.length; i += 4) { if (d[i] < 247 || d[i + 1] < 247 || d[i + 2] < 247) return false; }
-        return true;
-      };
-      // 위·아래 빈 여백 제거
-      let topY = 0; while (topY < H - 1 && isWhiteRow(topY)) topY++;
-      let bottomY = H - 1; while (bottomY > topY && isWhiteRow(bottomY)) bottomY--;
-      topY = Math.max(0, topY - 14); bottomY = Math.min(H - 1, bottomY + 14);
-      const pageH = Math.round(w * 297 / 210); // A4 비율
-      // 섹션 경계(픽셀) — 위/아래 잘린 영역 안의 것만
-      // 섹션 제목 위 여백(흰 줄)으로 컷을 살짝 보정해 어긋남 흡수
-      const snap = (y) => {
-        const win = Math.round(pageH * 0.06);
-        for (let o = 0; o <= win; o++) { if (isWhiteRow(y - o)) return y - o; if (isWhiteRow(y + o)) return y + o; }
-        return y;
-      };
-      const bounds = [topY];
-      secRatios.map((r) => Math.round(r * H)).forEach((y) => { const s = snap(y); if (s > topY + 20 && s < bottomY - 20) bounds.push(s); });
-      bounds.push(bottomY + 1);
-      const bs = [...new Set(bounds)].sort((a, b) => a - b);
-      // 온전한 섹션들을 A4 높이에 맞춰 묶어서 페이지 컷 결정
-      const cuts = [bs[0]];
-      let startB = bs[0];
-      for (let i = 1; i < bs.length - 1; i++) {
-        if (bs[i + 1] - startB > pageH && bs[i] > startB) { cuts.push(bs[i]); startB = bs[i]; }
-      }
-      cuts.push(bs[bs.length - 1]);
-      const ucuts = [...new Set(cuts)].sort((a, b) => a - b);
-      const multi = ucuts.length - 1 > 1;
-      for (let p = 0; p < ucuts.length - 1; p++) {
-        const y0 = ucuts[p], h = ucuts[p + 1] - y0;
-        if (h < 30) continue;
-        const slice = document.createElement("canvas");
-        slice.width = w; slice.height = h;
-        const ctx = slice.getContext("2d");
-        ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, w, h);
-        ctx.drawImage(canvas, 0, y0, w, h, 0, 0, w, h);
-        const a = document.createElement("a");
-        a.download = `마감보고서_${label}_${today}${multi ? `_${p + 1}p` : ""}.png`;
-        a.href = slice.toDataURL("image/png");
-        a.click();
-      }
+      const a = document.createElement("a");
+      a.download = `마감보고서_${label}_${today}.png`;
+      a.href = canvas.toDataURL("image/png");
+      a.click();
     }).catch((e) => alert("이미지 저장 실패: " + e));
   }
 
