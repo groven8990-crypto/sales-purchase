@@ -746,19 +746,36 @@ const App = (function () {
       if (!pfMap[k]) pfMap[k] = { supplier: sup, item: it, type: ty, amount: 0 };
       pfMap[k].amount += S.num(r.amount);
     });
-    const pf = Object.values(pfMap).sort((a, b) => S.num(b.amount) - S.num(a.amount));
-    const pfFeeR = pf.filter((r) => r.type !== "광고비"), pfAdR = pf.filter((r) => r.type === "광고비");
-    const pfRow = (r, n) => `<tr><td class="c">${n}</td><td class="name">${esc(r.supplier)}</td>
-      <td class="name">${esc(r.item)}</td><td class="c">${esc(r.type || "수수료")}</td><td class="n">${won(r.amount)}</td></tr>`;
-    const pfGrp = (rows, label) => `<tr style="background:#eef4ff"><td colspan="5" style="font-weight:700;color:var(--navy);padding:5px 9px">${label}</td></tr>`
-      + rows.map((r, n) => pfRow(r, n + 1)).join("");
-    const pfFee = pfFeeR.reduce((a, r) => a + S.num(r.amount), 0);
-    const pfAd = pfAdR.reduce((a, r) => a + S.num(r.amount), 0);
+    const pf = Object.values(pfMap);
+    // 구분 안에서 공급자별로 합치기 (품목·구분 반복 제거 → 공급자+금액만)
+    const pfBySup = (type) => {
+      const m = {};
+      pf.filter((r) => type === "광고비" ? r.type === "광고비" : r.type !== "광고비")
+        .forEach((r) => { m[r.supplier] = (m[r.supplier] || 0) + S.num(r.amount); });
+      return Object.entries(m).map(([k, v]) => ({ key: k, sum: v })).sort((a, b) => b.sum - a.sum);
+    };
+    const feeSup = pfBySup("수수료"), adSup = pfBySup("광고비");
+    const pfFee = feeSup.reduce((a, g) => a + g.sum, 0), pfAd = adSup.reduce((a, g) => a + g.sum, 0);
+    // 도넛용: 공급자별 총액(수수료+광고비), 양수만
+    const supTotMap = {};
+    pf.forEach((r) => { supTotMap[r.supplier] = (supTotMap[r.supplier] || 0) + S.num(r.amount); });
+    const pfChart = Object.entries(supTotMap).map(([k, v]) => ({ key: k, sum: v }))
+      .filter((g) => g.sum > 0).sort((a, b) => b.sum - a.sum);
+    const supGrp = (rows, label) => `<tr style="background:#eef4ff"><td colspan="3" style="font-weight:700;color:var(--navy);padding:5px 9px">${label}</td></tr>`
+      + (rows.length ? rows.map((g, n) => `<tr><td class="c">${n + 1}</td><td class="name">${esc(g.key)}</td><td class="n">${won(g.sum)}</td></tr>`).join("") : `<tr><td colspan="3" class="empty">없음</td></tr>`);
     const pfSection = pf.length ? `
-        <h4 class="doc-sec">Ⅲ-1. 플랫폼 수수료·광고비 세부</h4>
-        <table class="doc-table"><thead><tr><th class="c" style="width:40px">순번</th><th>공급자</th><th>품목</th><th class="c" style="width:80px">구분</th><th class="n" style="width:120px">금액</th></tr></thead>
-          <tbody>${pfGrp(pfFeeR, "▸ 플랫폼 수수료")}<tr class="sum"><td colspan="4">플랫폼 수수료 소계</td><td class="n">${won(pfFee)}</td></tr>
-          ${pfGrp(pfAdR, "▸ 플랫폼 광고비")}<tr class="sum"><td colspan="4">플랫폼 광고비 소계</td><td class="n">${won(pfAd)}</td></tr></tbody></table>` : "";
+        <h4 class="doc-sec">Ⅲ-1. 플랫폼 수수료·광고비</h4>
+        <div style="display:flex;gap:14px;align-items:flex-start">
+          <div style="flex:1;min-width:0">
+            <table class="doc-table"><thead><tr><th class="c" style="width:40px">순번</th><th>공급자</th><th class="n" style="width:140px">금액</th></tr></thead>
+              <tbody>${supGrp(feeSup, "▸ 플랫폼 수수료")}<tr class="sum"><td colspan="2">수수료 소계</td><td class="n">${won(pfFee)}</td></tr>
+              ${supGrp(adSup, "▸ 플랫폼 광고비")}<tr class="sum"><td colspan="2">광고비 소계</td><td class="n">${won(pfAd)}</td></tr></tbody></table>
+          </div>
+          <div style="width:210px;flex-shrink:0">
+            <div style="border:1px solid #d4dae4;border-radius:6px;padding:8px;height:230px"><canvas id="mr-pf-ch"></canvas></div>
+            <div class="muted" style="font-size:10px;text-align:center;margin-top:4px">공급자별 플랫폼 비용 비중</div>
+          </div>
+        </div>` : "";
 
     main.innerHTML = `
       <div class="page-head no-print">
@@ -788,6 +805,9 @@ const App = (function () {
         ${memo ? `<h4 class="doc-sec">Ⅳ. 비고</h4><div style="white-space:pre-wrap;font-size:12px;padding:4px 2px">${esc(memo)}</div>` : ""}
       </div>`;
     $("#mr-print", main).addEventListener("click", () => window.print());
+    if (pfChart.length && window.Dashboard && typeof Dashboard.renderGroup === "function") {
+      try { Dashboard.renderGroup("mr-pf-ch", pfChart, "doughnut"); } catch (e) { /* 차트 실패 무시 */ }
+    }
   }
 
   function renderReport(main) {
