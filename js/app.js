@@ -772,7 +772,7 @@ const App = (function () {
               ${supGrp(adSup, "▸ 플랫폼 광고비")}<tr class="sum"><td colspan="2">광고비 소계</td><td class="n">${won(pfAd)}</td></tr></tbody></table>
           </div>
           <div style="width:210px;flex-shrink:0">
-            <div style="border:1px solid #d4dae4;border-radius:6px;padding:8px;height:230px"><canvas id="mr-pf-ch"></canvas></div>
+            <div style="position:relative;border:1px solid #d4dae4;border-radius:6px;padding:8px;height:230px"><canvas id="mr-pf-ch"></canvas></div>
             <div class="muted" style="font-size:10px;text-align:center;margin-top:4px">공급자별 플랫폼 비용 비중</div>
           </div>
         </div>` : "";
@@ -806,7 +806,7 @@ const App = (function () {
       </div>`;
     $("#mr-print", main).addEventListener("click", () => window.print());
     if (pfChart.length && window.Dashboard && typeof Dashboard.renderGroup === "function") {
-      try { Dashboard.renderGroup("mr-pf-ch", pfChart, "doughnut"); } catch (e) { /* 차트 실패 무시 */ }
+      requestAnimationFrame(() => { try { Dashboard.renderGroup("mr-pf-ch", pfChart, "doughnut"); } catch (e) { console.warn("플랫폼 차트 실패", e); } });
     }
   }
 
