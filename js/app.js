@@ -611,40 +611,43 @@ const App = (function () {
       },
     }).then((canvas) => {
       const w = canvas.width, H = canvas.height;
-      const pageH = Math.round(w * 297 / 210); // A4 비율
       const sctx = canvas.getContext("2d");
-      // 가로 한 줄이 전부 흰색인지 (표 사이 여백 찾기)
       const isWhiteRow = (y) => {
-        if (y < 0 || y >= H) return false;
+        if (y < 0 || y >= H) return true;
         let d; try { d = sctx.getImageData(0, y, w, 1).data; } catch (e) { return false; }
         for (let i = 0; i < d.length; i += 4) { if (d[i] < 247 || d[i + 1] < 247 || d[i + 2] < 247) return false; }
         return true;
       };
+      // 위·아래 빈 여백 잘라내 실제 내용 범위만
+      let top = 0; while (top < H - 1 && isWhiteRow(top)) top++;
+      let bottom = H - 1; while (bottom > top && isWhiteRow(bottom)) bottom--;
+      top = Math.max(0, top - 14); bottom = Math.min(H - 1, bottom + 14);
+      const pageH = Math.round(w * 297 / 210); // A4 비율
       // 페이지 경계마다 위로 올라가며 흰 여백을 찾아 거기서 자름
-      const cuts = [0];
-      let start = 0;
-      while (start + pageH < H) {
+      const cuts = [top];
+      let start = top;
+      while (start + pageH < bottom) {
         const target = start + pageH;
-        let cut = target, found = -1;
-        for (let y = target; y > start + pageH * 0.6; y--) { if (isWhiteRow(y)) { found = y; break; } }
-        if (found > 0) cut = found;
-        cuts.push(cut); start = cut;
+        let found = -1;
+        for (let y = target; y > start + pageH * 0.55; y--) { if (isWhiteRow(y)) { found = y; break; } }
+        cuts.push(found > 0 ? found : target);
+        start = cuts[cuts.length - 1];
       }
-      cuts.push(H);
-      const multi = cuts.length - 1 > 1;
-      for (let p = 0; p < cuts.length - 1; p++) {
-        const y0 = cuts[p], h = cuts[p + 1] - y0;
-        if (h <= 2) continue;
+      cuts.push(bottom + 1);
+      const segs = [];
+      for (let p = 0; p < cuts.length - 1; p++) { const y0 = cuts[p], h = cuts[p + 1] - y0; if (h > 30) segs.push([y0, h]); }
+      const multi = segs.length > 1;
+      segs.forEach(([y0, h], i) => {
         const slice = document.createElement("canvas");
         slice.width = w; slice.height = h;
         const ctx = slice.getContext("2d");
         ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, w, h);
         ctx.drawImage(canvas, 0, y0, w, h, 0, 0, w, h);
         const a = document.createElement("a");
-        a.download = `마감보고서_${label}_${today}${multi ? `_${p + 1}p` : ""}.png`;
+        a.download = `마감보고서_${label}_${today}${multi ? `_${i + 1}p` : ""}.png`;
         a.href = slice.toDataURL("image/png");
         a.click();
-      }
+      });
     }).catch((e) => alert("이미지 저장 실패: " + e));
   }
 
