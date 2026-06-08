@@ -480,14 +480,15 @@ const Modals = (function () {
       const iDown = find((h) => nm(h) === "차감" || nm(h) === "사용" || nm(h) === "차감금액" || nm(h) === "출금");
       const out = [];
       table.body.forEach((r) => {
-        const date = String((iDate >= 0 ? r[iDate] : "") || "").slice(0, 10);
+        const at = String((iDate >= 0 ? r[iDate] : "") || "").trim();
+        const date = at.slice(0, 10);
         const memo = iMemo >= 0 ? Parsers.str(r[iMemo]) : "";
         let change = 0, up = 0, down = 0;
         if (iCash >= 0 || iCard >= 0) change = (iCash >= 0 ? Parsers.num(r[iCash]) : 0) + (iCard >= 0 ? Parsers.num(r[iCard]) : 0);
         else if (iVar >= 0) change = Parsers.num(r[iVar]);
         else { up = Parsers.num(iUp >= 0 ? r[iUp] : 0); down = Math.abs(Parsers.num(iDown >= 0 ? r[iDown] : 0)); }
-        if (change > 0 || up > 0) out.push({ store, vendor, date, kind: "충전", amount: change > 0 ? change : up, memo });
-        else if (change < 0 || down > 0) out.push({ store, vendor, date, kind: "사용", amount: change < 0 ? Math.abs(change) : down, memo });
+        if (change > 0 || up > 0) out.push({ store, vendor, date, at, kind: "충전", amount: change > 0 ? change : up, memo });
+        else if (change < 0 || down > 0) out.push({ store, vendor, date, at, kind: "사용", amount: change < 0 ? Math.abs(change) : down, memo });
       });
       if (!out.length) { q("#de-prev").innerHTML = `<div class="err">금액 열(적립/차감 또는 현금변동·카드변동)을 못 읽었어요.</div>`; return; }
       const { added, skipped } = addDepositsDedup(out);
@@ -496,16 +497,20 @@ const Modals = (function () {
     };
   }
 
-  // 중복(사업장·거래처·날짜·구분·금액·메모 동일) 건너뛰고 추가
+  // 중복 건너뛰고 추가. 같은 파일 재업로드만 거르고, 같은 날 반복거래는 살림
+  // (발생일시 전체 + 금액 + 구분 기준. 한 배치 안의 동일키는 순번으로 구분해 모두 추가)
   function addDepositsDedup(rows) {
     if (!S.data.deposits) S.data.deposits = [];
-    const sig = (d) => `${d.store || ""}|${d.vendor}|${String(d.date).slice(0, 10)}|${d.kind}|${S.num(d.amount)}|${(d.memo || "").trim()}`;
-    const seen = new Set(S.data.deposits.map(sig));
+    const baseSig = (d) => `${d.store || ""}|${d.vendor}|${(d.at || d.date || "").trim()}|${d.kind}|${S.num(d.amount)}|${(d.memo || "").trim()}`;
+    // 기존 저장분의 시그니처별 개수
+    const existing = {};
+    S.data.deposits.forEach((d) => { const k = baseSig(d); existing[k] = (existing[k] || 0) + 1; });
+    const batchCount = {};
     let added = 0, skipped = 0;
     rows.forEach((d) => {
-      const k = sig(d);
-      if (seen.has(k)) { skipped++; return; }
-      seen.add(k);
+      const k = baseSig(d);
+      const idx = (batchCount[k] = (batchCount[k] || 0) + 1); // 이 배치에서 몇 번째 동일건인지
+      if ((existing[k] || 0) >= idx) { skipped++; return; } // 기존에 이미 그 개수만큼 있으면 중복
       S.data.deposits.push(Object.assign({ id: S.uid() }, d));
       added++;
     });
@@ -532,6 +537,7 @@ const Modals = (function () {
       const out = [];
       lines.forEach((line) => {
         const dm = line.match(/\d{4}[-./]\d{1,2}[-./]\d{1,2}(\s+\d{1,2}:\d{2}(:\d{2})?)?/);
+        const at = dm ? dm[0].replace(/[./]/g, "-") : "";
         const date = dm ? dm[0].slice(0, 10).replace(/[./]/g, "-") : "";
         const rest = dm ? line.replace(dm[0], " ") : line;
         const memo = (rest.match(/[가-힣]{2,}/) || [""])[0];
@@ -541,8 +547,8 @@ const Modals = (function () {
         const mid = nums.slice(1, nums.length - 1);
         let up = 0, down = 0;
         mid.forEach((n) => { if (n < 0) down = Math.abs(n); else if (n > 0) up = n; });
-        if (up > 0) out.push({ store, vendor, date, kind: "충전", amount: up, memo });
-        else if (down > 0) out.push({ store, vendor, date, kind: "사용", amount: down, memo });
+        if (up > 0) out.push({ store, vendor, date, at, kind: "충전", amount: up, memo });
+        else if (down > 0) out.push({ store, vendor, date, at, kind: "사용", amount: down, memo });
       });
       if (!out.length) { q("#dpp-prev").innerHTML = `<div class="err">읽을 줄이 없어요. 표를 복사해서 붙여넣었는지 확인해주세요.</div>`; return; }
       const { added, skipped } = addDepositsDedup(out);
