@@ -480,8 +480,7 @@ const Modals = (function () {
       const iDown = find((h) => nm(h) === "차감" || nm(h) === "사용" || nm(h) === "차감금액" || nm(h) === "출금");
       const out = [];
       table.body.forEach((r) => {
-        const at = String((iDate >= 0 ? r[iDate] : "") || "").trim();
-        const date = at.slice(0, 10);
+        const { date, at } = fmtDateTime(iDate >= 0 ? r[iDate] : "");
         const memo = iMemo >= 0 ? Parsers.str(r[iMemo]) : "";
         let change = 0, up = 0, down = 0;
         if (iCash >= 0 || iCard >= 0) change = (iCash >= 0 ? Parsers.num(r[iCash]) : 0) + (iCard >= 0 ? Parsers.num(r[iCard]) : 0);
@@ -495,6 +494,30 @@ const Modals = (function () {
       S.save(); close(); App.go("deposits");
       if (skipped) alert(`${added}건 추가, 중복 ${skipped}건은 건너뛰었어요.`);
     };
+  }
+
+  // 셀(Date 객체·문자열·엑셀 일련번호) → { date:"YYYY-MM-DD", at:"YYYY-MM-DD HH:MM:SS" }
+  function fmtDateTime(v) {
+    const p2 = (n) => String(n).padStart(2, "0");
+    const fromDate = (d) => {
+      const date = `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}`;
+      const hasT = d.getHours() || d.getMinutes() || d.getSeconds();
+      return { date, at: hasT ? `${date} ${p2(d.getHours())}:${p2(d.getMinutes())}:${p2(d.getSeconds())}` : date };
+    };
+    if (v instanceof Date && !isNaN(v)) return fromDate(v);
+    // 엑셀 일련번호(날짜) 형태의 순수 숫자
+    if (typeof v === "number" && v > 20000 && v < 80000) {
+      const d = new Date(Date.UTC(1899, 11, 30) + Math.round(v * 86400000));
+      return fromDate(d);
+    }
+    const s = String(v == null ? "" : v).trim();
+    const dm = s.match(/(\d{4})[-./](\d{1,2})[-./](\d{1,2})/);
+    if (dm) {
+      const date = `${dm[1]}-${p2(dm[2])}-${p2(dm[3])}`;
+      const tm = s.match(/(\d{1,2}):(\d{2})(?::(\d{2}))?/);
+      return { date, at: tm ? `${date} ${p2(tm[1])}:${tm[2]}:${tm[3] || "00"}` : date };
+    }
+    return { date: s.slice(0, 10), at: s };
   }
 
   // 중복 건너뛰고 추가. 같은 파일 재업로드만 거르고, 같은 날 반복거래는 살림
@@ -537,8 +560,7 @@ const Modals = (function () {
       const out = [];
       lines.forEach((line) => {
         const dm = line.match(/\d{4}[-./]\d{1,2}[-./]\d{1,2}(\s+\d{1,2}:\d{2}(:\d{2})?)?/);
-        const at = dm ? dm[0].replace(/[./]/g, "-") : "";
-        const date = dm ? dm[0].slice(0, 10).replace(/[./]/g, "-") : "";
+        const { date, at } = dm ? fmtDateTime(dm[0]) : { date: "", at: "" };
         const rest = dm ? line.replace(dm[0], " ") : line;
         const memo = (rest.match(/[가-힣]{2,}/) || [""])[0];
         const nums = (rest.match(/-?[\d,]+/g) || []).map((x) => Parsers.num(x)).filter((n) => !isNaN(n));
