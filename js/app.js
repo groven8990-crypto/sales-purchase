@@ -603,10 +603,12 @@ const App = (function () {
     if (!node) return;
     if (typeof html2canvas !== "function") { alert("이미지 변환 라이브러리를 불러오지 못했어요. 인터넷 연결을 확인해주세요."); return; }
     const today = new Date().toISOString().slice(0, 10);
-    // 섹션 제목들의 상대 위치(0~1) — 페이지는 이 경계에서만 나눔 (표 중간 안 잘림)
+    // 큰 섹션(Ⅰ·Ⅱ·Ⅲ·Ⅳ) 제목 위치에서만 페이지 분할 — 하위(Ⅱ-1·Ⅲ-1)는 상위와 함께 묶음
     const sr = node.getBoundingClientRect();
     const secRatios = [];
     node.querySelectorAll(".doc-sec").forEach((h) => {
+      const t = (h.textContent || "").slice(0, 10);
+      if (/-\d/.test(t)) return; // Ⅱ-1, Ⅲ-1 등 하위 섹션은 분할 기준에서 제외
       const r = (h.getBoundingClientRect().top - sr.top) / sr.height;
       if (r > 0.03 && r < 0.98) secRatios.push(r);
     });
