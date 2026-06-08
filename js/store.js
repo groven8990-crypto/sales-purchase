@@ -128,10 +128,10 @@ const SPC = (function () {
     return emptyData();
   }
 
-  function save() {
+  function save(silent) {
     data.updatedAt = new Date().toISOString();
     localStorage.setItem(KEY, JSON.stringify(data));
-    document.dispatchEvent(new CustomEvent("spc:changed"));
+    if (!silent) document.dispatchEvent(new CustomEvent("spc:changed"));
   }
 
   /* ---- ID ------------------------------------------------- */

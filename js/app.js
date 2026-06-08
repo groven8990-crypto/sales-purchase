@@ -617,7 +617,7 @@ const App = (function () {
         else if (sec === "memo") R.memo = val;
         else R[sec][i][f] = val;
       };
-      el.addEventListener("input", () => { upd(); recalc(); S.save(); });
+      el.addEventListener("input", () => { upd(); recalc(); S.save(true); });
     });
     main.querySelectorAll("[data-add]").forEach((b) => b.addEventListener("click", () => {
       const sec = b.dataset.add;
