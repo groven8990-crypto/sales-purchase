@@ -575,27 +575,38 @@ const App = (function () {
           <tbody><tr><td>${fullNm}</td><td>${tax}</td>
             <td class="n">${numIn("totals", 0, "sales", R.sales)}</td>
             <td class="n">${numIn("totals", 0, "purchase", R.purchase)}</td>
-            <td class="n ${profit >= 0 ? "pos" : "neg"}">${won(profit)}</td><td class="n">${rate}%</td></tr></tbody></table>
+            <td class="n ${profit >= 0 ? "pos" : "neg"}" id="mr-profit">${won(profit)}</td><td class="n" id="mr-rate">${rate}%</td></tr></tbody></table>
 
         <h4 class="doc-sec">Ⅱ. 채널별 매출 <button class="btn no-print" data-add="channels" style="padding:3px 9px;font-size:12px;margin-left:8px">➕ 행추가</button></h4>
         <table class="doc-table"><thead><tr><th class="c" style="width:40px">순번</th><th>채널</th><th class="n" style="width:90px">건수</th><th class="n" style="width:140px">공급가</th><th class="no-print" style="width:30px"></th></tr></thead>
-          <tbody>${chBody || `<tr><td colspan="5" class="empty">행추가로 채널을 입력하세요</td></tr>`}<tr class="sum"><td colspan="3">합계</td><td class="n">${won(chT)}</td><td class="no-print"></td></tr></tbody></table>
+          <tbody>${chBody || `<tr><td colspan="5" class="empty">행추가로 채널을 입력하세요</td></tr>`}<tr class="sum"><td colspan="3">합계</td><td class="n" id="mr-chT">${won(chT)}</td><td class="no-print"></td></tr></tbody></table>
 
         <h4 class="doc-sec">Ⅲ. 매입처별 매입 <button class="btn no-print" data-add="vendors" style="padding:3px 9px;font-size:12px;margin-left:8px">➕ 행추가</button></h4>
         <table class="doc-table"><thead><tr><th class="c" style="width:40px">순번</th><th>매입처</th><th style="width:160px">내용</th><th class="n" style="width:80px">건수</th><th class="n" style="width:130px">공급가</th><th class="no-print" style="width:30px"></th></tr></thead>
-          <tbody>${vnBody || `<tr><td colspan="6" class="empty">행추가로 매입처를 입력하세요</td></tr>`}<tr class="sum"><td colspan="4">합계</td><td class="n">${won(vnT)}</td><td class="no-print"></td></tr></tbody></table>
+          <tbody>${vnBody || `<tr><td colspan="6" class="empty">행추가로 매입처를 입력하세요</td></tr>`}<tr class="sum"><td colspan="4">합계</td><td class="n" id="mr-vnT">${won(vnT)}</td><td class="no-print"></td></tr></tbody></table>
 
         <h4 class="doc-sec">Ⅳ. 입출금 정산</h4>
         <table class="doc-table"><thead><tr><th>구분</th><th class="n">건수</th><th class="n">금액</th></tr></thead>
           <tbody><tr><td>입금 (매출 정산)</td><td class="n">${numIn("bank", 0, "inCnt", R.bank.inCnt)}</td><td class="n">${numIn("bank", 0, "inSum", R.bank.inSum)}</td></tr>
           <tr><td>출금 (매입·비용)</td><td class="n">${numIn("bank", 0, "outCnt", R.bank.outCnt)}</td><td class="n">${numIn("bank", 0, "outSum", R.bank.outSum)}</td></tr>
-          <tr class="sum"><td>순증감</td><td class="n"></td><td class="n ${S.num(R.bank.inSum) - S.num(R.bank.outSum) >= 0 ? "pos" : "neg"}">${won(S.num(R.bank.inSum) - S.num(R.bank.outSum))}</td></tr></tbody></table>
+          <tr class="sum"><td>순증감</td><td class="n"></td><td class="n ${S.num(R.bank.inSum) - S.num(R.bank.outSum) >= 0 ? "pos" : "neg"}" id="mr-bankNet">${won(S.num(R.bank.inSum) - S.num(R.bank.outSum))}</td></tr></tbody></table>
 
         <h4 class="doc-sec">Ⅴ. 비고</h4>
         <textarea class="mr-in" data-sec="memo" data-i="0" data-f="memo" rows="3" style="width:100%" placeholder="특이사항">${esc(R.memo || "")}</textarea>
       </div>`;
 
     const reSave = (rerender) => { S.save(); if (rerender) renderManualReport(main); };
+    // 합계·손익만 제자리에서 갱신 (전체 다시 그리지 않음 → 포커스/스크롤 유지)
+    const recalc = () => {
+      const pf = S.num(R.sales) - S.num(R.purchase);
+      const rt = S.num(R.sales) ? Math.round(S.num(R.purchase) / S.num(R.sales) * 100) : 0;
+      const pe = $("#mr-profit", main); if (pe) { pe.textContent = won(pf); pe.className = "n " + (pf >= 0 ? "pos" : "neg"); }
+      const re = $("#mr-rate", main); if (re) re.textContent = rt + "%";
+      const ce = $("#mr-chT", main); if (ce) ce.textContent = won(R.channels.reduce((a, r) => a + S.num(r.supply), 0));
+      const ve = $("#mr-vnT", main); if (ve) ve.textContent = won(R.vendors.reduce((a, r) => a + S.num(r.supply), 0));
+      const net = S.num(R.bank.inSum) - S.num(R.bank.outSum);
+      const be = $("#mr-bankNet", main); if (be) { be.textContent = won(net); be.className = "n " + (net >= 0 ? "pos" : "neg"); }
+    };
     main.querySelectorAll(".mr-in").forEach((el) => {
       const upd = () => {
         const sec = el.dataset.sec, i = +el.dataset.i, f = el.dataset.f;
@@ -606,8 +617,7 @@ const App = (function () {
         else if (sec === "memo") R.memo = val;
         else R[sec][i][f] = val;
       };
-      el.addEventListener("input", () => { upd(); S.save(); });
-      el.addEventListener("change", () => { upd(); reSave(true); });
+      el.addEventListener("input", () => { upd(); recalc(); S.save(); });
     });
     main.querySelectorAll("[data-add]").forEach((b) => b.addEventListener("click", () => {
       const sec = b.dataset.add;
