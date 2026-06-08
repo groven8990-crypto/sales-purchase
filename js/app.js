@@ -581,9 +581,6 @@ const App = (function () {
     const txtIn = (sec, i, f, v, ph) => `<input class="mr-in" data-sec="${sec}" data-i="${i}" data-f="${f}" value="${esc(v || "")}" placeholder="${ph || ""}">`;
     const selType = (i, v) => `<select class="mr-in" data-sec="platform" data-i="${i}" data-f="type"><option ${v === "광고비" ? "" : "selected"}>수수료</option><option ${v === "광고비" ? "selected" : ""}>광고비</option></select>`;
 
-    const profit = S.num(R.sales) - S.num(R.purchase);
-    const rate = S.num(R.sales) ? Math.round((S.num(R.sales) - S.num(R.purchase)) / S.num(R.sales) * 100) : 0;
-
     // 공급가 많은 순으로 정렬 (빈 행은 자연히 아래로)
     R.channels.sort((a, b) => S.num(b.supply) - S.num(a.supply));
     R.vendors.sort((a, b) => S.num(b.supply) - S.num(a.supply));
@@ -602,6 +599,11 @@ const App = (function () {
       <td class="n">${numIn("vendors", i, "supply", r.supply)}</td>
       <td class="c no-print"><button class="icon-btn" data-rm="vendors" data-i="${i}">✕</button></td></tr>`).join("");
     const vnT = R.vendors.reduce((a, r) => a + S.num(r.supply), 0);
+
+    // 손익 요약 매출·매입은 채널별·매입처별 합계에서 자동 집계
+    R.sales = chT; R.purchase = vnT;
+    const profit = chT - vnT;
+    const rate = chT ? Math.round((chT - vnT) / chT * 100) : 0;
 
     const pfRowHtml = (r, i, n) => `<tr><td class="c">${n}</td>
       <td>${txtIn("platform", i, "supplier", r.supplier, "플랫폼")}</td>
@@ -637,11 +639,11 @@ const App = (function () {
           <div><b>사업장</b> ${fullNm} (${tax})</div><div><b>작성일</b> ${new Date().toLocaleDateString("ko-KR")}</div></div>
           <div class="approval"><div class="c head2">결재</div><div class="c"><div class="h">작성</div><div class="s"></div></div><div class="c"><div class="h">검토</div><div class="s"></div></div><div class="c"><div class="h">대표</div><div class="s"></div></div></div>
         </div>
-        <h4 class="doc-sec">Ⅰ. 손익 요약 (공급가 기준)</h4>
+        <h4 class="doc-sec">Ⅰ. 손익 요약 (공급가 기준) <span class="muted" style="font-weight:400;font-size:11px">— 매출·매입은 아래 표 합계에서 자동</span></h4>
         <table class="doc-table"><thead><tr><th>사업장</th><th>구분</th><th class="n">매출</th><th class="n">매입</th><th class="n">손익</th><th class="n">마진율</th></tr></thead>
           <tbody><tr><td>${fullNm}</td><td>${tax}</td>
-            <td class="n">${numIn("totals", 0, "sales", R.sales)}</td>
-            <td class="n">${numIn("totals", 0, "purchase", R.purchase)}</td>
+            <td class="n" id="mr-saleSum">${won(chT)}</td>
+            <td class="n" id="mr-buySum">${won(vnT)}</td>
             <td class="n ${profit >= 0 ? "pos" : "neg"}" id="mr-profit">${won(profit)}</td><td class="n" id="mr-rate">${rate}%</td></tr></tbody></table>
 
         <h4 class="doc-sec">Ⅱ. 채널별 매출 <button class="btn no-print" data-add="channels" style="padding:3px 9px;font-size:12px;margin-left:8px">➕ 행추가</button></h4>
@@ -663,12 +665,17 @@ const App = (function () {
     const reSave = (rerender) => { S.save(); if (rerender) renderManualReport(main); };
     // 합계·손익만 제자리에서 갱신 (전체 다시 그리지 않음 → 포커스/스크롤 유지)
     const recalc = () => {
-      const pf = S.num(R.sales) - S.num(R.purchase);
-      const rt = S.num(R.sales) ? Math.round((S.num(R.sales) - S.num(R.purchase)) / S.num(R.sales) * 100) : 0;
+      const chTotal = R.channels.reduce((a, r) => a + S.num(r.supply), 0);
+      const vnTotal = R.vendors.reduce((a, r) => a + S.num(r.supply), 0);
+      R.sales = chTotal; R.purchase = vnTotal; // 손익요약 매출·매입 자동 반영
+      const pf = chTotal - vnTotal;
+      const rt = chTotal ? Math.round((chTotal - vnTotal) / chTotal * 100) : 0;
+      const se = $("#mr-saleSum", main); if (se) se.textContent = won(chTotal);
+      const bse = $("#mr-buySum", main); if (bse) bse.textContent = won(vnTotal);
       const pe = $("#mr-profit", main); if (pe) { pe.textContent = won(pf); pe.className = "n " + (pf >= 0 ? "pos" : "neg"); }
       const re = $("#mr-rate", main); if (re) re.textContent = rt + "%";
-      const ce = $("#mr-chT", main); if (ce) ce.textContent = won(R.channels.reduce((a, r) => a + S.num(r.supply), 0));
-      const ve = $("#mr-vnT", main); if (ve) ve.textContent = won(R.vendors.reduce((a, r) => a + S.num(r.supply), 0));
+      const ce = $("#mr-chT", main); if (ce) ce.textContent = won(chTotal);
+      const ve = $("#mr-vnT", main); if (ve) ve.textContent = won(vnTotal);
       const net = S.num(R.bank.inSum) - S.num(R.bank.outSum);
       const be = $("#mr-bankNet", main); if (be) { be.textContent = won(net); be.className = "n " + (net >= 0 ? "pos" : "neg"); }
       const fe = $("#mr-pfFee", main); if (fe) fe.textContent = won(R.platform.filter((r) => r.type !== "광고비").reduce((a, r) => a + S.num(r.amount), 0));
@@ -711,14 +718,17 @@ const App = (function () {
   // 통합 수기 보고서 (그로븐+YB 자동 합산, 읽기 전용)
   function renderManualCombined(main, M, ym, yr, mo) {
     const g = M.groven, y = M.yb;
+    // 매출=채널별 합계, 매입=매입처별 합계 (자동)
+    const sSum = (R) => (R.channels || []).reduce((a, r) => a + S.num(r.supply), 0);
+    const pSum = (R) => (R.vendors || []).reduce((a, r) => a + S.num(r.supply), 0);
     const incRows = [["groven", "그로븐", "면세", g], ["yb", "옐로우브릿지", "과세", y]];
     const incBody = incRows.map(([st, nm, tax, R]) => {
-      const profit = S.num(R.sales) - S.num(R.purchase);
-      const rate = S.num(R.sales) ? Math.round((S.num(R.sales) - S.num(R.purchase)) / S.num(R.sales) * 100) : 0;
-      return `<tr><td>${nm}</td><td>${tax}</td><td class="n">${won(R.sales)}</td><td class="n">${won(R.purchase)}</td>
+      const sv = sSum(R), pv = pSum(R), profit = sv - pv;
+      const rate = sv ? Math.round((sv - pv) / sv * 100) : 0;
+      return `<tr><td>${nm}</td><td>${tax}</td><td class="n">${won(sv)}</td><td class="n">${won(pv)}</td>
         <td class="n ${profit >= 0 ? "pos" : "neg"}">${won(profit)}</td><td class="n">${rate}%</td></tr>`;
     }).join("");
-    const saleT = S.num(g.sales) + S.num(y.sales), buyT = S.num(g.purchase) + S.num(y.purchase);
+    const saleT = sSum(g) + sSum(y), buyT = pSum(g) + pSum(y);
 
     const chMerged = mergeDetail(g.channels, y.channels, false);
     const chBody = chMerged.map((r, i) => `<tr><td class="c">${i + 1}</td><td class="name">${esc(r.name)}</td>
