@@ -511,9 +511,11 @@ const Modals = (function () {
       return fromDate(d);
     }
     const s = String(v == null ? "" : v).trim();
-    const dm = s.match(/(\d{4})[-./](\d{1,2})[-./](\d{1,2})/);
-    if (dm) {
-      const date = `${dm[1]}-${p2(dm[2])}-${p2(dm[3])}`;
+    let dm = s.match(/(\d{4})[-./](\d{1,2})[-./](\d{1,2})/), yr, mo, dy;
+    if (dm) { yr = +dm[1]; mo = +dm[2]; dy = +dm[3]; }
+    else { dm = s.match(/(\d{2})[-./](\d{1,2})[-./](\d{1,2})/); if (dm) { yr = 2000 + +dm[1]; mo = +dm[2]; dy = +dm[3]; } }
+    if (yr) {
+      const date = `${yr}-${p2(mo)}-${p2(dy)}`;
       const tm = s.match(/(\d{1,2}):(\d{2})(?::(\d{2}))?/);
       return { date, at: tm ? `${date} ${p2(tm[1])}:${tm[2]}:${tm[3] || "00"}` : date };
     }

@@ -268,6 +268,7 @@ const App = (function () {
         <div class="row-actions"><button class="btn primary" data-act="import-deposit-file">📥 파일 올리기</button>
         <button class="btn" data-act="import-deposit-paste">📋 붙여넣기</button>
         <button class="btn ghost" id="dp-png">📸 현황 보고(PNG)</button>
+        <button class="btn" id="dp-dedup">🧹 중복 정리</button>
         <button class="btn danger" id="dp-clear">🗑️ 전체삭제</button></div></div>
       ${sections || `<div class="kpibar"><div class="kb"><div class="l">아직 기록 없음</div></div></div>`}
       <div class="card"><h3>예치금 직접 입력</h3>
@@ -325,6 +326,17 @@ const App = (function () {
       S.save(); renderDeposits(main);
     });
     $("#dp-png", main).addEventListener("click", () => depositUsageReport(deps));
+    $("#dp-dedup", main).addEventListener("click", () => {
+      const list = S.data.deposits || [];
+      const sig = (d) => `${d.store || ""}|${d.vendor}|${(d.at || d.date || "")}|${d.kind}|${S.num(d.amount)}|${(d.memo || "").trim()}`;
+      const seen = new Set(), keep = [];
+      let removed = 0;
+      list.forEach((d) => { const k = sig(d); if (seen.has(k)) { removed++; } else { seen.add(k); keep.push(d); } });
+      if (!removed) { alert("완전히 동일한 중복 기록이 없어요. (날짜·금액·구분·메모가 모두 같아야 중복으로 봅니다)"); return; }
+      if (!confirm(`완전히 동일한 중복 ${removed}건을 정리할까요? (각 1건만 남겨요)`)) return;
+      S.data.deposits = keep; S.save(); renderDeposits(main);
+      alert(`중복 ${removed}건을 정리했어요.`);
+    });
   }
 
   // 예치금·적립금 현황 보고서 PNG (① 현재 잔액 → ② 금일 사용)

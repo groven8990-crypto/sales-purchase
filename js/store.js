@@ -91,6 +91,20 @@ const SPC = (function () {
   let data = load();
 
   /* ---- 영속화 --------------------------------------------- */
+  // 날짜 문자열을 YYYY-MM-DD (또는 keepTime이면 +시각) 로 통일
+  function normDateStr(v, keepTime) {
+    const s = String(v == null ? "" : v).trim();
+    const p2 = (n) => String(n).padStart(2, "0");
+    let m = s.match(/(\d{4})[-./](\d{1,2})[-./](\d{1,2})/), yr, mo, dy;
+    if (m) { yr = +m[1]; mo = +m[2]; dy = +m[3]; }
+    else { m = s.match(/(\d{2})[-./](\d{1,2})[-./](\d{1,2})/); if (m) { yr = 2000 + +m[1]; mo = +m[2]; dy = +m[3]; } }
+    if (!yr) return s;
+    const date = `${yr}-${p2(mo)}-${p2(dy)}`;
+    if (!keepTime) return date;
+    const t = s.match(/(\d{1,2}):(\d{2})(?::(\d{2}))?/);
+    return t ? `${date} ${p2(t[1])}:${t[2]}:${t[3] || "00"}` : date;
+  }
+
   function load() {
     try {
       const raw = localStorage.getItem(KEY);
@@ -100,6 +114,11 @@ const SPC = (function () {
         if (!d.rules) d.rules = [];
         DEFAULT_RULES.forEach((dr) => {
           if (!d.rules.some((r) => r.kw === dr.kw && r.type === dr.type)) d.rules.push(dr);
+        });
+        // 예치금 날짜 표기 통일 (26/04/14, 2026.4.14 → 2026-04-14)
+        (d.deposits || []).forEach((dp) => {
+          if (dp.date) dp.date = normDateStr(dp.date);
+          if (dp.at) dp.at = normDateStr(dp.at, true);
         });
         return d;
       }
