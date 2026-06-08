@@ -234,35 +234,45 @@ const App = (function () {
   }
 
   /* ===================== 예치금 충전현황 ===================== */
-  let depVendor = "";
+  let depFilter = ""; // "store|vendor"
   function renderDeposits(main) {
     const SUGGEST = ["도매꾹", "도매꾹 이머니 충전", "늘푸른우리", "최고집", "11번가 적립금"];
     const all = S.data.deposits || [];
     const deps = scope.store ? all.filter((d) => (d.store || "") === scope.store) : all;
-    const vendors = [...new Set(deps.map((d) => d.vendor).filter(Boolean))]; // 실제 데이터 있는 거래처만
-    if (depVendor && vendors.indexOf(depVendor) === -1) depVendor = "";
+    const vendors = [...new Set(deps.map((d) => `${d.store || ""}|${d.vendor}`))];
+    if (depFilter && vendors.indexOf(depFilter) === -1) depFilter = "";
     const stNm = (s) => s === "yb" ? "옐브" : (s === "groven" ? "그로븐" : "공통");
-    const sumBy = (v, k) => deps.filter((d) => d.vendor === v && d.kind === k).reduce((a, d) => a + S.num(d.amount), 0);
-    const cards = vendors.map((v) => {
-      const chg = sumBy(v, "충전"), use = sumBy(v, "사용"), bal = chg - use;
-      return `<div class="kb" data-depv="${esc(v)}" style="cursor:pointer;${depVendor === v ? "outline:2px solid var(--navy)" : ""}"><div class="l">${esc(v)}${depVendor === v ? " ✓" : ""}</div>
+    const cardFor = (st, v) => {
+      const list = deps.filter((d) => (d.store || "") === st && d.vendor === v);
+      const chg = list.filter((d) => d.kind === "충전").reduce((a, d) => a + S.num(d.amount), 0);
+      const use = list.filter((d) => d.kind === "사용").reduce((a, d) => a + S.num(d.amount), 0);
+      const bal = chg - use, key = `${st}|${v}`, on = depFilter === key;
+      return `<div class="kb" data-depk="${esc(key)}" style="cursor:pointer;${on ? "outline:2px solid var(--navy)" : ""}"><div class="l">${esc(v)}${on ? " ✓" : ""}</div>
         <div class="v" style="color:${bal >= 0 ? "var(--navy)" : "var(--red)"}">₩${won(bal)}</div>
         <div class="hint">충전 ₩${won(chg)} · 사용 ₩${won(use)}</div></div>`;
+    };
+    // 사업장별 섹션 (통합이면 그로븐/옐브 둘 다, 특정 스토어면 그 하나)
+    const stores = scope.store ? [scope.store] : ["groven", "yb"];
+    const sections = stores.map((st) => {
+      const vs = [...new Set(all.filter((d) => (d.store || "") === st).map((d) => d.vendor).filter(Boolean))];
+      if (!vs.length) return "";
+      return `<h3 style="margin:6px 0 8px;color:var(--navy)">${stNm(st)}</h3>
+        <div class="kpibar">${vs.map((v) => cardFor(st, v)).join("")}</div>`;
     }).join("");
-    const viewDeps = depVendor ? deps.filter((d) => d.vendor === depVendor) : deps;
+    const viewDeps = depFilter ? deps.filter((d) => `${d.store || ""}|${d.vendor}` === depFilter) : deps;
     const sorted = [...viewDeps].sort((a, b) => String(b.date).localeCompare(String(a.date)));
     main.innerHTML = `
       <div class="page-head"><div><h2>💳 예치금 충전현황 <span class="muted">${esc(scope.store ? stNm(scope.store) : "통합")}</span></h2>
-        <div class="muted">사업장·거래처별 충전·사용·잔액 (상단 스토어 탭으로 그로븐/옐브 구분)</div></div>
+        <div class="muted">사업장별로 거래처 충전·사용·잔액 (상단 스토어 탭으로 그로븐/옐브만 보기)</div></div>
         <div class="row-actions"><button class="btn primary" data-act="import-deposit-file">📥 파일 올리기</button>
         <button class="btn" data-act="import-deposit-paste">📋 붙여넣기</button>
         <button class="btn danger" id="dp-clear">🗑️ 전체삭제</button></div></div>
-      <div class="kpibar">${cards || `<div class="kb"><div class="l">아직 기록 없음</div></div>`}</div>
+      ${sections || `<div class="kpibar"><div class="kb"><div class="l">아직 기록 없음</div></div></div>`}
       <div class="card"><h3>예치금 직접 입력</h3>
         <div class="form-row two">
           <span><label>사업장</label><select id="dp-store" style="width:100%;border:1px solid var(--line);border-radius:8px;padding:7px 9px"><option value="groven">그로븐</option><option value="yb" ${scope.store === "yb" ? "selected" : ""}>옐로우브릿지</option></select></span>
           <span><label>거래처</label><input id="dp-vendor" list="dp-vendors" placeholder="예: 도매꾹 이머니 충전" style="width:100%;border:1px solid var(--line);border-radius:8px;padding:7px 9px">
-            <datalist id="dp-vendors">${[...new Set(SUGGEST.concat(vendors))].map((v) => `<option>${esc(v)}</option>`).join("")}</datalist></span>
+            <datalist id="dp-vendors">${[...new Set(SUGGEST.concat(all.map((d) => d.vendor).filter(Boolean)))].map((v) => `<option>${esc(v)}</option>`).join("")}</datalist></span>
         </div>
         <div class="form-row two">
           <span><label>날짜</label><input id="dp-date" type="date" value="${new Date().toISOString().slice(0, 10)}" style="width:100%;border:1px solid var(--line);border-radius:8px;padding:7px 9px"></span>
@@ -293,18 +303,19 @@ const App = (function () {
     $$("[data-deldep]", main).forEach((b) => b.addEventListener("click", () => {
       if (confirm("이 기록을 삭제할까요?")) { S.remove("deposits", b.dataset.deldep); renderDeposits(main); }
     }));
-    $$("[data-depv]", main).forEach((c) => c.addEventListener("click", () => {
-      depVendor = depVendor === c.dataset.depv ? "" : c.dataset.depv;
+    $$("[data-depk]", main).forEach((c) => c.addEventListener("click", () => {
+      depFilter = depFilter === c.dataset.depk ? "" : c.dataset.depk;
       renderDeposits(main);
     }));
     $("#dp-clear", main).addEventListener("click", () => {
       const stLabel = scope.store ? (scope.store === "yb" ? "옐브" : "그로븐") : "전체";
-      if (depVendor) {
-        const target = (S.data.deposits || []).filter((d) => d.vendor === depVendor && (!scope.store || (d.store || "") === scope.store));
+      if (depFilter) {
+        const [fst, fv] = depFilter.split("|");
+        const target = (S.data.deposits || []).filter((d) => d.vendor === fv && (d.store || "") === fst);
         if (!target.length) { alert("삭제할 기록이 없어요."); return; }
-        if (!confirm(`'${depVendor}' (${stLabel}) 예치금 ${target.length}건을 삭제할까요?`)) return;
-        S.data.deposits = (S.data.deposits || []).filter((d) => !(d.vendor === depVendor && (!scope.store || (d.store || "") === scope.store)));
-        depVendor = ""; S.save(); renderDeposits(main); return;
+        if (!confirm(`'${fv}' (${stNm(fst)}) 예치금 ${target.length}건을 삭제할까요?`)) return;
+        S.data.deposits = (S.data.deposits || []).filter((d) => !(d.vendor === fv && (d.store || "") === fst));
+        depFilter = ""; S.save(); renderDeposits(main); return;
       }
       if (deps.length === 0) { alert("삭제할 예치금 기록이 없어요."); return; }
       if (!confirm(`${stLabel} 예치금 기록 ${deps.length}건을 모두 삭제할까요? (되돌릴 수 없어요)\n\n(특정 거래처만 지우려면 카드를 먼저 클릭하세요)`)) return;
@@ -379,7 +390,7 @@ const App = (function () {
     const grp = (rows, label, sumTotal, itemsOf) => {
       const hi = !!itemsOf;
       return `
-      <table class="doc-table"><thead><tr><th class="c" style="width:48px">순번</th><th>${label}</th>${hi ? `<th style="width:128px">취급품목</th>` : ""}<th class="n" style="width:54px">건수</th><th class="n" style="width:118px">공급가</th><th class="n" style="width:58px">비중</th></tr></thead>
+      <table class="doc-table"><thead><tr><th class="c" style="width:48px">순번</th><th>${label}</th>${hi ? `<th style="width:128px">내용</th>` : ""}<th class="n" style="width:54px">건수</th><th class="n" style="width:118px">공급가</th><th class="n" style="width:58px">비중</th></tr></thead>
       <tbody>${rows.length ? rows.map((g, i) => `<tr><td class="c">${i + 1}</td><td class="name">${esc(g.key)}</td>${hi ? `<td class="name">${esc(itemsOf(g.key))}</td>` : ""}
         <td class="n">${won(g.count)}</td><td class="n">${won(g.sum)}</td><td class="n">${(g.ratio * 100).toFixed(1)}%</td></tr>`).join("")
         : `<tr><td colspan="${hi ? 6 : 5}" class="empty">자료 없음</td></tr>`}
@@ -471,8 +482,8 @@ const App = (function () {
           <button class="btn" data-act="import-paste">📋 매입 직접 추가(붙여넣기)</button>
           <button class="btn" data-act="import-evidence">🧾 홈택스 증빙 대조</button>
         </div></div>
-      <div class="card"><h3>매입처 취급품목</h3>
-        <p class="hint">매입처마다 취급하는 품목을 적어두면 보고서 '매입처별 매입'에 표시됩니다.</p>
+      <div class="card"><h3>매입처 내용 (취급품목)</h3>
+        <p class="hint">매입처마다 내용(취급품목 등)을 적어두면 보고서 '매입처별 매입'의 내용 칸에 표시됩니다.</p>
         <div class="table-wrap scroll"><table class="grid"><thead><tr><th style="width:160px">매입처</th><th>취급품목</th></tr></thead>
         <tbody>${[...new Set(S.data.purchases.map((p) => p.vendor).filter(Boolean))].sort().map((v) =>
           `<tr><td>${esc(v)}</td><td><input class="vi-input" data-v="${esc(v)}" value="${esc(S.data.vendorItems[v] || "")}" placeholder="예: 간고등어, 굴비" style="width:100%;border:1px solid var(--line);border-radius:7px;padding:6px 9px;font-size:13px"></td></tr>`).join("") ||
