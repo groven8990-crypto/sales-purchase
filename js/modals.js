@@ -232,6 +232,7 @@ const Modals = (function () {
     ],
     transactions: [
       { k: "year", l: "년", t: "num" }, { k: "month", l: "월", t: "num" }, { k: "day", l: "일", t: "num" },
+      { k: "store", l: "사업장", t: "sel", opts: () => [["", "공통"], ["groven", "그로븐"], ["yb", "YB"]] },
       { k: "type", l: "입출구분", t: "sel", opts: () => [["in", "입금"], ["out", "출금"]] },
       { k: "category", l: "분류", t: "sel", opts: () => S.CATEGORIES.concat(["매출정산"]) },
       { k: "desc", l: "내용", t: "text", wide: true },

@@ -142,6 +142,7 @@ const App = (function () {
     ],
     transactions: [
       ["순번", (r, i) => i + 1], ["일자", (r) => `${r.month || ""}.${r.day || ""}`],
+      ["사업장", (r) => esc(r.store === "yb" ? "YB" : r.store === "groven" ? "그로븐" : "")],
       ["구분", (r) => `<span class="tag ${r.type}">${r.type === "in" ? "입금" : "출금"}</span>`],
       ["분류", (r) => esc(r.category)], ["내용", (r) => esc(r.desc)], ["거래처", (r) => esc(r.counterparty)],
       ["금액", (r) => won(r.amount), "num"], ["은행", (r) => esc(r.bank)], ["비고", (r) => esc(r.note)],
