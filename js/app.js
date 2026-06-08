@@ -582,13 +582,23 @@ const App = (function () {
     } catch (e) { console.warn("도넛 차트 실패", e); }
   }
 
-  // 보고서(.sheet)를 PNG로 저장 (나중에 확인용 아카이브)
+  // 보고서(.sheet)를 PNG로 저장 — 인쇄되는 모습대로(행추가·✕·입력테두리 숨김)
   function exportSheetPng(main, label) {
     const node = main.querySelector(".sheet");
     if (!node) return;
     if (typeof html2canvas !== "function") { alert("이미지 변환 라이브러리를 불러오지 못했어요. 인터넷 연결을 확인해주세요."); return; }
     const today = new Date().toISOString().slice(0, 10);
-    html2canvas(node, { scale: 2, backgroundColor: "#ffffff", useCORS: true }).then((canvas) => {
+    html2canvas(node, {
+      scale: 2, backgroundColor: "#ffffff", useCORS: true,
+      onclone: (doc) => {
+        // 편집용 요소 숨기기 (행추가 버튼, ✕ 삭제, 빈 컬럼)
+        doc.querySelectorAll(".no-print").forEach((el) => { el.style.display = "none"; });
+        // 입력칸을 글자처럼 (테두리·배경 제거)
+        doc.querySelectorAll(".mr-in").forEach((el) => {
+          el.style.border = "none"; el.style.padding = "0"; el.style.background = "transparent"; el.style.boxShadow = "none";
+        });
+      },
+    }).then((canvas) => {
       const a = document.createElement("a");
       a.download = `마감보고서_${label}_${today}.png`;
       a.href = canvas.toDataURL("image/png");
