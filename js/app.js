@@ -604,7 +604,7 @@ const App = (function () {
     const vnT = R.vendors.reduce((a, r) => a + S.num(r.supply), 0);
 
     const pfRowHtml = (r, i, n) => `<tr><td class="c">${n}</td>
-      <td>${txtIn("platform", i, "supplier", r.supplier, "공급자")}</td>
+      <td>${txtIn("platform", i, "supplier", r.supplier, "플랫폼")}</td>
       <td>${txtIn("platform", i, "item", r.item, "품목")}</td>
       <td class="c">${selType(i, r.type)}</td>
       <td class="n">${numIn("platform", i, "amount", r.amount)}</td>
@@ -653,7 +653,7 @@ const App = (function () {
           <tbody>${vnBody || `<tr><td colspan="6" class="empty">행추가로 매입처를 입력하세요</td></tr>`}<tr class="sum"><td colspan="4">합계</td><td class="n" id="mr-vnT">${won(vnT)}</td><td class="no-print"></td></tr></tbody></table>
 
         <h4 class="doc-sec">Ⅲ-1. 플랫폼 수수료·광고비 세부 <span class="muted" style="font-weight:400;font-size:11px">(위 매입처별 ‘플랫폼…’ 합계의 내역)</span> <button class="btn no-print" data-add="platform" style="padding:3px 9px;font-size:12px;margin-left:8px">➕ 행추가</button></h4>
-        <table class="doc-table"><thead><tr><th class="c" style="width:40px">순번</th><th>공급자</th><th>품목</th><th class="c" style="width:80px">구분</th><th class="n" style="width:120px">금액</th><th class="no-print" style="width:30px"></th></tr></thead>
+        <table class="doc-table"><thead><tr><th class="c" style="width:40px">순번</th><th>플랫폼</th><th>품목</th><th class="c" style="width:80px">구분</th><th class="n" style="width:120px">금액</th><th class="no-print" style="width:30px"></th></tr></thead>
           <tbody>${pfBody}</tbody></table>
 
         <h4 class="doc-sec">Ⅳ. 비고</h4>
@@ -767,13 +767,13 @@ const App = (function () {
         <h4 class="doc-sec">Ⅲ-1. 플랫폼 수수료·광고비</h4>
         <div style="display:flex;gap:14px;align-items:flex-start">
           <div style="flex:1;min-width:0">
-            <table class="doc-table"><thead><tr><th class="c" style="width:40px">순번</th><th>공급자</th><th class="n" style="width:140px">금액</th></tr></thead>
+            <table class="doc-table"><thead><tr><th class="c" style="width:40px">순번</th><th>플랫폼</th><th class="n" style="width:140px">금액</th></tr></thead>
               <tbody>${supGrp(feeSup, "▸ 플랫폼 수수료")}<tr class="sum"><td colspan="2">수수료 소계</td><td class="n">${won(pfFee)}</td></tr>
               ${supGrp(adSup, "▸ 플랫폼 광고비")}<tr class="sum"><td colspan="2">광고비 소계</td><td class="n">${won(pfAd)}</td></tr></tbody></table>
           </div>
           <div style="width:240px;flex-shrink:0">
             <div style="position:relative;border:1px solid #d4dae4;border-radius:6px;padding:8px;height:260px"><canvas id="mr-pf-ch"></canvas></div>
-            <div class="muted" style="font-size:10px;text-align:center;margin-top:4px">공급자별 플랫폼 비용 비중</div>
+            <div class="muted" style="font-size:10px;text-align:center;margin-top:4px">플랫폼별 비용 비중</div>
           </div>
         </div>` : "";
 
