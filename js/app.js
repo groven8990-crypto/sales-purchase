@@ -534,6 +534,22 @@ const App = (function () {
   function renderManualStore(main, M, store, ym, yr, mo) {
     const R = M[store];
     if (!R.platform) R.platform = [];
+    // 2026년 5월 옐로우브릿지 플랫폼 수수료·광고비 세부 1회 자동 채움 (사용자 요청)
+    if (store === "yb" && String(yr) === "2026" && String(mo) === "5" && !R._pfSeeded && R.platform.length === 0) {
+      R.platform = [
+        { supplier: "십일번가", item: "상품전시", type: "광고비", amount: 229200 },
+        { supplier: "십일번가", item: "서비스이용료", type: "수수료", amount: 67631 },
+        { supplier: "네이버파이낸셜", item: "판매수수료", type: "수수료", amount: 1995 },
+        { supplier: "카카오", item: "카카오스토어", type: "수수료", amount: 1997 },
+        { supplier: "쿠팡페이", item: "3P_영중소", type: "광고비", amount: -28909 },
+        { supplier: "쿠팡", item: "ProductAD", type: "광고비", amount: 937049 },
+        { supplier: "쿠팡", item: "판매수수료", type: "수수료", amount: 807581 },
+        { supplier: "지마켓", item: "옥션 광고", type: "광고비", amount: 485195 },
+        { supplier: "지마켓", item: "옥션 서비스", type: "수수료", amount: 68534 },
+      ];
+      R._pfSeeded = true;
+      S.save(true);
+    }
     const fullNm = store === "yb" ? "옐로우브릿지" : "그로븐";
     const tax = store === "yb" ? "과세" : "면세";
     const numIn = (sec, i, f, v) => `<input class="mr-in n" data-sec="${sec}" data-i="${i}" data-f="${f}" value="${S.num(v)}" inputmode="numeric">`;
@@ -602,13 +618,7 @@ const App = (function () {
           <tr class="sum"><td colspan="4">플랫폼 수수료 소계</td><td class="n" id="mr-pfFee">${won(pfFee)}</td><td class="no-print"></td></tr>
           <tr class="sum"><td colspan="4">플랫폼 광고비 소계</td><td class="n" id="mr-pfAd">${won(pfAd)}</td><td class="no-print"></td></tr></tbody></table>
 
-        <h4 class="doc-sec">Ⅳ. 입출금 정산</h4>
-        <table class="doc-table"><thead><tr><th>구분</th><th class="n">건수</th><th class="n">금액</th></tr></thead>
-          <tbody><tr><td>입금 (매출 정산)</td><td class="n">${numIn("bank", 0, "inCnt", R.bank.inCnt)}</td><td class="n">${numIn("bank", 0, "inSum", R.bank.inSum)}</td></tr>
-          <tr><td>출금 (매입·비용)</td><td class="n">${numIn("bank", 0, "outCnt", R.bank.outCnt)}</td><td class="n">${numIn("bank", 0, "outSum", R.bank.outSum)}</td></tr>
-          <tr class="sum"><td>순증감</td><td class="n"></td><td class="n ${S.num(R.bank.inSum) - S.num(R.bank.outSum) >= 0 ? "pos" : "neg"}" id="mr-bankNet">${won(S.num(R.bank.inSum) - S.num(R.bank.outSum))}</td></tr></tbody></table>
-
-        <h4 class="doc-sec">Ⅴ. 비고</h4>
+        <h4 class="doc-sec">Ⅳ. 비고</h4>
         <textarea class="mr-in" data-sec="memo" data-i="0" data-f="memo" rows="3" style="width:100%" placeholder="특이사항">${esc(R.memo || "")}</textarea>
       </div>`;
 
@@ -724,13 +734,7 @@ const App = (function () {
         <table class="doc-table"><thead><tr><th class="c" style="width:40px">순번</th><th>매입처</th><th style="width:160px">내용</th><th class="n" style="width:80px">건수</th><th class="n" style="width:130px">공급가</th></tr></thead>
           <tbody>${vnBody || `<tr><td colspan="5" class="empty">자료 없음</td></tr>`}<tr class="sum"><td colspan="4">합계</td><td class="n">${won(vnT)}</td></tr></tbody></table>
         ${pfSection}
-        <h4 class="doc-sec">Ⅳ. 입출금 정산</h4>
-        <table class="doc-table"><thead><tr><th>구분</th><th class="n">건수</th><th class="n">금액</th></tr></thead>
-          <tbody><tr><td>입금 (매출 정산)</td><td class="n">${won(bk.inCnt)}</td><td class="n">${won(bk.inSum)}</td></tr>
-          <tr><td>출금 (매입·비용)</td><td class="n">${won(bk.outCnt)}</td><td class="n">${won(bk.outSum)}</td></tr>
-          <tr class="sum"><td>순증감</td><td class="n"></td><td class="n ${bk.inSum - bk.outSum >= 0 ? "pos" : "neg"}">${won(bk.inSum - bk.outSum)}</td></tr></tbody></table>
-
-        ${memo ? `<h4 class="doc-sec">Ⅴ. 비고</h4><div style="white-space:pre-wrap;font-size:12px;padding:4px 2px">${esc(memo)}</div>` : ""}
+        ${memo ? `<h4 class="doc-sec">Ⅳ. 비고</h4><div style="white-space:pre-wrap;font-size:12px;padding:4px 2px">${esc(memo)}</div>` : ""}
       </div>`;
     $("#mr-print", main).addEventListener("click", () => window.print());
   }
