@@ -610,18 +610,38 @@ const App = (function () {
         });
       },
     }).then((canvas) => {
-      // A4 비율(210:297)로 페이지를 나눠 저장 — 인쇄처럼 여러 페이지
-      const pageH = Math.round(canvas.width * 297 / 210);
-      const pages = Math.max(1, Math.ceil(canvas.height / pageH));
-      for (let p = 0; p < pages; p++) {
-        const h = Math.min(pageH, canvas.height - p * pageH);
+      const w = canvas.width, H = canvas.height;
+      const pageH = Math.round(w * 297 / 210); // A4 비율
+      const sctx = canvas.getContext("2d");
+      // 가로 한 줄이 전부 흰색인지 (표 사이 여백 찾기)
+      const isWhiteRow = (y) => {
+        if (y < 0 || y >= H) return false;
+        let d; try { d = sctx.getImageData(0, y, w, 1).data; } catch (e) { return false; }
+        for (let i = 0; i < d.length; i += 4) { if (d[i] < 247 || d[i + 1] < 247 || d[i + 2] < 247) return false; }
+        return true;
+      };
+      // 페이지 경계마다 위로 올라가며 흰 여백을 찾아 거기서 자름
+      const cuts = [0];
+      let start = 0;
+      while (start + pageH < H) {
+        const target = start + pageH;
+        let cut = target, found = -1;
+        for (let y = target; y > start + pageH * 0.6; y--) { if (isWhiteRow(y)) { found = y; break; } }
+        if (found > 0) cut = found;
+        cuts.push(cut); start = cut;
+      }
+      cuts.push(H);
+      const multi = cuts.length - 1 > 1;
+      for (let p = 0; p < cuts.length - 1; p++) {
+        const y0 = cuts[p], h = cuts[p + 1] - y0;
+        if (h <= 2) continue;
         const slice = document.createElement("canvas");
-        slice.width = canvas.width; slice.height = h;
+        slice.width = w; slice.height = h;
         const ctx = slice.getContext("2d");
-        ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, slice.width, h);
-        ctx.drawImage(canvas, 0, p * pageH, canvas.width, h, 0, 0, canvas.width, h);
+        ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, w, h);
+        ctx.drawImage(canvas, 0, y0, w, h, 0, 0, w, h);
         const a = document.createElement("a");
-        a.download = `마감보고서_${label}_${today}${pages > 1 ? `_${p + 1}p` : ""}.png`;
+        a.download = `마감보고서_${label}_${today}${multi ? `_${p + 1}p` : ""}.png`;
         a.href = slice.toDataURL("image/png");
         a.click();
       }
