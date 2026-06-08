@@ -771,8 +771,8 @@ const App = (function () {
               <tbody>${supGrp(feeSup, "▸ 플랫폼 수수료")}<tr class="sum"><td colspan="2">수수료 소계</td><td class="n">${won(pfFee)}</td></tr>
               ${supGrp(adSup, "▸ 플랫폼 광고비")}<tr class="sum"><td colspan="2">광고비 소계</td><td class="n">${won(pfAd)}</td></tr></tbody></table>
           </div>
-          <div style="width:210px;flex-shrink:0">
-            <div style="position:relative;border:1px solid #d4dae4;border-radius:6px;padding:8px;height:230px"><canvas id="mr-pf-ch"></canvas></div>
+          <div style="width:240px;flex-shrink:0">
+            <div style="position:relative;border:1px solid #d4dae4;border-radius:6px;padding:8px;height:260px"><canvas id="mr-pf-ch"></canvas></div>
             <div class="muted" style="font-size:10px;text-align:center;margin-top:4px">공급자별 플랫폼 비용 비중</div>
           </div>
         </div>` : "";
@@ -805,8 +805,25 @@ const App = (function () {
         ${memo ? `<h4 class="doc-sec">Ⅳ. 비고</h4><div style="white-space:pre-wrap;font-size:12px;padding:4px 2px">${esc(memo)}</div>` : ""}
       </div>`;
     $("#mr-print", main).addEventListener("click", () => window.print());
-    if (pfChart.length && window.Dashboard && typeof Dashboard.renderGroup === "function") {
-      requestAnimationFrame(() => { try { Dashboard.renderGroup("mr-pf-ch", pfChart, "doughnut"); } catch (e) { console.warn("플랫폼 차트 실패", e); } });
+    // 도넛 차트 (범례는 아래로 — 박스가 좁아도 도넛이 보이게)
+    if (pfChart.length && window.Chart) {
+      requestAnimationFrame(() => {
+        const cv = document.getElementById("mr-pf-ch");
+        if (!cv) return;
+        const PAL = ["#1a3a6b", "#0ea5a5", "#d97706", "#0a8043", "#dc2626", "#7c3aed", "#0891b2", "#9ca3af"];
+        const top = pfChart.slice(0, 7);
+        const etc = pfChart.slice(7).reduce((a, gg) => a + gg.sum, 0);
+        const arr = etc > 0 ? top.concat([{ key: "기타", sum: etc }]) : top;
+        try {
+          new Chart(cv, {
+            type: "doughnut",
+            data: { labels: arr.map((d) => d.key), datasets: [{ data: arr.map((d) => d.sum), backgroundColor: arr.map((_, i) => PAL[i % PAL.length]), borderWidth: 1 }] },
+            options: { responsive: true, maintainAspectRatio: false,
+              plugins: { legend: { position: "bottom", labels: { boxWidth: 10, font: { size: 9 }, padding: 5 } },
+                tooltip: { callbacks: { label: (c) => `${c.label}: ${won(c.parsed)}` } } } },
+          });
+        } catch (e) { console.warn("플랫폼 차트 실패", e); }
+      });
     }
   }
 
