@@ -733,7 +733,7 @@ const App = (function () {
           <tbody>${chBody || `<tr><td colspan="5" class="empty">행추가로 채널을 입력하세요</td></tr>`}<tr class="sum"><td colspan="3">합계</td><td class="n" id="mr-chT">${won(chT)}</td><td class="no-print"></td></tr></tbody></table>
 
         <h4 class="doc-sec">Ⅱ-1. 채널별 매출 추이·구성</h4>
-        <div style="display:flex;gap:14px;align-items:flex-start">
+        <div class="mr-chart-row" style="display:flex;gap:14px;align-items:flex-start">
           <div style="flex:1;min-width:0">
             <div style="position:relative;border:1px solid #d4dae4;border-radius:6px;padding:8px;height:240px"><canvas id="mr-trend"></canvas></div>
             <div class="muted" style="font-size:10px;text-align:center;margin-top:4px">월별 매출 추이</div>
@@ -877,7 +877,7 @@ const App = (function () {
       + (rows.length ? rows.map((g, n) => `<tr><td class="c">${n + 1}</td><td class="name">${esc(g.key)}</td><td class="n">${won(g.sum)}</td></tr>`).join("") : `<tr><td colspan="3" class="empty">없음</td></tr>`);
     const pfSection = pf.length ? `
         <h4 class="doc-sec">Ⅲ-1. 플랫폼 수수료·광고비</h4>
-        <div style="display:flex;gap:14px;align-items:flex-start">
+        <div class="mr-chart-row" style="display:flex;gap:14px;align-items:flex-start">
           <div style="flex:1;min-width:0">
             <table class="doc-table"><thead><tr><th class="c" style="width:40px">순번</th><th>플랫폼</th><th class="n" style="width:140px">금액</th></tr></thead>
               <tbody>${supGrp(feeSup, "▸ 플랫폼 수수료")}<tr class="sum"><td colspan="2">수수료 소계</td><td class="n">${won(pfFee)}</td></tr>
@@ -911,7 +911,7 @@ const App = (function () {
           <tbody>${chBody || `<tr><td colspan="4" class="empty">자료 없음</td></tr>`}<tr class="sum"><td colspan="3">합계</td><td class="n">${won(chT)}</td></tr></tbody></table>
 
         <h4 class="doc-sec">Ⅱ-1. 채널별 매출 추이·구성</h4>
-        <div style="display:flex;gap:14px;align-items:flex-start">
+        <div class="mr-chart-row" style="display:flex;gap:14px;align-items:flex-start">
           <div style="flex:1;min-width:0">
             <div style="position:relative;border:1px solid #d4dae4;border-radius:6px;padding:8px;height:240px"><canvas id="mr-trend"></canvas></div>
             <div class="muted" style="font-size:10px;text-align:center;margin-top:4px">월별 매출 추이 (통합)</div>

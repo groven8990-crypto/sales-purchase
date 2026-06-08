@@ -147,4 +147,10 @@ table.grid tbody tr:hover{background:#fafbff}
   body{background:#fff}.content{padding:0}
   .sheet{box-shadow:none;border:0;width:auto;padding:0;margin:0}
   .doc-charts .cbox{break-inside:avoid}
+  /* 섹션 제목이 페이지 끝에 혼자 남지 않게 — 다음 내용과 붙여서 넘김 */
+  .doc-sec{break-after:avoid;page-break-after:avoid}
+  /* 표는 행 단위로만 끊고, 머리글은 페이지마다 반복 */
+  .doc-table thead{display:table-header-group}
+  .doc-table tr{break-inside:avoid;page-break-inside:avoid}
+  .mr-chart-row{break-inside:avoid;page-break-inside:avoid}
 }
