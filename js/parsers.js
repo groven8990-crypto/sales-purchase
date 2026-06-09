@@ -30,7 +30,7 @@ const Parsers = (function () {
   /* ---- 워크북 읽기 ---------------------------------------- */
   async function readWorkbook(file) {
     const buf = await file.arrayBuffer();
-    return XLSX.read(buf, { type: "array", cellDates: true, cellNF: false, bookProps: true });
+    return XLSX.read(buf, { type: "array", cellDates: true, cellNF: false });
   }
 
   function sheetToRows(ws) {
