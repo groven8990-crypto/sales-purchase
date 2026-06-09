@@ -607,7 +607,9 @@ const App = (function () {
       scale: 2, backgroundColor: "#ffffff", useCORS: true,
       onclone: (doc) => {
         doc.querySelectorAll(".no-print").forEach((el) => el.remove());
+        // 표는 내용에 맞춰 자동 너비 + 셀 글자는 한 줄로(줄바꿈 방지)
         doc.querySelectorAll(".sheet table.doc-table").forEach((t) => { t.style.tableLayout = "auto"; });
+        doc.querySelectorAll(".sheet .doc-table td, .sheet .doc-table th").forEach((c) => { c.style.whiteSpace = "nowrap"; c.style.wordBreak = "normal"; });
         doc.querySelectorAll(".mr-in").forEach((el) => {
           const isNum = el.classList.contains("n");
           const isArea = el.tagName === "TEXTAREA";
@@ -615,9 +617,9 @@ const App = (function () {
           if (isNum) v = won(S.num(v));
           const span = doc.createElement("span");
           span.textContent = v;
-          span.style.cssText = "display:block;font-size:12px;padding:2px 0;" +
+          span.style.cssText = "display:block;font-size:12px;padding:2px 6px 2px 0;" +
             (isNum ? "text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums;"
-                   : isArea ? "white-space:pre-wrap;" : "white-space:normal;word-break:break-all;");
+                   : isArea ? "white-space:pre-wrap;" : "white-space:nowrap;");
           el.parentNode.replaceChild(span, el);
         });
       },
@@ -812,7 +814,7 @@ const App = (function () {
         </div>
 
         <h4 class="doc-sec">Ⅲ. 공급처별 매입 <button class="btn no-print" data-add="vendors" style="padding:3px 9px;font-size:12px;margin-left:8px">➕ 행추가</button></h4>
-        <table class="doc-table"><thead><tr><th class="c" style="width:40px">순번</th><th style="width:108px">공급처</th><th>내용</th><th class="n" style="width:64px">건수</th><th class="n" style="width:110px">공급가</th><th class="n" style="width:56px">비중</th><th class="no-print" style="width:28px"></th></tr></thead>
+        <table class="doc-table"><thead><tr><th class="c" style="width:40px">순번</th><th style="width:132px">공급처</th><th>내용</th><th class="n" style="width:64px">건수</th><th class="n" style="width:110px">공급가</th><th class="n" style="width:56px">비중</th><th class="no-print" style="width:28px"></th></tr></thead>
           <tbody>${vnBody}<tr class="sum"><td colspan="4">합계</td><td class="n" id="mr-vnT">${won(vnT)}</td><td class="n"></td><td class="no-print"></td></tr></tbody></table>
 
         <h4 class="doc-sec">Ⅲ-1. 플랫폼 수수료·광고비 세부</h4>
@@ -1026,7 +1028,7 @@ const App = (function () {
         </div>
 
         <h4 class="doc-sec">Ⅲ. 공급처별 매입</h4>
-        <table class="doc-table"><thead><tr><th class="c" style="width:40px">순번</th><th style="width:108px">공급처</th><th>내용</th><th class="n" style="width:64px">건수</th><th class="n" style="width:110px">공급가</th><th class="n" style="width:56px">비중</th></tr></thead>
+        <table class="doc-table"><thead><tr><th class="c" style="width:40px">순번</th><th style="width:132px">공급처</th><th>내용</th><th class="n" style="width:64px">건수</th><th class="n" style="width:110px">공급가</th><th class="n" style="width:56px">비중</th></tr></thead>
           <tbody>${vnBody}<tr class="sum"><td colspan="4">합계</td><td class="n">${won(vnT)}</td><td class="n"></td></tr></tbody></table>
         ${pfSection}
         ${memo ? `<h4 class="doc-sec">Ⅳ. 비고</h4><div style="white-space:pre-wrap;font-size:12px;padding:4px 2px">${esc(memo)}</div>` : ""}
