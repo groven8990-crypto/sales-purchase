@@ -396,23 +396,7 @@ const App = (function () {
     const TDn = TD + ';text-align:right;font-variant-numeric:tabular-nums';
     const TH = 'border:1px solid #bcc4d0;padding:7px;background:#eef1f6;font-weight:700';
 
-    // ① 잔액 표
-    const balBody = balRows.length ? balRows.map((r) => `<tr>
-      <td style="${TDc}">${stNm(r.st)}</td><td style="${TD};word-break:break-all">${esc(r.v)}</td>
-      <td style="${TDn}">${won(r.chg)}</td><td style="${TDn}">${won(r.use)}</td>
-      <td style="${TDn};font-weight:800;color:${r.bal < 0 ? "#dc2626" : "#1a3a6b"}">${won(r.bal)}</td></tr>`).join("")
-      : `<tr><td style="${TDc};color:#6b7588" colspan="5">기록 없음</td></tr>`;
-    const balTable = `<table style="width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed">
-      <thead><tr>
-        <th style="${TH};width:60px">사업장</th><th style="${TH}">거래처</th>
-        <th style="${TH};width:115px;text-align:right">총 충전</th>
-        <th style="${TH};width:115px;text-align:right">총 사용</th>
-        <th style="${TH};width:120px;text-align:right">현재 잔액</th>
-      </tr></thead><tbody>${balBody}
-      <tr style="background:#e7ebf2;font-weight:800"><td style="${TDc}" colspan="4">잔액 합계</td>
-        <td style="${TDn}">₩${won(balTotal)}</td></tr></tbody></table>`;
-
-    // ② 금일 사용 표
+    // ① 금일 사용 표
     const useBody = useRows.length ? useRows.map((d, i) => `<tr>
       <td style="${TDc}">${i + 1}</td><td style="${TDc}">${stNm(d.store)}</td>
       <td style="${TD};word-break:break-all">${esc(d.vendor)}</td>
@@ -428,6 +412,29 @@ const App = (function () {
         <td style="${TDn}">₩${won(useTotal)}</td><td style="${TD}"></td></tr>` : ""}
       </tbody></table>`;
 
+    // ② 잔액 — 사업장별 블록
+    const order = { groven: 0, yb: 1 };
+    const balStores = [...new Set(balRows.map((r) => r.st))].sort((a, b) => (order[a] ?? 9) - (order[b] ?? 9));
+    const balBlocks = balStores.map((st) => {
+      const rows = balRows.filter((r) => r.st === st).sort((a, b) => b.bal - a.bal);
+      const sub = rows.reduce((a, r) => a + r.bal, 0);
+      const body = rows.map((r) => `<tr>
+        <td style="${TD};word-break:break-all">${esc(r.v)}</td>
+        <td style="${TDn}">${won(r.chg)}</td><td style="${TDn}">${won(r.use)}</td>
+        <td style="${TDn};font-weight:800;color:${r.bal < 0 ? "#dc2626" : "#1a3a6b"}">${won(r.bal)}</td></tr>`).join("");
+      return `<div style="font-weight:800;color:#1a3a6b;font-size:13.5px;margin:12px 0 6px">▸ ${stNm(st)}</div>
+        <table style="width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed">
+          <thead><tr><th style="${TH}">거래처</th>
+            <th style="${TH};width:120px;text-align:right">총 충전</th>
+            <th style="${TH};width:120px;text-align:right">총 사용</th>
+            <th style="${TH};width:125px;text-align:right">현재 잔액</th></tr></thead>
+          <tbody>${body}<tr style="background:#f0f3f8;font-weight:800"><td style="${TD}">${stNm(st)} 소계</td>
+            <td style="${TDn}"></td><td style="${TDn}"></td><td style="${TDn}">₩${won(sub)}</td></tr></tbody></table>`;
+    }).join("");
+    const balSection = balRows.length
+      ? balBlocks + `<div style="text-align:right;font-weight:800;font-size:14px;margin:12px 2px 0;color:#1a3a6b">전체 잔액 합계 : ₩${won(balTotal)}</div>`
+      : `<div style="color:#6b7588;font-size:13px;padding:8px 2px">기록 없음</div>`;
+
     const host = document.createElement("div");
     host.style.cssText = "position:fixed;left:-9999px;top:0;width:720px;background:#fff";
     host.innerHTML = `<div id="dp-report" style="width:720px;background:#fff;padding:34px 38px;box-sizing:border-box;font-family:'Pretendard','Malgun Gothic',sans-serif;color:#1f2733">
@@ -435,10 +442,10 @@ const App = (function () {
         <div style="font-size:23px;font-weight:800;letter-spacing:5px">예치금 · 적립금 현황 보고</div>
         <div style="font-size:12px;color:#6b7588;letter-spacing:2px;margin-top:4px">${scope.store ? stNm(scope.store) : "그로븐 · YB 통합"} &nbsp;|&nbsp; ${todayK} 기준</div>
       </div>
-      <div style="font-size:14px;font-weight:800;color:#1a3a6b;border-left:4px solid #1a3a6b;padding-left:9px;margin:6px 0 9px">Ⅰ. 현재 예치금·적립금 잔액</div>
-      ${balTable}
-      <div style="font-size:14px;font-weight:800;color:#1a3a6b;border-left:4px solid #1a3a6b;padding-left:9px;margin:22px 0 9px">Ⅱ. 금일 사용 현황 <span style="font-size:12px;font-weight:600;color:#6b7588">(${todayK})</span></div>
+      <div style="font-size:14px;font-weight:800;color:#1a3a6b;border-left:4px solid #1a3a6b;padding-left:9px;margin:6px 0 9px">Ⅰ. 금일 사용 현황 <span style="font-size:12px;font-weight:600;color:#6b7588">(${todayK})</span></div>
       ${useTable}
+      <div style="font-size:14px;font-weight:800;color:#1a3a6b;border-left:4px solid #1a3a6b;padding-left:9px;margin:24px 0 4px">Ⅱ. 현재 예치금·적립금 잔액</div>
+      ${balSection}
       <div style="margin-top:18px;font-size:11px;color:#6b7588;text-align:right">출력일 : ${todayK}</div>
     </div>`;
     document.body.appendChild(host);
