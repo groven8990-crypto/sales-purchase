@@ -722,13 +722,27 @@ const App = (function () {
       <td class="c no-print"><button class="icon-btn" data-rm="channels" data-i="${i}">✕</button></td></tr>`).join("");
 
     const vnT = R.vendors.reduce((a, r) => a + S.num(r.supply), 0);
-    const vnBody = R.vendors.map((r, i) => `<tr><td class="c">${i + 1}</td>
-      <td>${txtIn("vendors", i, "name", r.name, "공급처")}</td>
-      <td>${txtIn("vendors", i, "note", r.note, "내용")}</td>
-      <td class="n">${numIn("vendors", i, "count", r.count)}</td>
-      <td class="n">${numIn("vendors", i, "supply", r.supply)}</td>
-      <td class="n mr-vnpct" data-pi="${i}">${vnT ? (S.num(r.supply) / vnT * 100).toFixed(1) : "0.0"}%</td>
-      <td class="c no-print"><button class="icon-btn" data-rm="vendors" data-i="${i}">✕</button></td></tr>`).join("");
+    // 공급처 매입을 '상품매입'(내용에 상품매입 포함)과 '그 외'로 나눠 그룹·소계·그룹내 비중
+    const vnIdx = R.vendors.map((r, i) => ({ r, i }));
+    const isProd = (x) => /상품매입/.test(x.r.note || "");
+    const byVS = (a, b) => S.num(b.r.supply) - S.num(a.r.supply);
+    const prodRows = vnIdx.filter(isProd).sort(byVS);
+    const etcRows = vnIdx.filter((x) => !isProd(x)).sort(byVS);
+    const prodT = prodRows.reduce((a, x) => a + S.num(x.r.supply), 0);
+    const etcT = etcRows.reduce((a, x) => a + S.num(x.r.supply), 0);
+    const vnRow = (x, n, grpT, grp) => `<tr><td class="c">${n}</td>
+      <td>${txtIn("vendors", x.i, "name", x.r.name, "공급처")}</td>
+      <td>${txtIn("vendors", x.i, "note", x.r.note, "내용")}</td>
+      <td class="n">${numIn("vendors", x.i, "count", x.r.count)}</td>
+      <td class="n">${numIn("vendors", x.i, "supply", x.r.supply)}</td>
+      <td class="n mr-vnpct" data-pi="${x.i}" data-grp="${grp}">${grpT ? (S.num(x.r.supply) / grpT * 100).toFixed(1) : "0.0"}%</td>
+      <td class="c no-print"><button class="icon-btn" data-rm="vendors" data-i="${x.i}">✕</button></td></tr>`;
+    const vnGroup = (rows, label, grpT, grp) => `<tr style="background:#eef4ff"><td colspan="7" style="font-weight:700;color:var(--navy);padding:5px 9px">${label}</td></tr>`
+      + (rows.length ? rows.map((x, n) => vnRow(x, n + 1, grpT, grp)).join("") : `<tr><td colspan="7" class="empty">없음</td></tr>`);
+    const vnBody = vnGroup(prodRows, "▸ 상품매입", prodT, "prod")
+      + `<tr class="sum"><td colspan="4">상품매입 소계</td><td class="n" id="mr-prodT">${won(prodT)}</td><td class="n">100%</td><td class="no-print"></td></tr>`
+      + vnGroup(etcRows, "▸ 수수료·광고비·기타", etcT, "etc")
+      + `<tr class="sum"><td colspan="4">기타 소계</td><td class="n" id="mr-etcT">${won(etcT)}</td><td class="n">100%</td><td class="no-print"></td></tr>`;
 
     // 손익 요약 매출·매입은 채널별·매입처별 합계에서 자동 집계
     R.sales = chT; R.purchase = vnT;
@@ -798,7 +812,7 @@ const App = (function () {
 
         <h4 class="doc-sec">Ⅲ. 공급처별 매입 <button class="btn no-print" data-add="vendors" style="padding:3px 9px;font-size:12px;margin-left:8px">➕ 행추가</button></h4>
         <table class="doc-table"><thead><tr><th class="c" style="width:40px">순번</th><th>공급처</th><th style="width:150px">내용</th><th class="n" style="width:74px">건수</th><th class="n" style="width:120px">공급가</th><th class="n" style="width:60px">비중</th><th class="no-print" style="width:30px"></th></tr></thead>
-          <tbody>${vnBody || `<tr><td colspan="7" class="empty">행추가로 공급처를 입력하세요</td></tr>`}<tr class="sum"><td colspan="4">합계</td><td class="n" id="mr-vnT">${won(vnT)}</td><td class="n">100%</td><td class="no-print"></td></tr></tbody></table>
+          <tbody>${vnBody}<tr class="sum"><td colspan="4">합계</td><td class="n" id="mr-vnT">${won(vnT)}</td><td class="n"></td><td class="no-print"></td></tr></tbody></table>
 
         <h4 class="doc-sec">Ⅲ-1. 플랫폼 수수료·광고비 세부</h4>
         <div class="mr-chart-row" style="display:flex;gap:14px;align-items:flex-start">
@@ -832,8 +846,12 @@ const App = (function () {
       const re = $("#mr-rate", main); if (re) re.textContent = rt + "%";
       const ce = $("#mr-chT", main); if (ce) ce.textContent = won(chTotal);
       const ve = $("#mr-vnT", main); if (ve) ve.textContent = won(vnTotal);
+      const prodTot = R.vendors.filter((r) => /상품매입/.test(r.note || "")).reduce((a, r) => a + S.num(r.supply), 0);
+      const etcTot = vnTotal - prodTot;
+      const pte = $("#mr-prodT", main); if (pte) pte.textContent = won(prodTot);
+      const ete = $("#mr-etcT", main); if (ete) ete.textContent = won(etcTot);
       $$(".mr-chpct", main).forEach((el) => { const r = R.channels[+el.dataset.pi]; if (r) el.textContent = (chTotal ? (S.num(r.supply) / chTotal * 100).toFixed(1) : "0.0") + "%"; });
-      $$(".mr-vnpct", main).forEach((el) => { const r = R.vendors[+el.dataset.pi]; if (r) el.textContent = (vnTotal ? (S.num(r.supply) / vnTotal * 100).toFixed(1) : "0.0") + "%"; });
+      $$(".mr-vnpct", main).forEach((el) => { const r = R.vendors[+el.dataset.pi]; if (!r) return; const base = el.dataset.grp === "etc" ? etcTot : prodTot; el.textContent = (base ? (S.num(r.supply) / base * 100).toFixed(1) : "0.0") + "%"; });
       const mw = $("#mr-memo-wrap", main); if (mw) mw.classList.toggle("no-print", !String(R.memo || "").trim());
       const net = S.num(R.bank.inSum) - S.num(R.bank.outSum);
       const be = $("#mr-bankNet", main); if (be) { be.textContent = won(net); be.className = "n " + (net >= 0 ? "pos" : "neg"); }
@@ -909,9 +927,19 @@ const App = (function () {
 
     const vnMerged = mergeDetail(g.vendors, y.vendors, true);
     const vnT = vnMerged.reduce((a, r) => a + S.num(r.supply), 0);
-    const vnBody = vnMerged.map((r, i) => `<tr><td class="c">${i + 1}</td><td class="name">${esc(r.name)}</td>
+    const vnIsProd = (r) => /상품매입/.test(r.note || "");
+    const vnProd = vnMerged.filter(vnIsProd), vnEtc = vnMerged.filter((r) => !vnIsProd(r));
+    const vnProdT = vnProd.reduce((a, r) => a + S.num(r.supply), 0);
+    const vnEtcT = vnEtc.reduce((a, r) => a + S.num(r.supply), 0);
+    const vnCRow = (r, n, grpT) => `<tr><td class="c">${n}</td><td class="name">${esc(r.name)}</td>
       <td class="name">${esc(r.note)}</td><td class="n">${won(r.count)}</td><td class="n">${won(r.supply)}</td>
-      <td class="n">${vnT ? (S.num(r.supply) / vnT * 100).toFixed(1) : "0.0"}%</td></tr>`).join("");
+      <td class="n">${grpT ? (S.num(r.supply) / grpT * 100).toFixed(1) : "0.0"}%</td></tr>`;
+    const vnCGroup = (rows, label, grpT) => `<tr style="background:#eef4ff"><td colspan="6" style="font-weight:700;color:var(--navy);padding:5px 9px">${label}</td></tr>`
+      + (rows.length ? rows.map((r, n) => vnCRow(r, n + 1, grpT)).join("") : `<tr><td colspan="6" class="empty">없음</td></tr>`);
+    const vnBody = vnCGroup(vnProd, "▸ 상품매입", vnProdT)
+      + `<tr class="sum"><td colspan="4">상품매입 소계</td><td class="n">${won(vnProdT)}</td><td class="n">100%</td></tr>`
+      + vnCGroup(vnEtc, "▸ 수수료·광고비·기타", vnEtcT)
+      + `<tr class="sum"><td colspan="4">기타 소계</td><td class="n">${won(vnEtcT)}</td><td class="n">100%</td></tr>`;
 
     const bk = {
       inCnt: S.num(g.bank.inCnt) + S.num(y.bank.inCnt), inSum: S.num(g.bank.inSum) + S.num(y.bank.inSum),
@@ -995,7 +1023,7 @@ const App = (function () {
 
         <h4 class="doc-sec">Ⅲ. 공급처별 매입</h4>
         <table class="doc-table"><thead><tr><th class="c" style="width:40px">순번</th><th>공급처</th><th style="width:150px">내용</th><th class="n" style="width:74px">건수</th><th class="n" style="width:120px">공급가</th><th class="n" style="width:60px">비중</th></tr></thead>
-          <tbody>${vnBody || `<tr><td colspan="6" class="empty">자료 없음</td></tr>`}<tr class="sum"><td colspan="4">합계</td><td class="n">${won(vnT)}</td><td class="n">100%</td></tr></tbody></table>
+          <tbody>${vnBody}<tr class="sum"><td colspan="4">합계</td><td class="n">${won(vnT)}</td><td class="n"></td></tr></tbody></table>
         ${pfSection}
         ${memo ? `<h4 class="doc-sec">Ⅳ. 비고</h4><div style="white-space:pre-wrap;font-size:12px;padding:4px 2px">${esc(memo)}</div>` : ""}
       </div>`;
