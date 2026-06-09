@@ -812,8 +812,10 @@ const App = (function () {
           </div>
         </div>
 
+        <div id="mr-memo-wrap"${String(R.memo || "").trim() ? "" : ` class="no-print"`}>
         <h4 class="doc-sec">Ⅳ. 비고</h4>
-        <textarea class="mr-in" data-sec="memo" data-i="0" data-f="memo" rows="3" style="width:100%" placeholder="특이사항">${esc(R.memo || "")}</textarea>
+        <textarea class="mr-in" data-sec="memo" data-i="0" data-f="memo" rows="3" style="width:100%" placeholder="특이사항(없으면 인쇄·이미지에서 자동 생략)">${esc(R.memo || "")}</textarea>
+        </div>
       </div>`;
 
     const reSave = (rerender) => { S.save(); if (rerender) renderManualReport(main); };
@@ -832,6 +834,7 @@ const App = (function () {
       const ve = $("#mr-vnT", main); if (ve) ve.textContent = won(vnTotal);
       $$(".mr-chpct", main).forEach((el) => { const r = R.channels[+el.dataset.pi]; if (r) el.textContent = (chTotal ? (S.num(r.supply) / chTotal * 100).toFixed(1) : "0.0") + "%"; });
       $$(".mr-vnpct", main).forEach((el) => { const r = R.vendors[+el.dataset.pi]; if (r) el.textContent = (vnTotal ? (S.num(r.supply) / vnTotal * 100).toFixed(1) : "0.0") + "%"; });
+      const mw = $("#mr-memo-wrap", main); if (mw) mw.classList.toggle("no-print", !String(R.memo || "").trim());
       const net = S.num(R.bank.inSum) - S.num(R.bank.outSum);
       const be = $("#mr-bankNet", main); if (be) { be.textContent = won(net); be.className = "n " + (net >= 0 ? "pos" : "neg"); }
       const fe = $("#mr-pfFee", main); if (fe) fe.textContent = won(R.platform.filter((r) => r.type !== "광고비").reduce((a, r) => a + S.num(r.amount), 0));
