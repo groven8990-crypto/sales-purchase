@@ -491,6 +491,8 @@ const Modals = (function () {
       const iBal = find((h) => nm(h) === "총잔액") >= 0 ? find((h) => nm(h) === "총잔액")
         : find((h) => nm(h) === "현금잔액") >= 0 ? find((h) => nm(h) === "현금잔액")
         : find((h) => /잔액|잔여|적립금잔액/.test(nm(h)));
+      // 번호(순서) — 같은 시각이어도 어느 게 최신인지 구분 (잔액 정확히)
+      const iSeq = find((h) => nm(h) === "번호" || nm(h) === "No" || nm(h) === "순번" || nm(h) === "거래번호");
       const out = [];
       table.body.forEach((r) => {
         const dt = fmtDateTime(iDate >= 0 ? r[iDate] : "");
@@ -498,12 +500,13 @@ const Modals = (function () {
         const at = dt.time ? `${date} ${dt.time}` : date;
         const memo = iMemo >= 0 ? Parsers.str(r[iMemo]) : "";
         const bal = iBal >= 0 ? Parsers.num(r[iBal]) : null;
+        const seq = iSeq >= 0 ? Parsers.num(r[iSeq]) : null;
         let change = 0, up = 0, down = 0;
         if (iCash >= 0 || iCard >= 0) change = (iCash >= 0 ? Parsers.num(r[iCash]) : 0) + (iCard >= 0 ? Parsers.num(r[iCard]) : 0);
         else if (iVar >= 0) change = Parsers.num(r[iVar]);
         else { up = Parsers.num(iUp >= 0 ? r[iUp] : 0); down = Math.abs(Parsers.num(iDown >= 0 ? r[iDown] : 0)); }
-        if (change > 0 || up > 0) out.push({ store, vendor, date, at, kind: "충전", amount: change > 0 ? change : up, memo, bal });
-        else if (change < 0 || down > 0) out.push({ store, vendor, date, at, kind: "사용", amount: change < 0 ? Math.abs(change) : down, memo, bal });
+        if (change > 0 || up > 0) out.push({ store, vendor, date, at, kind: "충전", amount: change > 0 ? change : up, memo, bal, seq });
+        else if (change < 0 || down > 0) out.push({ store, vendor, date, at, kind: "사용", amount: change < 0 ? Math.abs(change) : down, memo, bal, seq });
       });
       if (!out.length) { q("#de-prev").innerHTML = `<div class="err">금액 열(적립/차감 또는 현금변동·카드변동)을 못 읽었어요.</div>`; return; }
       const { added, skipped } = addDepositsDedup(out);
@@ -583,13 +586,14 @@ const Modals = (function () {
         const memo = (rest.match(/[가-힣]{2,}/) || [""])[0];
         const nums = (rest.match(/-?[\d,]+/g) || []).map((x) => Parsers.num(x)).filter((n) => !isNaN(n));
         if (nums.length < 2) return;
-        // 맨 앞=No, 맨 뒤=잔여(잔액), 가운데=적립/사용
+        // 맨 앞=No(순서), 맨 뒤=잔여(잔액), 가운데=적립/사용
+        const seq = nums[0];
         const bal = nums[nums.length - 1];
         const mid = nums.slice(1, nums.length - 1);
         let up = 0, down = 0;
         mid.forEach((n) => { if (n < 0) down = Math.abs(n); else if (n > 0) up = n; });
-        if (up > 0) out.push({ store, vendor, date, at, kind: "충전", amount: up, memo, bal });
-        else if (down > 0) out.push({ store, vendor, date, at, kind: "사용", amount: down, memo, bal });
+        if (up > 0) out.push({ store, vendor, date, at, kind: "충전", amount: up, memo, bal, seq });
+        else if (down > 0) out.push({ store, vendor, date, at, kind: "사용", amount: down, memo, bal, seq });
       });
       if (!out.length) { q("#dpp-prev").innerHTML = `<div class="err">읽을 줄이 없어요. 표를 복사해서 붙여넣었는지 확인해주세요.</div>`; return; }
       const { added, skipped } = addDepositsDedup(out);

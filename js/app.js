@@ -242,7 +242,13 @@ const App = (function () {
   function depBalance(list) {
     const withBal = list.filter((d) => d.bal != null && d.bal !== "" && !isNaN(Number(d.bal)));
     if (withBal.length) {
-      const latest = withBal.reduce((a, b) => (String(b.at || b.date) >= String(a.at || a.date) ? b : a));
+      // 최신 = 발생일시(at) 우선, 같은 시각이면 번호(seq) 큰 것이 최신
+      const latest = withBal.reduce((a, b) => {
+        const ka = String(a.at || a.date || ""), kb = String(b.at || b.date || "");
+        if (kb > ka) return b;
+        if (kb < ka) return a;
+        return S.num(b.seq) >= S.num(a.seq) ? b : a;
+      });
       return S.num(latest.bal);
     }
     const chg = list.filter((d) => d.kind === "충전").reduce((a, d) => a + S.num(d.amount), 0);
