@@ -141,6 +141,14 @@ table.grid tbody tr:hover{background:#fafbff}
 .mr-in.n{text-align:right;font-variant-numeric:tabular-nums}
 @media print{.mr-in{border:none!important;padding:0!important;background:transparent;height:auto!important;min-height:0!important;line-height:1.2}}
 
+/* 칩 선택 (예치금 직접 입력) */
+.chips{display:flex;flex-wrap:wrap;gap:7px}
+.dp-chip{border:1.5px solid var(--line);background:#fff;border-radius:20px;padding:7px 16px;cursor:pointer;font-size:13.5px;font-weight:700;color:var(--muted)}
+.dp-chip:hover{background:var(--bg)}
+.dp-chip.on{background:var(--navy);color:#fff;border-color:var(--navy)}
+.dp-chip.kc.on{background:var(--green);border-color:var(--green)}
+.dp-chip.ku.on{background:var(--red);border-color:var(--red)}
+
 @media(max-width:760px){.doc-2col,.doc-charts{flex-direction:column}.sheet{padding:14px}}
 @media print{
   /* 브라우저 머릿말·꼬리말(날짜·제목·URL·페이지번호) 제거 — 페이지 여백 0 */
