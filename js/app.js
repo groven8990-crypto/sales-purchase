@@ -247,7 +247,7 @@ const App = (function () {
   }
 
   function renderDeposits(main) {
-    const SUGGEST = ["도매꾹", "도매꾹 이머니 충전", "늘푸른우리", "최고집", "11번가 적립금"];
+    const SUGGEST = ["도매꾹", "늘푸른우리", "최고집"];
     const all = S.data.deposits || [];
     const deps = scope.store ? all.filter((d) => (d.store || "") === scope.store) : all;
     const vendors = [...new Set(deps.map((d) => `${d.store || ""}|${d.vendor}`))];
@@ -288,7 +288,7 @@ const App = (function () {
             <button type="button" class="dp-chip ${scope.store === "yb" ? "on" : ""}" data-v="yb">YB</button>
           </div></div>
         <div class="form-row"><label>거래처</label>
-          <div class="chips" data-g="vendor">${[...new Set(SUGGEST.concat(all.map((d) => d.vendor).filter(Boolean)))].map((v) => `<button type="button" class="dp-chip" data-v="${esc(v)}">${esc(v)}</button>`).join("")}</div>
+          <div class="chips" data-g="vendor">${SUGGEST.map((v) => `<button type="button" class="dp-chip" data-v="${esc(v)}">${esc(v)}</button>`).join("")}</div>
           <input id="dp-vendor" placeholder="또는 직접 입력" style="width:100%;border:1px solid var(--line);border-radius:8px;padding:7px 9px;margin-top:7px"></div>
         <div class="form-row"><label>구분</label>
           <div class="chips" data-g="kind">
