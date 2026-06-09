@@ -306,16 +306,22 @@ const App = (function () {
         <tbody>${sorted.map((d) => `<tr><td>${esc(d.date)}</td><td>${stNm(d.store)}</td><td>${esc(d.vendor)}</td>
           <td><span class="tag ${d.kind === "충전" ? "in" : "out"}">${d.kind}</span></td>
           <td class="num">₩${won(d.amount)}</td><td>${esc(d.memo || "")}</td>
-          <td class="row-actions"><button class="icon-btn" data-deldep="${d.id}" title="삭제">✕</button></td></tr>`).join("") ||
+          <td class="row-actions"><button class="icon-btn edit" data-editdep="${d.id}" title="수정">✎</button><button class="icon-btn" data-deldep="${d.id}" title="삭제">✕</button></td></tr>`).join("") ||
           `<tr><td colspan="7" class="empty">기록이 없어요. 위에서 추가하거나 파일을 올리세요.</td></tr>`}
         </tbody></table></div>`;
     wire(main);
+    // 거래처별 메모 기본값 (직접 입력 시 자동)
+    const MEMO_DEF = { "늘푸른우리": "주문결제", "최고집": "주문결제", "도매꾹": "상품구매대금결제" };
     // 칩(버튼) 선택 — 그룹 내 하나만 선택
     const chipVal = (g) => { const el = main.querySelector(`.chips[data-g="${g}"] .dp-chip.on`); return el ? el.dataset.v : ""; };
     $$(".dp-chip", main).forEach((b) => b.addEventListener("click", () => {
       b.parentNode.querySelectorAll(".dp-chip").forEach((x) => x.classList.remove("on"));
       b.classList.add("on");
-      if (b.parentNode.dataset.g === "vendor") { const vi = $("#dp-vendor", main); if (vi) vi.value = ""; } // 칩 고르면 직접입력 비움
+      if (b.parentNode.dataset.g === "vendor") {
+        const vi = $("#dp-vendor", main); if (vi) vi.value = ""; // 칩 고르면 직접입력 비움
+        const mi = $("#dp-memo", main); // 메모 기본값 자동 채움(비어있거나 기본값일 때만)
+        if (mi && (!mi.value.trim() || Object.values(MEMO_DEF).includes(mi.value.trim()))) mi.value = MEMO_DEF[b.dataset.v] || "";
+      }
     }));
     // 금액 천단위 콤마 자동
     const amtIn = $("#dp-amount", main);
@@ -332,6 +338,7 @@ const App = (function () {
       S.data.deposits.push({ id: S.uid(), store, vendor, date: $("#dp-date", main).value, kind, amount, memo: $("#dp-memo", main).value.trim() });
       S.save(); renderDeposits(main);
     });
+    $$("[data-editdep]", main).forEach((b) => b.addEventListener("click", () => Modals.editRow("deposits", b.dataset.editdep)));
     $$("[data-deldep]", main).forEach((b) => b.addEventListener("click", () => {
       if (confirm("이 기록을 삭제할까요?")) { S.remove("deposits", b.dataset.deldep); renderDeposits(main); }
     }));
@@ -439,7 +446,7 @@ const App = (function () {
     host.style.cssText = "position:fixed;left:-9999px;top:0;width:720px;background:#fff";
     host.innerHTML = `<div id="dp-report" style="width:720px;background:#fff;padding:34px 38px;box-sizing:border-box;font-family:'Pretendard','Malgun Gothic',sans-serif;color:#1f2733">
       <div style="text-align:center;border-bottom:3px double #222;padding-bottom:12px;margin-bottom:14px">
-        <div style="font-size:23px;font-weight:800;letter-spacing:5px">예치금 · 적립금 현황 보고</div>
+        <div style="font-size:23px;font-weight:800;letter-spacing:5px">예치금 현황보고</div>
         <div style="font-size:12px;color:#6b7588;letter-spacing:2px;margin-top:4px">${scope.store ? stNm(scope.store) : "그로븐 · YB 통합"} &nbsp;|&nbsp; ${todayK} 기준</div>
       </div>
       <div style="font-size:14px;font-weight:800;color:#1a3a6b;border-left:4px solid #1a3a6b;padding-left:9px;margin:6px 0 9px">Ⅰ. 금일 사용 현황 <span style="font-size:12px;font-weight:600;color:#6b7588">(${todayK})</span></div>
@@ -452,11 +459,8 @@ const App = (function () {
     const node = host.querySelector("#dp-report");
     if (typeof html2canvas !== "function") { alert("이미지 변환 라이브러리를 불러오지 못했어요. 인터넷 연결을 확인해주세요."); host.remove(); return; }
     html2canvas(node, { scale: 2, backgroundColor: "#ffffff" }).then((canvas) => {
-      const a = document.createElement("a");
-      a.download = `예치금현황_${today}.png`;
-      a.href = canvas.toDataURL("image/png");
-      a.click();
       host.remove();
+      previewCanvas(canvas, `예치금현황_${today}.png`);
     }).catch((e) => { alert("이미지 저장 실패: " + e); host.remove(); });
   }
 
@@ -619,7 +623,32 @@ const App = (function () {
     } catch (e) { console.warn("도넛 차트 실패", e); }
   }
 
-  // 보고서(.sheet)를 한 장의 PNG로 저장 (인쇄용 요소 숨기고 깔끔하게)
+  // 캔버스 미리보기 모달 — 저장 전에 확인
+  function previewCanvas(canvas, filename) {
+    const url = canvas.toDataURL("image/png");
+    const host = document.createElement("div");
+    host.style.cssText = "position:fixed;inset:0;z-index:100;background:rgba(20,28,50,.55);display:flex;flex-direction:column;align-items:center;padding:18px;overflow:auto";
+    host.innerHTML = `
+      <div style="background:#fff;border-radius:12px;max-width:840px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.3);display:flex;flex-direction:column;max-height:94vh">
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:13px 18px;border-bottom:1px solid #e3e8f0">
+          <b style="font-size:15px">🖼️ 미리보기 <span style="font-weight:500;color:#6b7588;font-size:12.5px">— 확인 후 저장하세요</span></b>
+          <div style="display:flex;gap:8px">
+            <button class="btn" id="pv-close">닫기</button>
+            <button class="btn primary" id="pv-save">📥 PNG 저장</button>
+          </div>
+        </div>
+        <div style="overflow:auto;padding:16px;background:#eef1f6;text-align:center">
+          <img src="${url}" style="max-width:100%;box-shadow:0 2px 12px rgba(0,0,0,.15);border-radius:4px">
+        </div>
+      </div>`;
+    document.body.appendChild(host);
+    const close = () => host.remove();
+    host.addEventListener("click", (e) => { if (e.target === host) close(); });
+    host.querySelector("#pv-close").onclick = close;
+    host.querySelector("#pv-save").onclick = () => { const a = document.createElement("a"); a.download = filename; a.href = url; a.click(); close(); };
+  }
+
+  // 보고서(.sheet)를 한 장의 PNG로 — 미리보기 후 저장
   function exportSheetPng(main, label) {
     const node = main.querySelector(".sheet");
     if (!node) return;
@@ -646,10 +675,7 @@ const App = (function () {
         });
       },
     }).then((canvas) => {
-      const a = document.createElement("a");
-      a.download = `마감보고서_${label}_${today}.png`;
-      a.href = canvas.toDataURL("image/png");
-      a.click();
+      previewCanvas(canvas, `마감보고서_${label}_${today}.png`);
     }).catch((e) => alert("이미지 저장 실패: " + e));
   }
 

@@ -241,8 +241,16 @@ const Modals = (function () {
       { k: "bank", l: "은행", t: "text" }, { k: "account", l: "계좌번호", t: "text" },
       { k: "note", l: "비고", t: "text", wide: true },
     ],
+    deposits: [
+      { k: "store", l: "사업장", t: "sel", opts: () => [["", "공통"], ["groven", "그로븐"], ["yb", "YB"]] },
+      { k: "vendor", l: "거래처", t: "text" },
+      { k: "date", l: "날짜", t: "date" },
+      { k: "kind", l: "구분", t: "sel", opts: () => ["충전", "사용"] },
+      { k: "amount", l: "금액", t: "num" },
+      { k: "memo", l: "메모", t: "text", wide: true },
+    ],
   };
-  const KIND_LABEL = { purchases: "매입", sales: "매출", transactions: "입출금" };
+  const KIND_LABEL = { purchases: "매입", sales: "매출", transactions: "입출금", deposits: "예치금" };
 
   function editRow(kind, id) {
     const row = (S.data[kind] || []).find((r) => r.id === id);
@@ -263,7 +271,7 @@ const Modals = (function () {
           ? `<option value="${E(v)}" selected>${E(v)}</option>` : "";
         input = `<select id="ed-${f.k}">${extra}${optionTags}</select>`;
       } else {
-        input = `<input id="ed-${f.k}" type="${f.t === "num" ? "number" : "text"}" value="${E(v)}">`;
+        input = `<input id="ed-${f.k}" type="${f.t === "num" ? "number" : f.t === "date" ? "date" : "text"}" value="${E(v)}">`;
       }
       return `<span class="${f.wide ? "wide" : ""}"><label>${f.l}</label>${input}</span>`;
     }).join("");
