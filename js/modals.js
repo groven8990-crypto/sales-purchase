@@ -249,8 +249,15 @@ const Modals = (function () {
       { k: "amount", l: "금액", t: "num" },
       { k: "memo", l: "메모", t: "text", wide: true },
     ],
+    fixedCosts: [
+      { k: "store", l: "사업장", t: "sel", opts: () => [["groven", "그로븐"], ["yb", "YB"]] },
+      { k: "vendor", l: "공급처", t: "text" },
+      { k: "note", l: "내용", t: "text", wide: true },
+      { k: "count", l: "건수", t: "num" },
+      { k: "amount", l: "금액", t: "num" },
+    ],
   };
-  const KIND_LABEL = { purchases: "매입", sales: "매출", transactions: "입출금", deposits: "예치금" };
+  const KIND_LABEL = { purchases: "매입", sales: "매출", transactions: "입출금", deposits: "예치금", fixedCosts: "고정비" };
 
   function editRow(kind, id) {
     const row = (S.data[kind] || []).find((r) => r.id === id);

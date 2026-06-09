@@ -523,6 +523,13 @@ const App = (function () {
     r.purchase = S.sum(pl, "supply");
     r.channels = S.groupSum(sl, "channel", "supply").map((g) => ({ name: g.key, count: g.count, supply: g.sum }));
     r.vendors = S.groupSum(pl, "vendor", "supply").map((g) => ({ name: g.key, note: (S.data.vendorItems && S.data.vendorItems[g.key]) || "", count: g.count, supply: g.sum }));
+    // 고정비/정기결제 자동 반영 (매월 동일) — 같은 공급처가 매입에도 있으면 합산
+    (S.data.fixedCosts || []).filter((fc) => (fc.store || "") === st).forEach((fc) => {
+      const ex = r.vendors.find((v) => v.name === fc.vendor && (v.note || "") === (fc.note || ""));
+      if (ex) { ex.supply += S.num(fc.amount); ex.count += S.num(fc.count); }
+      else r.vendors.push({ name: fc.vendor, note: fc.note || "", count: S.num(fc.count), supply: S.num(fc.amount) });
+    });
+    r.purchase = r.vendors.reduce((a, v) => a + S.num(v.supply), 0);
     const tx = S.filterBy(S.data.transactions, { store: st, year: yr, month: mo });
     const ins = tx.filter((t) => t.type === "in"), outs = tx.filter((t) => t.type === "out");
     r.bank = { inCnt: ins.length, inSum: S.sum(ins, "amount"), outCnt: outs.length, outSum: S.sum(outs, "amount") };
@@ -1211,6 +1218,21 @@ const App = (function () {
         <tbody>${[...new Set(S.data.purchases.map((p) => p.vendor).filter(Boolean))].sort().map((v) =>
           `<tr><td>${esc(v)}</td><td><input class="vi-input" data-v="${esc(v)}" value="${esc(S.data.vendorItems[v] || "")}" placeholder="예: 간고등어, 굴비" style="width:100%;border:1px solid var(--line);border-radius:7px;padding:6px 9px;font-size:13px"></td></tr>`).join("") ||
           `<tr><td colspan="2" class="empty">매입 자료를 먼저 넣어주세요</td></tr>`}</tbody></table></div></div>
+      <div class="card"><h3>🔁 고정비 · 정기결제 (매월 자동 반영)</h3>
+        <p class="hint">임대료·구독·통신·주결제 업체 등 <b>매월 똑같이 나가는 항목</b>을 등록하면, 마감보고서 '자동값 불러오기' 때 자동으로 들어갑니다. 내용에 <b>'상품매입'</b>을 넣으면 상품매입 그룹, 아니면 기타(수수료·비용) 그룹으로 분류돼요.</p>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin-bottom:12px">
+          <span><label style="display:block;font-size:12px;color:var(--muted);margin-bottom:3px">사업장</label><select id="fc-store" style="border:1px solid var(--line);border-radius:8px;padding:7px 9px"><option value="groven">그로븐</option><option value="yb">YB</option></select></span>
+          <span style="flex:1;min-width:120px"><label style="display:block;font-size:12px;color:var(--muted);margin-bottom:3px">공급처</label><input id="fc-vendor" placeholder="예: 대우엔지니어링" style="width:100%;border:1px solid var(--line);border-radius:8px;padding:7px 9px"></span>
+          <span style="flex:1;min-width:120px"><label style="display:block;font-size:12px;color:var(--muted);margin-bottom:3px">내용</label><input id="fc-note" placeholder="예: 공장임대료" style="width:100%;border:1px solid var(--line);border-radius:8px;padding:7px 9px"></span>
+          <span style="width:70px"><label style="display:block;font-size:12px;color:var(--muted);margin-bottom:3px">건수</label><input id="fc-count" inputmode="numeric" value="1" style="width:100%;border:1px solid var(--line);border-radius:8px;padding:7px 9px;text-align:right"></span>
+          <span style="width:120px"><label style="display:block;font-size:12px;color:var(--muted);margin-bottom:3px">금액</label><input id="fc-amount" inputmode="numeric" placeholder="0" style="width:100%;border:1px solid var(--line);border-radius:8px;padding:7px 9px;text-align:right"></span>
+          <button class="btn primary" id="fc-add">➕ 추가</button>
+        </div>
+        <div class="table-wrap"><table class="grid"><thead><tr><th>사업장</th><th>공급처</th><th>내용</th><th class="num">건수</th><th class="num">금액</th><th></th></tr></thead>
+          <tbody>${(S.data.fixedCosts || []).map((fc) => `<tr><td>${fc.store === "yb" ? "YB" : "그로븐"}</td><td>${esc(fc.vendor)}</td><td>${esc(fc.note || "")}</td>
+            <td class="num">${won(fc.count)}</td><td class="num">₩${won(fc.amount)}</td>
+            <td class="row-actions"><button class="icon-btn edit" data-editfc="${fc.id}" title="수정">✎</button><button class="icon-btn" data-delfc="${fc.id}" title="삭제">✕</button></td></tr>`).join("") ||
+            `<tr><td colspan="6" class="empty">아직 없어요. 위에서 고정비를 등록하세요.</td></tr>`}</tbody></table></div></div>
       <div class="card"><h3>송금처 마스터 (${S.data.vendors.length}곳)</h3>
         <div class="table-wrap"><table class="grid"><thead><tr><th>송금처</th><th>은행</th><th>계좌번호</th></tr></thead>
         <tbody>${S.data.vendors.map((v) => `<tr><td>${esc(v.name)}</td><td>${esc(v.bank)}</td><td>${esc(v.account)}</td></tr>`).join("")}</tbody></table></div></div>
@@ -1224,6 +1246,18 @@ const App = (function () {
         </div>
         <p class="hint">데이터는 이 브라우저에만 저장됩니다. 다른 PC에서 쓰려면 백업 파일을 옮기세요.</p></div>`;
     wire(main);
+    // 고정비 추가/수정/삭제
+    if ($("#fc-add", main)) $("#fc-add", main).addEventListener("click", () => {
+      const vendor = $("#fc-vendor", main).value.trim();
+      const amount = S.num($("#fc-amount", main).value);
+      if (!vendor || !amount) { alert("공급처와 금액을 입력하세요."); return; }
+      S.data.fixedCosts.push({ id: S.uid(), store: $("#fc-store", main).value, vendor, note: $("#fc-note", main).value.trim(), count: S.num($("#fc-count", main).value) || 1, amount });
+      S.save(); renderData(main);
+    });
+    $$("[data-editfc]", main).forEach((b) => b.addEventListener("click", () => Modals.editRow("fixedCosts", b.dataset.editfc)));
+    $$("[data-delfc]", main).forEach((b) => b.addEventListener("click", () => {
+      if (confirm("이 고정비를 삭제할까요?")) { S.remove("fixedCosts", b.dataset.delfc); renderData(main); }
+    }));
     $("#ex-json").addEventListener("click", () => {
       const blob = new Blob([S.exportJSON()], { type: "application/json" });
       const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
