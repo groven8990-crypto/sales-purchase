@@ -57,6 +57,7 @@ const App = (function () {
     else if (scope.view === "transactions") renderTable(main, "transactions");
     else if (scope.view === "orders") renderOrders(main);
     else if (scope.view === "deposits") renderDeposits(main);
+    else if (scope.view === "cs") renderCS(main);
     else if (scope.view === "report") renderReport(main);
     else if (scope.view === "manual") renderManualReport(main);
     else if (scope.view === "data") renderData(main);
@@ -232,6 +233,70 @@ const App = (function () {
     });
     $$("[data-delod]", main).forEach((b) => b.addEventListener("click", () => {
       if (confirm("이 발주 건을 삭제할까요?")) { S.remove("orders", b.dataset.delod); renderOrders(main); }
+    }));
+  }
+
+  /* ===================== C/S 관리 ===================== */
+  let csFilter = ""; // "" | 접수 | 처리중 | 완료
+  function renderCS(main) {
+    const CS_TYPES = ["반품", "교환", "환불", "오배송", "파손", "단순문의", "기타"];
+    const CS_STAT = ["접수", "처리중", "완료"];
+    const statColor = (s) => s === "완료" ? "in" : (s === "처리중" ? "out" : "");
+    const all = S.data.cs || [];
+    const list = csFilter ? all.filter((c) => (c.status || "접수") === csFilter) : all;
+    const sorted = [...list].sort((a, b) => String(b.date).localeCompare(String(a.date)));
+    const cnt = (s) => all.filter((c) => (c.status || "접수") === s).length;
+    const stNm = (s) => s === "yb" ? "YB" : (s === "groven" ? "그로븐" : "");
+    main.innerHTML = `
+      <div class="page-head"><div><h2>📞 C/S 관리 <span class="muted" id="cs-cnt">(${all.length}건)</span></h2>
+        <div class="muted">고객 반품·교환·환불 등 처리 상태 관리</div></div></div>
+      <div class="kpibar">
+        ${[["", "전체", all.length], ["접수", "접수", cnt("접수")], ["처리중", "처리중", cnt("처리중")], ["완료", "완료", cnt("완료")]].map(([v, l, n]) =>
+          `<div class="kb cs-fl" data-fl="${v}" style="cursor:pointer;${csFilter === v ? "outline:2px solid var(--navy)" : ""}"><div class="l">${l}</div><div class="v">${n}</div></div>`).join("")}
+      </div>
+      <div class="card"><h3>새 C/S 등록</h3>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
+          <span><label style="display:block;font-size:12px;color:var(--muted);margin-bottom:3px">일자</label><input id="cs-date" type="date" value="${new Date().toISOString().slice(0, 10)}" style="border:1px solid var(--line);border-radius:8px;padding:7px 9px"></span>
+          <span><label style="display:block;font-size:12px;color:var(--muted);margin-bottom:3px">사업장</label><select id="cs-store" style="border:1px solid var(--line);border-radius:8px;padding:7px 9px"><option value="groven">그로븐</option><option value="yb" ${scope.store === "yb" ? "selected" : ""}>YB</option></select></span>
+          <span><label style="display:block;font-size:12px;color:var(--muted);margin-bottom:3px">채널</label><input id="cs-channel" placeholder="쿠팡 등" style="width:90px;border:1px solid var(--line);border-radius:8px;padding:7px 9px"></span>
+          <span><label style="display:block;font-size:12px;color:var(--muted);margin-bottom:3px">주문번호</label><input id="cs-order" placeholder="(선택)" style="width:120px;border:1px solid var(--line);border-radius:8px;padding:7px 9px"></span>
+          <span><label style="display:block;font-size:12px;color:var(--muted);margin-bottom:3px">유형</label><select id="cs-type" style="border:1px solid var(--line);border-radius:8px;padding:7px 9px">${CS_TYPES.map((t) => `<option>${t}</option>`).join("")}</select></span>
+          <span style="flex:1;min-width:140px"><label style="display:block;font-size:12px;color:var(--muted);margin-bottom:3px">상품·내용</label><input id="cs-item" placeholder="예: 간고등어 / 파손 도착" style="width:100%;border:1px solid var(--line);border-radius:8px;padding:7px 9px"></span>
+          <span><label style="display:block;font-size:12px;color:var(--muted);margin-bottom:3px">상태</label><select id="cs-status" style="border:1px solid var(--line);border-radius:8px;padding:7px 9px">${CS_STAT.map((s) => `<option>${s}</option>`).join("")}</select></span>
+        </div>
+        <div style="display:flex;gap:8px;align-items:flex-end;margin-top:10px">
+          <span style="flex:1"><label style="display:block;font-size:12px;color:var(--muted);margin-bottom:3px">처리내용</label><input id="cs-note" placeholder="예: 재발송 완료 / 환불 처리" style="width:100%;border:1px solid var(--line);border-radius:8px;padding:7px 9px"></span>
+          <button class="btn primary" id="cs-add">➕ 등록</button>
+        </div></div>
+      <div class="card" style="padding:10px 14px"><input id="cs-search" placeholder="🔍 검색 (채널·주문번호·상품·내용)" style="width:100%;border:1px solid var(--line);border-radius:9px;padding:9px 12px;font-size:13.5px"></div>
+      <div class="table-wrap"><table class="grid">
+        <thead><tr><th>일자</th><th>사업장</th><th>채널</th><th>주문번호</th><th>유형</th><th>상품·내용</th><th>상태</th><th>처리내용</th><th></th></tr></thead>
+        <tbody>${sorted.map((c) => `<tr data-s="${esc([c.channel, c.orderNo, c.item, c.note, c.type].join(" ").toLowerCase())}">
+          <td>${esc(c.date)}</td><td>${stNm(c.store)}</td><td>${esc(c.channel || "")}</td><td>${esc(c.orderNo || "")}</td>
+          <td>${esc(c.type || "")}</td><td>${esc(c.item || "")}</td>
+          <td><span class="tag ${statColor(c.status || "접수")}">${esc(c.status || "접수")}</span></td>
+          <td>${esc(c.note || "")}</td>
+          <td class="row-actions"><button class="icon-btn edit" data-editcs="${c.id}" title="수정">✎</button><button class="icon-btn" data-delcs="${c.id}" title="삭제">✕</button></td></tr>`).join("") ||
+          `<tr><td colspan="9" class="empty">아직 C/S 건이 없어요. 위에서 등록하세요.</td></tr>`}
+        </tbody></table></div>`;
+    wire(main);
+    $$(".cs-fl", main).forEach((b) => b.addEventListener("click", () => { csFilter = csFilter === b.dataset.fl ? "" : b.dataset.fl; renderCS(main); }));
+    const sIn = $("#cs-search", main);
+    if (sIn) sIn.addEventListener("input", () => {
+      const q = sIn.value.trim().toLowerCase();
+      $$("tbody tr", main).forEach((tr) => { tr.style.display = (!q || (tr.dataset.s || "").includes(q)) ? "" : "none"; });
+    });
+    $("#cs-add", main).addEventListener("click", () => {
+      const item = $("#cs-item", main).value.trim();
+      if (!item) { alert("상품·내용을 입력하세요."); return; }
+      S.data.cs.push({ id: S.uid(), date: $("#cs-date", main).value, store: $("#cs-store", main).value,
+        channel: $("#cs-channel", main).value.trim(), orderNo: $("#cs-order", main).value.trim(),
+        type: $("#cs-type", main).value, item, status: $("#cs-status", main).value, note: $("#cs-note", main).value.trim() });
+      S.save(); renderCS(main);
+    });
+    $$("[data-editcs]", main).forEach((b) => b.addEventListener("click", () => Modals.editRow("cs", b.dataset.editcs)));
+    $$("[data-delcs]", main).forEach((b) => b.addEventListener("click", () => {
+      if (confirm("이 C/S 건을 삭제할까요?")) { S.remove("cs", b.dataset.delcs); renderCS(main); }
     }));
   }
 
