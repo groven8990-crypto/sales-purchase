@@ -338,7 +338,7 @@ const App = (function () {
     const viewDeps = depFilter ? deps.filter((d) => `${d.store || ""}|${d.vendor}` === depFilter) : deps;
     const sorted = [...viewDeps].sort((a, b) => String(b.date).localeCompare(String(a.date)));
     main.innerHTML = `
-      <div class="page-head"><div><h2>💳 예치금 충전현황 <span class="muted">${esc(scope.store ? stNm(scope.store) : "통합")}</span></h2>
+      <div class="page-head"><div><h2>💳 예치금 현황 <span class="muted">${esc(scope.store ? stNm(scope.store) : "통합")}</span></h2>
         <div class="muted">사업장별로 거래처 충전·사용·잔액 (상단 스토어 탭으로 그로븐/YB만 보기)</div></div>
         <div class="row-actions"><button class="btn primary" data-act="import-deposit-file">📥 파일 올리기</button>
         <button class="btn" data-act="import-deposit-paste">📋 붙여넣기</button>
@@ -357,8 +357,8 @@ const App = (function () {
           <input id="dp-vendor" placeholder="또는 직접 입력" style="width:100%;border:1px solid var(--line);border-radius:8px;padding:7px 9px;margin-top:7px"></div>
         <div class="form-row"><label>구분</label>
           <div class="chips" data-g="kind">
-            <button type="button" class="dp-chip kc on" data-v="충전">충전</button>
-            <button type="button" class="dp-chip ku" data-v="사용">사용</button>
+            <button type="button" class="dp-chip kc" data-v="충전">충전</button>
+            <button type="button" class="dp-chip ku on" data-v="사용">사용</button>
           </div></div>
         <div class="form-row two">
           <span><label>날짜</label><input id="dp-date" type="date" value="${new Date().toISOString().slice(0, 10)}" style="width:100%;border:1px solid var(--line);border-radius:8px;padding:7px 9px"></span>
@@ -544,7 +544,7 @@ const App = (function () {
     }).sort((a, b) => b.bal - a.bal);
     const body = rows.map((r) => `<tr><td class="c">${stNm(r.st)}</td><td class="name">${esc(r.v)}</td>
       <td class="n">${won(r.chg)}</td><td class="n">${won(r.use)}</td><td class="n" style="font-weight:700">${won(r.bal)}</td></tr>`).join("");
-    return `<h4 class="doc-sec">Ⅶ. 예치금 충전현황</h4>
+    return `<h4 class="doc-sec">Ⅶ. 예치금 현황</h4>
       <table class="doc-table">
         <thead><tr><th class="c" style="width:54px">사업장</th><th>거래처</th><th class="n" style="width:120px">충전</th><th class="n" style="width:120px">사용</th><th class="n" style="width:120px">잔액</th></tr></thead>
         <tbody>${body}</tbody></table>`;
