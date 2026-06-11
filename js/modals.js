@@ -425,40 +425,50 @@ const Modals = (function () {
   const OD_FIELDS = [["date", "일자"], ["vendor", "거래처(매입처)"], ["desc", "품목명"], ["qty", "수량"]];
   function importOrders() {
     open("📦 발주서 올리기 (발주내역)",
-      `<p>발주서 엑셀을 올리면 <b>발주내역</b>으로 등록돼요. (매입 증빙과 별개) 각 항목이 어느 열인지 골라주세요.<br>
-        <span class="muted" style="font-size:12px">스토어는 <b>파일명</b>에 '그로븐'/'옐로우브릿지'가 있으면 자동으로 골라줘요.</span></p>
+      `<p>발주서 엑셀을 올리면 <b>발주내역</b>으로 등록돼요. 여러 개 <b>한꺼번에 선택</b>해도 됩니다 (같은 양식일 때).<br>
+        <span class="muted" style="font-size:12px">스토어는 <b>파일명</b>의 '그로븐'/'옐로우브릿지'로 파일마다 자동 구분돼요. 열 매칭은 첫 파일 기준으로 모든 파일에 적용돼요.</span></p>
        <div class="form-row two">
-         <span><label>스토어 <span class="muted" id="od-store-auto" style="font-size:11px"></span></label>${storeSelect("od-store")}</span>
+         <span><label>스토어 <span class="muted" id="od-store-auto" style="font-size:11px">(파일명으로 자동)</span></label>${storeSelect("od-store")}</span>
          <span><label>기본 연/월</label><input id="od-ym" placeholder="예: 2026-5" style="width:100%"></span>
        </div>
        <div class="form-row"><label>기본 거래처(열에 없을 때)</label><input id="od-vendor" placeholder="예: 일비"></div>
-       <div class="form-row"><label>발주서 파일</label><input type="file" id="od-file" accept=".xlsx,.xls,.csv"></div>
+       <div class="form-row"><label>발주서 파일 (여러 개 가능)</label><input type="file" id="od-file" accept=".xlsx,.xls,.csv" multiple></div>
        <div id="od-map"></div><div id="od-prev" class="preview"></div>`,
       `<button class="btn" id="od-cancel">취소</button><button class="btn primary" id="od-apply" disabled>발주내역에 추가</button>`);
-    let table = null;
+    let files = [];
+    const stLbl = (s) => s === "yb" ? "옐로우브릿지" : s === "groven" ? "그로븐" : "미지정(수동)";
     q("#od-file").onchange = async (e) => {
-      const f = e.target.files[0]; if (!f) return;
-      // 파일명으로 스토어 자동 감지
-      const detected = /옐로우|옐브|yb|과세/i.test(f.name) ? "yb" : (/그로븐|grov|면세/i.test(f.name) ? "groven" : "");
-      if (detected) { q("#od-store").value = detected; const a = q("#od-store-auto"); if (a) a.textContent = `(파일명에서 ${detected === "yb" ? "옐로우브릿지" : "그로븐"} 자동선택)`; }
-      try { table = await Parsers.readGenericTable(f); renderODMap(table); }
-      catch (err) { q("#od-prev").innerHTML = `<div class="err">❌ ${E(err.message)}</div>`; }
+      files = [];
+      const fl = [...e.target.files]; if (!fl.length) return;
+      q("#od-prev").innerHTML = `<div class="muted">읽는 중…</div>`;
+      for (const f of fl) {
+        const detected = /옐로우|옐브|yb|과세/i.test(f.name) ? "yb" : (/그로븐|grov|면세/i.test(f.name) ? "groven" : "");
+        try { const t = await Parsers.readGenericTable(f); files.push({ table: t, store: detected, name: f.name }); }
+        catch (err) { /* 읽기 실패 파일은 건너뜀 */ }
+      }
+      if (!files.length) { q("#od-prev").innerHTML = `<div class="err">읽을 수 있는 파일이 없어요.</div>`; return; }
+      renderODMap(files[0].table); // 첫 파일 기준 열 매칭
+      q("#od-prev").innerHTML = `<div class="ok">✅ ${files.length}개 파일 인식<br>${files.map((x) => `· ${E(x.name)} → <b>${stLbl(x.store)}</b>`).join("<br>")}</div>`;
+      q("#od-apply").disabled = false;
     };
     q("#od-cancel").onclick = close;
     q("#od-apply").onclick = () => {
-      if (!table) return;
+      if (!files.length) return;
       const map = {}; OD_FIELDS.forEach(([f]) => { const v = q(`#od-f-${f}`).value; if (v !== "") map[f] = +v; });
       const ymM = (q("#od-ym").value || "").match(/(\d{4})\D+(\d{1,2})/);
-      const store = q("#od-store").value, baseV = q("#od-vendor").value.trim();
+      const fallbackStore = q("#od-store").value, baseV = q("#od-vendor").value.trim();
       const yr = ymM ? +ymM[1] : new Date().getFullYear(), mo = ymM ? +ymM[2] : "";
       const out = [];
-      table.body.forEach((r) => {
-        const get = (f) => map[f] != null ? r[map[f]] : null;
-        const desc = Parsers.str(get("desc")), vendor = Parsers.str(get("vendor")) || baseV;
-        const qty = Parsers.num(get("qty"));
-        if (!desc && !vendor) return;
-        const d = Parsers.parseDate(get("date"));
-        out.push({ store, year: d.y || yr, month: d.m || mo, day: d.d || "", vendor, desc, qty, note: "발주서" });
+      files.forEach(({ table, store }) => {
+        const st = store || fallbackStore;
+        table.body.forEach((r) => {
+          const get = (f) => map[f] != null ? r[map[f]] : null;
+          const desc = Parsers.str(get("desc")), vendor = Parsers.str(get("vendor")) || baseV;
+          const qty = Parsers.num(get("qty"));
+          if (!desc && !vendor) return;
+          const d = Parsers.parseDate(get("date"));
+          out.push({ store: st, year: d.y || yr, month: d.m || mo, day: d.d || "", vendor, desc, qty, note: "발주서" });
+        });
       });
       if (!out.length) { q("#od-prev").innerHTML = `<div class="err">읽을 행이 없어요.</div>`; return; }
       S.addOrders(out); close(); App.go("orders");
