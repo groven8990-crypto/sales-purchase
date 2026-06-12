@@ -387,6 +387,8 @@ const App = (function () {
   function renderDeposits(main) {
     const SUGGEST = ["도매꾹", "늘푸른우리", "최고집"];
     const MEMO_DEF = { "늘푸른우리": "주문결제", "최고집": "주문결제", "도매꾹": "상품구매대금결제" };
+    const ALL_DEF = Object.values(MEMO_DEF).concat(["예치금충전"]); // 자동으로 채운 메모 판별용
+    const memoDefault = (kind, vendor) => kind === "충전" ? "예치금충전" : (MEMO_DEF[vendor] || "");
     const dStore = depLastInput.store || scope.store || "groven";
     const dVendor = depLastInput.vendor || "";
     const dKind = depLastInput.kind || "사용";
@@ -441,7 +443,7 @@ const App = (function () {
           <span><label>날짜</label><input id="dp-date" type="date" value="${new Date().toISOString().slice(0, 10)}" style="width:100%;border:1px solid var(--line);border-radius:8px;padding:7px 9px"></span>
           <span><label>금액</label><input id="dp-amount" inputmode="numeric" placeholder="예: 500,000" style="width:100%;border:1px solid var(--line);border-radius:8px;padding:7px 9px;text-align:right;font-variant-numeric:tabular-nums"></span>
         </div>
-        <div class="form-row"><label>메모</label><input id="dp-memo" placeholder="(선택)" value="${esc(MEMO_DEF[dVendor] || "")}" style="width:100%;border:1px solid var(--line);border-radius:8px;padding:7px 9px"></div>
+        <div class="form-row"><label>메모</label><input id="dp-memo" placeholder="(선택)" value="${esc(memoDefault(dKind, dVendor))}" style="width:100%;border:1px solid var(--line);border-radius:8px;padding:7px 9px"></div>
         <button class="btn primary" id="dp-add">➕ 추가</button></div>
       <div class="table-wrap"><table class="grid">
         <thead><tr><th>날짜</th><th>사업장</th><th>거래처</th><th>구분</th><th class="num">금액</th><th>메모</th><th></th></tr></thead>
@@ -457,10 +459,12 @@ const App = (function () {
     $$(".dp-chip", main).forEach((b) => b.addEventListener("click", () => {
       b.parentNode.querySelectorAll(".dp-chip").forEach((x) => x.classList.remove("on"));
       b.classList.add("on");
-      if (b.parentNode.dataset.g === "vendor") {
-        const vi = $("#dp-vendor", main); if (vi) vi.value = ""; // 칩 고르면 직접입력 비움
-        const mi = $("#dp-memo", main); // 메모 기본값 자동 채움(비어있거나 기본값일 때만)
-        if (mi && (!mi.value.trim() || Object.values(MEMO_DEF).includes(mi.value.trim()))) mi.value = MEMO_DEF[b.dataset.v] || "";
+      if (b.parentNode.dataset.g === "vendor") { const vi = $("#dp-vendor", main); if (vi) vi.value = ""; } // 칩 고르면 직접입력 비움
+      // 거래처/구분 바뀌면 메모 기본값 갱신 (자동으로 채웠던 값일 때만)
+      const mi = $("#dp-memo", main);
+      if (mi && (!mi.value.trim() || ALL_DEF.includes(mi.value.trim()))) {
+        const v = ($("#dp-vendor", main).value.trim()) || chipVal("vendor");
+        mi.value = memoDefault(chipVal("kind"), v);
       }
     }));
     // 금액 천단위 콤마 자동
@@ -533,8 +537,15 @@ const App = (function () {
       return { st, v, chg, use, bal: depBalance(list) };
     }).filter((r) => r.chg || r.use);
     // ② 금일 사용 현황
-    const useRows = data.filter((d) => d.kind === "사용" && String(d.date).slice(0, 10) === today)
-      .sort((a, b) => `${a.store}|${a.vendor}`.localeCompare(`${b.store}|${b.vendor}`));
+    // 금일 사용 — 사업장+거래처별로 한 줄(합계)
+    const useMap = {};
+    data.filter((d) => d.kind === "사용" && String(d.date).slice(0, 10) === today).forEach((d) => {
+      const k = `${d.store || ""}|${d.vendor}`;
+      if (!useMap[k]) useMap[k] = { store: d.store || "", vendor: d.vendor, amount: 0, memo: d.memo || "", n: 0 };
+      useMap[k].amount += S.num(d.amount); useMap[k].n++;
+      if (!useMap[k].memo && d.memo) useMap[k].memo = d.memo;
+    });
+    const useRows = Object.values(useMap).sort((a, b) => `${a.store}|${a.vendor}`.localeCompare(`${b.store}|${b.vendor}`));
     if (!balRows.length && !useRows.length) { alert("표시할 예치금·적립금 기록이 없어요."); return; }
     const useTotal = useRows.reduce((a, d) => a + S.num(d.amount), 0);
     const balTotal = balRows.reduce((a, r) => a + r.bal, 0);
@@ -548,7 +559,7 @@ const App = (function () {
     const useBody = useRows.length ? useRows.map((d, i) => `<tr>
       <td style="${TDc}">${i + 1}</td><td style="${TDc}">${stNm(d.store)}</td>
       <td style="${TD};word-break:break-all">${esc(d.vendor)}</td>
-      <td style="${TDn}">${won(d.amount)}</td><td style="${TD}">${esc(d.memo || "")}</td></tr>`).join("")
+      <td style="${TDn}">${won(d.amount)}</td><td style="${TD}">${esc(d.memo || "")}${d.n > 1 ? ` <span style="color:#6b7588">(${d.n}건)</span>` : ""}</td></tr>`).join("")
       : `<tr><td style="${TDc};color:#6b7588" colspan="5">오늘 사용한 내역이 없습니다</td></tr>`;
     const useTable = `<table style="width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed">
       <thead><tr>
