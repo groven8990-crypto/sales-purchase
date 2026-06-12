@@ -57,6 +57,7 @@ const App = (function () {
     else if (scope.view === "transactions") renderTable(main, "transactions");
     else if (scope.view === "orders") renderOrders(main);
     else if (scope.view === "deposits") renderDeposits(main);
+    else if (scope.view === "adspend") renderAdSpend(main);
     else if (scope.view === "cs") renderCS(main);
     else if (scope.view === "report") renderReport(main);
     else if (scope.view === "manual") renderManualReport(main);
@@ -233,6 +234,77 @@ const App = (function () {
     });
     $$("[data-delod]", main).forEach((b) => b.addEventListener("click", () => {
       if (confirm("이 발주 건을 삭제할까요?")) { S.remove("orders", b.dataset.delod); renderOrders(main); }
+    }));
+  }
+
+  /* ===================== 광고비 소진현황 ===================== */
+  let adLast = { store: "", platform: "쿠팡" };
+  function renderAdSpend(main) {
+    const PLATFORMS = ["쿠팡", "11번가"];
+    const stNm = (s) => s === "yb" ? "YB" : (s === "groven" ? "그로븐" : "공통");
+    const all = S.data.adspend || [];
+    const inScope = all.filter((a) => (!scope.store || (a.store || "") === scope.store) && (!scope.year || +a.year === +scope.year || String(a.date).slice(0, 4) === String(scope.year)));
+    // 이번 달(연·월) 필터
+    const ym = (a) => String(a.date).slice(0, 7);
+    const targetYM = scope.year && scope.month ? `${scope.year}-${String(scope.month).padStart(2, "0")}` : "";
+    const monthRows = inScope.filter((a) => !targetYM || ym(a) === targetYM);
+    const dStore = adLast.store || scope.store || "groven";
+    const dPlat = adLast.platform || "쿠팡";
+    const platsAll = [...new Set(PLATFORMS.concat(all.map((a) => a.platform).filter(Boolean)))];
+
+    // 플랫폼별 이번 달 소진 합계
+    const sumBy = (p, st) => monthRows.filter((a) => a.platform === p && (!st || (a.store || "") === st)).reduce((s, a) => s + S.num(a.amount), 0);
+    const total = monthRows.reduce((s, a) => s + S.num(a.amount), 0);
+    const kpi = platsAll.map((p) => `<div class="kb p"><div class="l">${esc(p)} · 이번 달 소진</div><div class="v">₩${won(sumBy(p))}</div></div>`).join("");
+
+    const sorted = [...monthRows].sort((a, b) => String(b.date).localeCompare(String(a.date)));
+    main.innerHTML = `
+      <div class="page-head"><div><h2>📣 광고비 소진현황 <span class="muted">${esc(scope.store ? stNm(scope.store) : "통합")} · ${scope.year || ""}년 ${scope.month || ""}월</span></h2>
+        <div class="muted">매일 플랫폼에서 본 소진액을 빠르게 기록 (플랫폼·사업장은 유지돼요)</div></div></div>
+      <div class="kpibar">${kpi}<div class="kb g"><div class="l">이번 달 합계</div><div class="v">₩${won(total)}</div></div></div>
+      <div class="card"><h3>오늘 소진 입력</h3>
+        <div class="form-row"><label>사업장</label>
+          <div class="chips" data-g="store">
+            <button type="button" class="dp-chip ${dStore === "groven" ? "on" : ""}" data-v="groven">그로븐</button>
+            <button type="button" class="dp-chip ${dStore === "yb" ? "on" : ""}" data-v="yb">YB</button>
+          </div></div>
+        <div class="form-row"><label>플랫폼</label>
+          <div class="chips" data-g="platform">${platsAll.map((p) => `<button type="button" class="dp-chip ${p === dPlat ? "on" : ""}" data-v="${esc(p)}">${esc(p)}</button>`).join("")}</div>
+          <input id="ad-plat" placeholder="또는 직접 입력" style="width:100%;border:1px solid var(--line);border-radius:8px;padding:7px 9px;margin-top:7px"></div>
+        <div class="form-row two">
+          <span><label>날짜</label><input id="ad-date" type="date" value="${new Date().toISOString().slice(0, 10)}" style="width:100%;border:1px solid var(--line);border-radius:8px;padding:7px 9px"></span>
+          <span><label>소진액</label><input id="ad-amount" inputmode="numeric" placeholder="예: 35,000" style="width:100%;border:1px solid var(--line);border-radius:8px;padding:7px 9px;text-align:right;font-variant-numeric:tabular-nums"></span>
+        </div>
+        <div class="form-row"><label>메모</label><input id="ad-memo" placeholder="(선택)" style="width:100%;border:1px solid var(--line);border-radius:8px;padding:7px 9px"></div>
+        <button class="btn primary" id="ad-add">➕ 추가</button></div>
+      <div class="table-wrap"><table class="grid">
+        <thead><tr><th>날짜</th><th>사업장</th><th>플랫폼</th><th class="num">소진액</th><th>메모</th><th></th></tr></thead>
+        <tbody>${sorted.map((a) => `<tr><td>${esc(a.date)}</td><td>${stNm(a.store)}</td><td>${esc(a.platform)}</td>
+          <td class="num">₩${won(a.amount)}</td><td>${esc(a.memo || "")}</td>
+          <td class="row-actions"><button class="icon-btn edit" data-editad="${a.id}" title="수정">✎</button><button class="icon-btn" data-delad="${a.id}" title="삭제">✕</button></td></tr>`).join("") ||
+          `<tr><td colspan="6" class="empty">이번 달 기록이 없어요. 위에서 추가하세요.</td></tr>`}
+        </tbody></table></div>`;
+    wire(main);
+    const chipVal = (g) => { const el = main.querySelector(`.chips[data-g="${g}"] .dp-chip.on`); return el ? el.dataset.v : ""; };
+    $$(".dp-chip", main).forEach((b) => b.addEventListener("click", () => {
+      b.parentNode.querySelectorAll(".dp-chip").forEach((x) => x.classList.remove("on")); b.classList.add("on");
+      if (b.parentNode.dataset.g === "platform") { const pi = $("#ad-plat", main); if (pi) pi.value = ""; }
+    }));
+    const amtIn = $("#ad-amount", main);
+    if (amtIn) amtIn.addEventListener("input", () => { const n = S.num(amtIn.value); amtIn.value = n ? n.toLocaleString("en-US") : ""; });
+    $("#ad-add", main).addEventListener("click", () => {
+      const platform = ($("#ad-plat", main).value.trim()) || chipVal("platform");
+      const amount = S.num($("#ad-amount", main).value);
+      const store = chipVal("store");
+      if (!platform || !amount) { alert("플랫폼과 소진액을 입력하세요."); return; }
+      const date = $("#ad-date", main).value;
+      S.data.adspend.push({ id: S.uid(), date, year: +String(date).slice(0, 4), month: +String(date).slice(5, 7), store, platform, amount, memo: $("#ad-memo", main).value.trim() });
+      adLast = { store, platform };
+      S.save(); renderAdSpend(main);
+    });
+    $$("[data-editad]", main).forEach((b) => b.addEventListener("click", () => Modals.editRow("adspend", b.dataset.editad)));
+    $$("[data-delad]", main).forEach((b) => b.addEventListener("click", () => {
+      if (confirm("이 광고비 기록을 삭제할까요?")) { S.remove("adspend", b.dataset.delad); renderAdSpend(main); }
     }));
   }
 

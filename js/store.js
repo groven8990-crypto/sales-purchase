@@ -87,6 +87,7 @@ const SPC = (function () {
       manualReport: {}, // 수기 마감보고서 { "YYYY-M": {...} }
       fixedCosts: [],   // 고정비/정기결제 (매월 자동) { id, store, vendor, note, count, amount }
       cs: [],           // C/S 관리 { id, date, store, channel, orderNo, type, item, status, note }
+      adspend: [],      // 광고비 소진 { id, date, store, platform, amount, memo }
     };
   }
 

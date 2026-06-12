@@ -256,6 +256,13 @@ const Modals = (function () {
       { k: "count", l: "건수", t: "num" },
       { k: "amount", l: "금액", t: "num" },
     ],
+    adspend: [
+      { k: "date", l: "날짜", t: "date" },
+      { k: "store", l: "사업장", t: "sel", opts: () => [["groven", "그로븐"], ["yb", "YB"]] },
+      { k: "platform", l: "플랫폼", t: "text" },
+      { k: "amount", l: "소진액", t: "num" },
+      { k: "memo", l: "메모", t: "text", wide: true },
+    ],
     cs: [
       { k: "date", l: "일자", t: "date" },
       { k: "store", l: "사업장", t: "sel", opts: () => [["groven", "그로븐"], ["yb", "YB"]] },
@@ -267,7 +274,7 @@ const Modals = (function () {
       { k: "note", l: "처리내용", t: "text", wide: true },
     ],
   };
-  const KIND_LABEL = { purchases: "매입", sales: "매출", transactions: "입출금", deposits: "예치금", fixedCosts: "고정비", cs: "C/S" };
+  const KIND_LABEL = { purchases: "매입", sales: "매출", transactions: "입출금", deposits: "예치금", fixedCosts: "고정비", cs: "C/S", adspend: "광고비" };
 
   function editRow(kind, id) {
     const row = (S.data[kind] || []).find((r) => r.id === id);
