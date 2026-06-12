@@ -559,13 +559,13 @@ const App = (function () {
     const useBody = useRows.length ? useRows.map((d, i) => `<tr>
       <td style="${TDc}">${i + 1}</td><td style="${TDc}">${stNm(d.store)}</td>
       <td style="${TD};word-break:break-all">${esc(d.vendor)}</td>
-      <td style="${TDn}">${won(d.amount)}</td><td style="${TD}">${esc(d.memo || "")}${d.n > 1 ? ` <span style="color:#6b7588">(${d.n}건)</span>` : ""}</td></tr>`).join("")
+      <td style="${TDn}">${won(d.amount)}</td><td style="${TD};white-space:nowrap">${esc(d.memo || "")}${d.n > 1 ? ` <span style="color:#6b7588">(${d.n}건)</span>` : ""}</td></tr>`).join("")
       : `<tr><td style="${TDc};color:#6b7588" colspan="5">오늘 사용한 내역이 없습니다</td></tr>`;
     const useTable = `<table style="width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed">
       <thead><tr>
-        <th style="${TH};width:42px">순번</th><th style="${TH};width:60px">사업장</th>
-        <th style="${TH}">거래처</th><th style="${TH};width:120px;text-align:right">사용액</th>
-        <th style="${TH};width:150px">메모</th>
+        <th style="${TH};width:42px">순번</th><th style="${TH};width:56px">사업장</th>
+        <th style="${TH};width:130px">거래처</th><th style="${TH};width:110px;text-align:right">사용액</th>
+        <th style="${TH}">메모</th>
       </tr></thead><tbody>${useBody}
       ${useRows.length ? `<tr style="background:#e7ebf2;font-weight:800"><td style="${TDc}" colspan="3">금일 사용 합계</td>
         <td style="${TDn}">₩${won(useTotal)}</td><td style="${TD}"></td></tr>` : ""}
