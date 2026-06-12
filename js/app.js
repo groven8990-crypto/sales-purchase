@@ -311,8 +311,13 @@ const App = (function () {
     return chg - use;
   }
 
+  let depLastInput = { store: "", vendor: "", kind: "사용" }; // 직접입력 후 유지
   function renderDeposits(main) {
     const SUGGEST = ["도매꾹", "늘푸른우리", "최고집"];
+    const MEMO_DEF = { "늘푸른우리": "주문결제", "최고집": "주문결제", "도매꾹": "상품구매대금결제" };
+    const dStore = depLastInput.store || scope.store || "groven";
+    const dVendor = depLastInput.vendor || "";
+    const dKind = depLastInput.kind || "사용";
     const all = S.data.deposits || [];
     const deps = scope.store ? all.filter((d) => (d.store || "") === scope.store) : all;
     const vendors = [...new Set(deps.map((d) => `${d.store || ""}|${d.vendor}`))];
@@ -349,22 +354,22 @@ const App = (function () {
       <div class="card"><h3>예치금 직접 입력</h3>
         <div class="form-row"><label>사업장</label>
           <div class="chips" data-g="store">
-            <button type="button" class="dp-chip ${scope.store === "yb" ? "" : "on"}" data-v="groven">그로븐</button>
-            <button type="button" class="dp-chip ${scope.store === "yb" ? "on" : ""}" data-v="yb">YB</button>
+            <button type="button" class="dp-chip ${dStore === "groven" ? "on" : ""}" data-v="groven">그로븐</button>
+            <button type="button" class="dp-chip ${dStore === "yb" ? "on" : ""}" data-v="yb">YB</button>
           </div></div>
         <div class="form-row"><label>거래처</label>
-          <div class="chips" data-g="vendor">${SUGGEST.map((v) => `<button type="button" class="dp-chip" data-v="${esc(v)}">${esc(v)}</button>`).join("")}</div>
-          <input id="dp-vendor" placeholder="또는 직접 입력" style="width:100%;border:1px solid var(--line);border-radius:8px;padding:7px 9px;margin-top:7px"></div>
+          <div class="chips" data-g="vendor">${SUGGEST.map((v) => `<button type="button" class="dp-chip ${v === dVendor ? "on" : ""}" data-v="${esc(v)}">${esc(v)}</button>`).join("")}</div>
+          <input id="dp-vendor" placeholder="또는 직접 입력" value="${dVendor && !SUGGEST.includes(dVendor) ? esc(dVendor) : ""}" style="width:100%;border:1px solid var(--line);border-radius:8px;padding:7px 9px;margin-top:7px"></div>
         <div class="form-row"><label>구분</label>
           <div class="chips" data-g="kind">
-            <button type="button" class="dp-chip kc" data-v="충전">충전</button>
-            <button type="button" class="dp-chip ku on" data-v="사용">사용</button>
+            <button type="button" class="dp-chip kc ${dKind === "충전" ? "on" : ""}" data-v="충전">충전</button>
+            <button type="button" class="dp-chip ku ${dKind === "사용" ? "on" : ""}" data-v="사용">사용</button>
           </div></div>
         <div class="form-row two">
           <span><label>날짜</label><input id="dp-date" type="date" value="${new Date().toISOString().slice(0, 10)}" style="width:100%;border:1px solid var(--line);border-radius:8px;padding:7px 9px"></span>
           <span><label>금액</label><input id="dp-amount" inputmode="numeric" placeholder="예: 500,000" style="width:100%;border:1px solid var(--line);border-radius:8px;padding:7px 9px;text-align:right;font-variant-numeric:tabular-nums"></span>
         </div>
-        <div class="form-row"><label>메모</label><input id="dp-memo" placeholder="(선택)" style="width:100%;border:1px solid var(--line);border-radius:8px;padding:7px 9px"></div>
+        <div class="form-row"><label>메모</label><input id="dp-memo" placeholder="(선택)" value="${esc(MEMO_DEF[dVendor] || "")}" style="width:100%;border:1px solid var(--line);border-radius:8px;padding:7px 9px"></div>
         <button class="btn primary" id="dp-add">➕ 추가</button></div>
       <div class="table-wrap"><table class="grid">
         <thead><tr><th>날짜</th><th>사업장</th><th>거래처</th><th>구분</th><th class="num">금액</th><th>메모</th><th></th></tr></thead>
@@ -375,8 +380,6 @@ const App = (function () {
           `<tr><td colspan="7" class="empty">기록이 없어요. 위에서 추가하거나 파일을 올리세요.</td></tr>`}
         </tbody></table></div>`;
     wire(main);
-    // 거래처별 메모 기본값 (직접 입력 시 자동)
-    const MEMO_DEF = { "늘푸른우리": "주문결제", "최고집": "주문결제", "도매꾹": "상품구매대금결제" };
     // 칩(버튼) 선택 — 그룹 내 하나만 선택
     const chipVal = (g) => { const el = main.querySelector(`.chips[data-g="${g}"] .dp-chip.on`); return el ? el.dataset.v : ""; };
     $$(".dp-chip", main).forEach((b) => b.addEventListener("click", () => {
@@ -398,9 +401,10 @@ const App = (function () {
     $("#dp-add", main).addEventListener("click", () => {
       const vendor = ($("#dp-vendor", main).value.trim()) || chipVal("vendor");
       const amount = S.num($("#dp-amount", main).value);
-      const store = chipVal("store"), kind = chipVal("kind") || "충전";
+      const store = chipVal("store"), kind = chipVal("kind") || "사용";
       if (!vendor || !amount) { alert("거래처(칩 선택 또는 직접 입력)와 금액을 입력하세요."); return; }
       S.data.deposits.push({ id: S.uid(), store, vendor, date: $("#dp-date", main).value, kind, amount, memo: $("#dp-memo", main).value.trim() });
+      depLastInput = { store, vendor, kind }; // 방금 고른 값 유지
       S.save(); renderDeposits(main);
     });
     $$("[data-editdep]", main).forEach((b) => b.addEventListener("click", () => Modals.editRow("deposits", b.dataset.editdep)));
