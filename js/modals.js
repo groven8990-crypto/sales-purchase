@@ -774,6 +774,7 @@ const Modals = (function () {
       recipient: pickCol(H, [/받는분성명|수령자명|수취인명|수령인명/, /받는분|수령자|수령인|수취인|받는사람|수하인/], /보내|발송|판매자|판매처/),
       addr: pickCol(H, [/받는분주소|수령.*주소|수취.*주소|수하인주소/, /배송지주소|배송주소|배송지/, /^주소|주소$/], /보내|발송|판매자|우편/),
       addr2: pickCol(H, [/상세주소|배송상세|나머지주소/], /보내|우편|선택입력.*$/),
+      phone: pickCol(H, [/받는분전화|수령.*전화|수취.*전화|받는분연락처/, /휴대전화|핸드폰|휴대폰|연락처|전화번호|^전화$/], /보내|발송|판매자|기타연락처|추가연락처|회사/),
       // 품목: 이름 컬럼만. '번호·코드·송장·주문·금액·가격' 들어간 건 제외 (상품번호 → 품목으로 잘못 잡던 버그)
       item: pickCol(H, [/품목명|상품명|품명|주문상품명|제품명/, /옵션명|옵션정보/, /품목|상품내용|상품정보|주문상품/, /^내역$|^내용$/], /번호|코드|운송장|송장|주문|우편|구분|금액|가격|단가|수량/),
       qty: pickCol(H, [/박스수량|주문수량|^수량$|수량/, /개수/], /번호|코드/),
@@ -806,7 +807,7 @@ const Modals = (function () {
       const addr = (g(r, C.addr) + (C.addr2 >= 0 ? " " + g(r, C.addr2) : "")).trim();
       out.push({ store, year: fYr || d.y || yr, month: fMo || d.m || mo, day: fDy || d.d || "", // 발주일은 파일명 우선
         vendor, desc, qty: C.qty >= 0 ? Parsers.num(r[C.qty]) : 0,
-        recipient, addr, no: g(r, C.no), note: "발주서" });
+        recipient, addr, phone: g(r, C.phone), no: g(r, C.no), note: "발주서" });
     });
     return out;
   }
@@ -847,7 +848,7 @@ const Modals = (function () {
       const d = Parsers.parseDate(dRaw);
       const addr = (g(r, C.addr) + (C.addr2 >= 0 ? " " + g(r, C.addr2) : "")).trim();
       out.push({ store, vendor, year: d.y || fYr || yr, month: d.m || fMo || mo, day: d.d || fDy || "", date: dRaw,
-        recipient, addr, item, no: g(r, C.no), note: "",
+        recipient, addr, phone: g(r, C.phone), item, no: g(r, C.no), note: "",
         qty: review ? 0 : Parsers.num(qRaw), review,
         supply: C.supply >= 0 ? Parsers.num(r[C.supply]) : 0, ship: C.ship >= 0 ? Parsers.num(r[C.ship]) : 0, total: C.total >= 0 ? Parsers.num(r[C.total]) : 0 });
     });
