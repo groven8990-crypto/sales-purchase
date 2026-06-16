@@ -57,6 +57,7 @@ const App = (function () {
     else if (scope.view === "transactions") renderTable(main, "transactions");
     else if (scope.view === "orders") renderOrders(main);
     else if (scope.view === "settlements") renderSettlements(main);
+    else if (scope.view === "reconcile") renderReconcile(main);
     else if (scope.view === "deposits") renderDeposits(main);
     else if (scope.view === "adspend") renderAdSpend(main);
     else if (scope.view === "cs") renderCS(main);
@@ -298,6 +299,60 @@ const App = (function () {
     $$("[data-delse]", main).forEach((b) => b.addEventListener("click", () => {
       if (confirm("이 정산 건을 삭제할까요?")) { S.remove("settlements", b.dataset.delse); renderSettlements(main); }
     }));
+  }
+
+  /* ===================== 발주 ↔ 정산 대조 ===================== */
+  let recFilter = ""; // "" | 완료 | 건수차이 | 미정산 | 발주없음
+  function renderReconcile(main) {
+    const stNm = (s) => s === "yb" ? "YB" : (s === "groven" ? "그로븐" : "");
+    const norm = (s) => String(s || "").trim().replace(/\s/g, "");
+    const orders = S.filterBy(S.data.orders || [], { store: scope.store, year: scope.year, month: scope.month });
+    const setts = S.filterBy(S.data.settlements || [], { store: scope.store, year: scope.year, month: scope.month });
+    const map = {};
+    orders.forEach((o) => { const k = norm(o.recipient); if (!k) return; (map[k] = map[k] || { name: o.recipient || "", store: o.store, ord: [], set: [] }).ord.push(o); });
+    setts.forEach((s) => { const k = norm(s.recipient); if (!k) return; (map[k] = map[k] || { name: s.recipient || "", store: s.store, ord: [], set: [] }).set.push(s); });
+    const noRecip = orders.filter((o) => !norm(o.recipient)).length + setts.filter((s) => !norm(s.recipient)).length;
+    const rows = Object.values(map).map((g) => {
+      const ordCnt = g.ord.length, setCnt = g.set.length;
+      const status = ordCnt && setCnt ? (ordCnt === setCnt ? "완료" : "건수차이") : (ordCnt ? "미정산" : "발주없음");
+      const items = [...new Set(g.ord.map((o) => o.desc).concat(g.set.map((s) => s.item)).filter(Boolean))].join(", ");
+      return { name: g.name, store: g.store, ordCnt, setCnt, items,
+        setSup: g.set.reduce((a, s) => a + S.num(s.supply), 0), setTot: g.set.reduce((a, s) => a + S.num(s.total), 0), status };
+    }).sort((a, b) => {
+      const rank = { 미정산: 0, 건수차이: 1, 발주없음: 2, 완료: 3 };
+      return (rank[a.status] - rank[b.status]) || a.name.localeCompare(b.name);
+    });
+    const cnt = (st) => rows.filter((r) => r.status === st).length;
+    const view = recFilter ? rows.filter((r) => r.status === recFilter) : rows;
+    const badge = (st) => st === "완료" ? "in" : (st === "미정산" ? "out" : "");
+    const stStyle = (st) => st === "건수차이" ? "background:#fef3c7;color:#92400e" : (st === "발주없음" ? "background:#ede9fe;color:#6d28d9" : "");
+
+    main.innerHTML = `
+      <div class="page-head"><div><h2>🔁 발주 ↔ 정산 대조 <span class="muted">${esc(scopeLabel())}</span></h2>
+        <div class="muted">받는분(수령인) 기준 · 발주내역 ↔ 정산서 비교</div></div></div>
+      <div class="kpibar">
+        ${[["", "전체", rows.length], ["완료", "✅ 정산완료", cnt("완료")], ["건수차이", "⚠️ 건수차이", cnt("건수차이")], ["미정산", "🔴 미정산", cnt("미정산")], ["발주없음", "🟡 발주없음", cnt("발주없음")]].map(([v, l, n]) =>
+          `<div class="kb rc-fl" data-fl="${v}" style="cursor:pointer;${recFilter === v ? "outline:2px solid var(--navy)" : ""}"><div class="l">${l}</div><div class="v">${n}</div></div>`).join("")}
+      </div>
+      ${(!orders.length && !setts.length) ? `<div class="card"><p class="empty">이 달의 발주내역·정산서가 없어요. 먼저 발주서/정산서를 올려주세요.</p></div>` : ""}
+      ${noRecip ? `<div class="hint" style="margin-bottom:10px">⚠️ 받는분(수령인) 정보가 없는 행 ${noRecip}건은 대조에서 빠졌어요. (예전에 올린 발주는 받는분이 없을 수 있어요 → 다시 올리면 포함돼요)</div>` : ""}
+      <div class="card" style="padding:10px 14px"><input id="rc-search" placeholder="🔍 검색 (받는분·품목)" style="width:100%;border:1px solid var(--line);border-radius:9px;padding:9px 12px;font-size:13.5px"></div>
+      <div class="table-wrap"><table class="grid">
+        <thead><tr><th>받는분</th><th>사업장</th><th>품목</th><th class="num">발주</th><th class="num">정산</th><th class="num">정산공급가</th><th class="num">정산합계</th><th>상태</th></tr></thead>
+        <tbody>${view.map((r) => `<tr data-s="${esc((r.name + " " + r.items).toLowerCase())}">
+          <td>${esc(r.name)}</td><td>${stNm(r.store)}</td><td>${esc(r.items)}</td>
+          <td class="num">${r.ordCnt}건</td><td class="num">${r.setCnt}건</td>
+          <td class="num">${won(r.setSup)}</td><td class="num">₩${won(r.setTot)}</td>
+          <td><span class="tag ${badge(r.status)}" style="${stStyle(r.status)}">${r.status}</span></td></tr>`).join("") ||
+          `<tr><td colspan="8" class="empty">해당 상태의 건이 없어요.</td></tr>`}
+        </tbody></table></div>`;
+    wire(main);
+    $$(".rc-fl", main).forEach((b) => b.addEventListener("click", () => { recFilter = recFilter === b.dataset.fl ? "" : b.dataset.fl; renderReconcile(main); }));
+    const sIn = $("#rc-search", main);
+    if (sIn) sIn.addEventListener("input", () => {
+      const q = sIn.value.trim().toLowerCase();
+      $$("tbody tr", main).forEach((tr) => { tr.style.display = (!q || (tr.dataset.s || "").includes(q)) ? "" : "none"; });
+    });
   }
 
   /* ===================== 광고비 소진현황 ===================== */
