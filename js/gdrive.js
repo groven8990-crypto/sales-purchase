@@ -121,7 +121,7 @@ const GDrive = (function () {
        <div class="form-row"><label>구글 OAuth 클라이언트 ID <span class="muted" style="font-size:11px">(최초 1회만)</span></label>
          <input id="gd-cid" placeholder="0000....apps.googleusercontent.com" value="${E(c.clientId || DEFAULT_CLIENT_ID)}" style="width:100%"></div>
        ${savedFolder ? `<div class="hint">최근 사용 폴더: <b>${E(savedFolder.name)}</b> <button class="btn" id="gd-usesaved" style="padding:2px 8px;margin-left:6px">이 폴더로 바로 가져오기</button></div>` : ""}
-       <label style="display:block;margin-top:8px;font-size:13px"><input type="checkbox" id="gd-sample"> 🔎 거래처별 <b>1개씩만</b> 가져오기 (점검용 — 매핑 확인할 때)</label>
+       <label style="display:block;margin-top:8px;font-size:13px"><input type="checkbox" id="gd-sample"> 🔎 거래처별 <b>최신 1일치만</b> 가져오기 (점검용 — 원본+회신 같이 와서 송장번호까지 확인)</label>
        <div id="gd-status" class="preview" style="margin-top:8px"></div>
        <div id="gd-folders" style="margin-top:8px"></div>
        <details class="help" style="margin-top:10px"><summary>ℹ️ 클라이언트 ID 설정 방법 (최초 1회)</summary><div class="hb">
@@ -185,13 +185,19 @@ const GDrive = (function () {
     catch (e) { setStatus(`<div class="err">${E(e.message)}</div>`); return; }
     let sheetFiles = files.filter(isSheetFile);
     if (!sheetFiles.length) { setStatus(`<div class="err">폴더에서 ${spec.label} 엑셀을 못 찾았어요.</div>`); return; }
-    // 점검용: 거래처(하위폴더)별 최신 1개씩만 (파일명 YYMMDD라 이름 내림차순=최신)
+    // 점검용: 거래처(하위폴더)별 '최신 1일치' 전부 (원본+회신 같이 와야 송장번호 매칭 확인 가능)
     const sample = qq("#gd-sample") && qq("#gd-sample").checked;
     if (sample) {
-      const pick = {};
-      sheetFiles.forEach((f) => { const k = f.isRoot ? "__root__" + f.name : (f.parentName || "?"); if (!pick[k] || f.name > pick[k].name) pick[k] = f; });
-      sheetFiles = Object.values(pick);
-      setStatus(`<div class="muted">🔎 점검 모드: 거래처별 1개씩 <b>${sheetFiles.length}개</b>만 가져와요…</div>`);
+      const dateOf = (n) => { const m = String(n).match(/(\d{6})/); return m ? m[1] : "000000"; };
+      const groups = {};
+      sheetFiles.forEach((f) => { const k = f.isRoot ? "__root__" : (f.parentName || "?"); (groups[k] = groups[k] || []).push(f); });
+      const picked = [];
+      Object.values(groups).forEach((arr) => {
+        const maxD = arr.reduce((m, f) => { const d = dateOf(f.name); return d > m ? d : m; }, "000000");
+        arr.forEach((f) => { if (dateOf(f.name) === maxD) picked.push(f); });
+      });
+      sheetFiles = picked;
+      setStatus(`<div class="muted">🔎 점검 모드: 거래처별 최신 1일치(원본+회신) <b>${sheetFiles.length}개</b>만 가져와요…</div>`);
     }
 
     const yr = (App.scope && App.scope.year) || new Date().getFullYear();
