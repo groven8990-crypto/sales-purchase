@@ -198,8 +198,8 @@ const Modals = (function () {
     const n = String(name).replace(/\s/g, "");
     const k = {
       date: ["일자", "날짜", "발주일", "주문일", "date"],
-      vendor: ["거래처", "업체", "공급처", "공급업체", "vendor", "상호", "거래선"],
-      desc: ["품목", "상품", "내용", "내역", "품명", "item"],
+      vendor: ["거래처", "업체", "공급처", "공급업체", "vendor", "상호", "거래선", "마켓", "채널", "쇼핑몰"],
+      desc: ["품목", "상품", "내용", "내역", "품명", "옵션명", "옵션", "상품명", "item"],
       qty: ["수량", "qty", "개수"],
       supply: ["공급가", "단가", "공급"],
       vat: ["세액", "부가", "vat", "세금"],
@@ -263,6 +263,16 @@ const Modals = (function () {
       { k: "amount", l: "소진액", t: "num" },
       { k: "memo", l: "메모", t: "text", wide: true },
     ],
+    settlements: [
+      { k: "store", l: "사업장", t: "sel", opts: () => [["groven", "그로븐"], ["yb", "YB"]] },
+      { k: "date", l: "발주일", t: "text" },
+      { k: "recipient", l: "받는분", t: "text" },
+      { k: "item", l: "품목", t: "text", wide: true },
+      { k: "qty", l: "수량", t: "num" },
+      { k: "supply", l: "공급가", t: "num" },
+      { k: "ship", l: "배송비", t: "num" },
+      { k: "total", l: "합계", t: "num" },
+    ],
     cs: [
       { k: "date", l: "일자", t: "date" },
       { k: "store", l: "사업장", t: "sel", opts: () => [["groven", "그로븐"], ["yb", "YB"]] },
@@ -274,7 +284,7 @@ const Modals = (function () {
       { k: "note", l: "처리내용", t: "text", wide: true },
     ],
   };
-  const KIND_LABEL = { purchases: "매입", sales: "매출", transactions: "입출금", deposits: "예치금", fixedCosts: "고정비", cs: "C/S", adspend: "광고비" };
+  const KIND_LABEL = { purchases: "매입", sales: "매출", transactions: "입출금", deposits: "예치금", fixedCosts: "고정비", cs: "C/S", adspend: "광고비", settlements: "정산서" };
 
   function editRow(kind, id) {
     const row = (S.data[kind] || []).find((r) => r.id === id);
@@ -486,7 +496,7 @@ const Modals = (function () {
       table.headers.map((h) => `<option value="${h.index}" ${guess(sel, h.name) ? "selected" : ""}>${E(h.name)}</option>`).join("");
     q("#od-map").innerHTML = `<div class="map-grid">${OD_FIELDS.map(([f, l]) =>
       `<span><label>${l}</label><select id="od-f-${f}">${opts(f)}</select></span>`).join("")}</div>`;
-    q("#od-prev").innerHTML = `<div class="ok">✅ ${table.body.length}행 인식</div>`;
+    q("#od-prev").innerHTML = `<div class="ok">✅ ${table.body.length}행 인식 — 열을 <b>자동으로 맞췄어요</b>. 그대로 <b>'발주내역에 추가'</b> 누르면 돼요. (이상하면 위 칸에서 바꾸세요)</div>`;
     q("#od-apply").disabled = false;
   }
 
@@ -648,5 +658,63 @@ const Modals = (function () {
     };
   }
 
-  return { importExisting, importBank, importPO, importPaste, importEvidence, importOrders, importDeposits, importDepositPaste, editRow, close };
+  /* ===== 10) 정산서(발주정산내역서) 올리기 — 자동 인식 ===== */
+  function importSettlement() {
+    open("🧾 정산서(발주정산내역서) 올리기",
+      `<p>발주정산내역서 엑셀을 올리면 <b>정산서</b>로 등록돼요. 여러 개 <b>한꺼번에</b> 선택 가능.<br>
+        <span class="muted" style="font-size:12px">컬럼(번호·발주일자·받는분·품목·수량·공급가·배송비·합계)은 <b>자동 인식</b>, 스토어는 <b>파일명</b>으로 자동 구분돼요.</span></p>
+       <div class="form-row"><label>기본 연/월 (발주일자에 연도 없을 때)</label><input id="se-ym" placeholder="예: 2026-6"></div>
+       <div class="form-row"><label>정산서 파일 (여러 개 가능)</label><input type="file" id="se-file" accept=".xlsx,.xls,.csv" multiple></div>
+       <div id="se-prev" class="preview"></div>`,
+      `<button class="btn" id="se-cancel">취소</button><button class="btn primary" id="se-apply" disabled>정산서에 추가</button>`);
+    let files = [];
+    const stLbl = (s) => s === "yb" ? "옐로우브릿지" : s === "groven" ? "그로븐" : "미지정";
+    const nm = (h) => String(h.name).replace(/\s/g, "");
+    q("#se-file").onchange = async (e) => {
+      files = [];
+      const fl = [...e.target.files]; if (!fl.length) return;
+      q("#se-prev").innerHTML = `<div class="muted">읽는 중…</div>`;
+      for (const f of fl) {
+        const detected = /옐로우|옐브|yb|과세/i.test(f.name) ? "yb" : (/그로븐|grov|면세/i.test(f.name) ? "groven" : "");
+        try { const t = await Parsers.readGenericTable(f); files.push({ table: t, store: detected, name: f.name }); } catch (err) { /* skip */ }
+      }
+      if (!files.length) { q("#se-prev").innerHTML = `<div class="err">읽을 수 있는 파일이 없어요.</div>`; return; }
+      const rows = files.reduce((a, x) => a + x.table.body.length, 0);
+      q("#se-prev").innerHTML = `<div class="ok">✅ ${files.length}개 파일 (약 ${rows}행)<br>${files.map((x) => `· ${E(x.name)} → <b>${stLbl(x.store)}</b>`).join("<br>")}</div>`;
+      q("#se-apply").disabled = false;
+    };
+    q("#se-cancel").onclick = close;
+    q("#se-apply").onclick = () => {
+      if (!files.length) return;
+      const ymM = (q("#se-ym").value || "").match(/(\d{4})\D+(\d{1,2})/);
+      const yr = ymM ? +ymM[1] : new Date().getFullYear(), mo = ymM ? +ymM[2] : "";
+      const out = [];
+      files.forEach(({ table, store }) => {
+        const H = table.headers;
+        const idx = (re) => { const h = H.find((x) => re.test(nm(x))); return h ? h.index : -1; };
+        const iDate = idx(/발주일|일자|날짜/), iName = idx(/받는분성|수령|성명|이름|받는분(?!주소)/),
+          iAddr = idx(/주소/), iItem = idx(/품목|상품명|품명/), iQty = idx(/수량/),
+          iSup = idx(/공급가/), iShip = idx(/배송비/), iTot = idx(/합계|총액/);
+        table.body.forEach((r) => {
+          const name = iName >= 0 ? Parsers.str(r[iName]) : "";
+          const item = iItem >= 0 ? Parsers.str(r[iItem]) : "";
+          if (!name && !item) return;
+          if (/^합계|총\s*합계/.test(name) || /^합계/.test(Parsers.str(r[0]))) return;
+          const qRaw = iQty >= 0 ? Parsers.str(r[iQty]) : "";
+          const review = /리뷰/.test(qRaw);
+          const dRaw = iDate >= 0 ? Parsers.str(r[iDate]) : "";
+          const dm = dRaw.match(/(\d{1,2})[./\-](\d{1,2})/);
+          out.push({ store, year: yr, month: dm ? +dm[1] : mo, day: dm ? +dm[2] : "", date: dRaw,
+            recipient: name, addr: iAddr >= 0 ? Parsers.str(r[iAddr]) : "", item,
+            qty: review ? 0 : Parsers.num(qRaw), review,
+            supply: iSup >= 0 ? Parsers.num(r[iSup]) : 0, ship: iShip >= 0 ? Parsers.num(r[iShip]) : 0, total: iTot >= 0 ? Parsers.num(r[iTot]) : 0 });
+        });
+      });
+      if (!out.length) { q("#se-prev").innerHTML = `<div class="err">읽을 행이 없어요.</div>`; return; }
+      out.forEach((s) => S.data.settlements.push(Object.assign({ id: S.uid() }, s)));
+      S.save(); close(); App.go("settlements");
+    };
+  }
+
+  return { importExisting, importBank, importPO, importPaste, importEvidence, importOrders, importDeposits, importDepositPaste, importSettlement, editRow, close };
 })();

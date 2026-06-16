@@ -56,6 +56,7 @@ const App = (function () {
     else if (scope.view === "purchases") renderTable(main, "purchases");
     else if (scope.view === "transactions") renderTable(main, "transactions");
     else if (scope.view === "orders") renderOrders(main);
+    else if (scope.view === "settlements") renderSettlements(main);
     else if (scope.view === "deposits") renderDeposits(main);
     else if (scope.view === "adspend") renderAdSpend(main);
     else if (scope.view === "cs") renderCS(main);
@@ -234,6 +235,50 @@ const App = (function () {
     });
     $$("[data-delod]", main).forEach((b) => b.addEventListener("click", () => {
       if (confirm("이 발주 건을 삭제할까요?")) { S.remove("orders", b.dataset.delod); renderOrders(main); }
+    }));
+  }
+
+  /* ===================== 정산서 ===================== */
+  function renderSettlements(main) {
+    const stNm = (s) => s === "yb" ? "YB" : (s === "groven" ? "그로븐" : "");
+    const all = S.data.settlements || [];
+    const rows = S.filterBy(all, { store: scope.store, year: scope.year, month: scope.month });
+    const sorted = [...rows].sort((a, b) => String(a.date).localeCompare(String(b.date)) || S.num(a.qty) - S.num(b.qty));
+    const real = rows.filter((r) => !r.review), rev = rows.filter((r) => r.review);
+    const supT = rows.reduce((a, r) => a + S.num(r.supply), 0);
+    const shipT = rows.reduce((a, r) => a + S.num(r.ship), 0);
+    const totT = rows.reduce((a, r) => a + S.num(r.total), 0);
+    const sText = (r) => [r.recipient, r.item, r.addr].join(" ").toLowerCase();
+    main.innerHTML = `
+      <div class="page-head"><div><h2>🧾 정산서 <span class="muted" id="se-cnt">(${rows.length}건)</span></h2>
+        <div class="muted">${esc(scopeLabel())} · 발주정산내역서 (받는분·품목·공급가)</div></div>
+        <div class="row-actions"><button class="btn primary" data-act="import-settlement">🧾 정산서 올리기</button></div></div>
+      <div class="kpibar">
+        <div class="kb"><div class="l">실주문 / 리뷰</div><div class="v">${real.length} / ${rev.length}건</div></div>
+        <div class="kb p"><div class="l">공급가 합계</div><div class="v">₩${won(supT)}</div></div>
+        <div class="kb"><div class="l">배송비 합계</div><div class="v">₩${won(shipT)}</div></div>
+        <div class="kb g"><div class="l">합계</div><div class="v">₩${won(totT)}</div></div>
+      </div>
+      <div class="card" style="padding:10px 14px"><input id="se-search" placeholder="🔍 검색 (받는분·품목·주소)" style="width:100%;border:1px solid var(--line);border-radius:9px;padding:9px 12px;font-size:13.5px"></div>
+      <div class="table-wrap"><table class="grid">
+        <thead><tr><th>발주일</th><th>사업장</th><th>받는분</th><th>품목</th><th class="num">수량</th><th class="num">공급가</th><th class="num">배송비</th><th class="num">합계</th><th></th></tr></thead>
+        <tbody>${sorted.map((r) => `<tr data-s="${esc(sText(r))}"><td>${esc(r.date || (r.month ? r.month + "/" + r.day : ""))}</td><td>${stNm(r.store)}</td>
+          <td>${esc(r.recipient || "")}</td><td>${esc(r.item || "")}</td>
+          <td class="num">${r.review ? `<span class="tag out">리뷰</span>` : won(r.qty)}</td>
+          <td class="num">${won(r.supply)}</td><td class="num">${won(r.ship)}</td><td class="num">₩${won(r.total)}</td>
+          <td class="row-actions"><button class="icon-btn edit" data-editse="${r.id}" title="수정">✎</button><button class="icon-btn" data-delse="${r.id}" title="삭제">✕</button></td></tr>`).join("") ||
+          `<tr><td colspan="9" class="empty">정산서가 없어요. 위 버튼으로 발주정산내역서를 올려보세요.</td></tr>`}
+        </tbody></table></div>`;
+    wire(main);
+    const sIn = $("#se-search", main);
+    if (sIn) sIn.addEventListener("input", () => {
+      const q = sIn.value.trim().toLowerCase(); let n = 0;
+      $$("tbody tr", main).forEach((tr) => { const ok = !q || (tr.dataset.s || "").includes(q); tr.style.display = ok ? "" : "none"; if (ok) n++; });
+      const c = $("#se-cnt", main); if (c) c.textContent = `(${n}건)`;
+    });
+    $$("[data-editse]", main).forEach((b) => b.addEventListener("click", () => Modals.editRow("settlements", b.dataset.editse)));
+    $$("[data-delse]", main).forEach((b) => b.addEventListener("click", () => {
+      if (confirm("이 정산 건을 삭제할까요?")) { S.remove("settlements", b.dataset.delse); renderSettlements(main); }
     }));
   }
 
@@ -1449,6 +1494,7 @@ const App = (function () {
       else if (b.dataset.act === "import-orders") Modals.importOrders();
       else if (b.dataset.act === "import-deposit-file") Modals.importDeposits();
       else if (b.dataset.act === "import-deposit-paste") Modals.importDepositPaste();
+      else if (b.dataset.act === "import-settlement") Modals.importSettlement();
     }));
     $$("[data-go]", main).forEach((b) => b.addEventListener("click", () => go(b.dataset.go)));
   }
