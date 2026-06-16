@@ -272,13 +272,13 @@ const App = (function () {
       </div>
       <div class="card" style="padding:10px 14px"><input id="se-search" placeholder="🔍 검색 (받는분·품목·주소)" style="width:100%;border:1px solid var(--line);border-radius:9px;padding:9px 12px;font-size:13.5px"></div>
       <div class="table-wrap"><table class="grid">
-        <thead><tr><th>발주일</th><th>사업장</th><th>받는분</th><th>품목</th><th class="num">수량</th><th class="num">공급가</th><th class="num">배송비</th><th class="num">합계</th><th></th></tr></thead>
+        <thead><tr><th>발주일</th><th>사업장</th><th>받는분</th><th>주소</th><th>품목</th><th class="num">수량</th><th class="num">공급가</th><th class="num">배송비</th><th class="num">합계</th><th></th></tr></thead>
         <tbody>${sorted.map((r) => `<tr data-s="${esc(sText(r))}"><td>${esc(r.date || (r.month ? r.month + "/" + r.day : ""))}</td><td>${stNm(r.store)}</td>
-          <td>${esc(r.recipient || "")}</td><td>${esc(r.item || "")}</td>
+          <td>${esc(r.recipient || "")}</td><td style="max-width:280px;white-space:normal;font-size:12px;color:var(--muted)">${esc(r.addr || "")}</td><td>${esc(r.item || "")}</td>
           <td class="num">${r.review ? `<span class="tag out">리뷰</span>` : won(r.qty)}</td>
           <td class="num">${won(r.supply)}</td><td class="num">${won(r.ship)}</td><td class="num">₩${won(r.total)}</td>
           <td class="row-actions"><button class="icon-btn edit" data-editse="${r.id}" title="수정">✎</button><button class="icon-btn" data-delse="${r.id}" title="삭제">✕</button></td></tr>`).join("") ||
-          `<tr><td colspan="9" class="empty">정산서가 없어요. 위 버튼으로 발주정산내역서를 올려보세요.</td></tr>`}
+          `<tr><td colspan="10" class="empty">정산서가 없어요. 위 버튼으로 발주정산내역서를 올려보세요.</td></tr>`}
         </tbody></table></div>`;
     wire(main);
     $("#se-clear", main).addEventListener("click", () => {

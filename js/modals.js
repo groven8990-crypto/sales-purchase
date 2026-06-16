@@ -278,6 +278,7 @@ const Modals = (function () {
       { k: "store", l: "사업장", t: "sel", opts: () => [["groven", "그로븐"], ["yb", "YB"]] },
       { k: "date", l: "발주일", t: "text" },
       { k: "recipient", l: "받는분", t: "text" },
+      { k: "addr", l: "주소", t: "text", wide: true },
       { k: "item", l: "품목", t: "text", wide: true },
       { k: "qty", l: "수량", t: "num" },
       { k: "supply", l: "공급가", t: "num" },
@@ -739,6 +740,7 @@ const Modals = (function () {
           iAddr = idx(/주소/), iItem = idx(/상품명|품목명|품명/), iQty = idx(/수량/),
           iSup = idx(/공급가|상품가격|상품금액/), iShip = idx(/^배송비$|배송비\(/), iTot = idx(/^합계$|합계\(|총합계|총액/);
         const iGu = idx(/발생구분|구분/); // 매출/리뷰/CS 등
+        const iNo = idx(/주문번호|고유번호|^번호$|^no$/i); // 동명이인·합배송 구분용 고유번호
         table.body.forEach((r) => {
           const name = iName >= 0 ? Parsers.str(r[iName]) : "";
           const item = iItem >= 0 ? Parsers.str(r[iItem]) : "";
@@ -750,16 +752,17 @@ const Modals = (function () {
           const dRaw = iDate >= 0 ? Parsers.str(r[iDate]) : "";
           const d = Parsers.parseDate(dRaw);
           out.push({ store, year: d.y || yr, month: d.m || mo, day: d.d || "", date: dRaw,
-            recipient: name, addr: iAddr >= 0 ? Parsers.str(r[iAddr]) : "", item,
+            recipient: name, addr: iAddr >= 0 ? Parsers.str(r[iAddr]) : "", item, no: iNo >= 0 ? Parsers.str(r[iNo]) : "",
             qty: review ? 0 : Parsers.num(qRaw), review,
             supply: iSup >= 0 ? Parsers.num(r[iSup]) : 0, ship: iShip >= 0 ? Parsers.num(r[iShip]) : 0, total: iTot >= 0 ? Parsers.num(r[iTot]) : 0 });
         });
       });
       if (!out.length) { q("#se-prev").innerHTML = `<div class="err">읽을 행이 없어요. (정산상세 시트를 못 찾았을 수 있어요)</div>`; return; }
-      const sig = (o) => `${o.store || ""}|${o.year}|${o.month}|${o.day}|${o.recipient}|${o.item}|${o.total}`;
-      const seen = new Set((S.data.settlements || []).map(sig));
-      const fresh = []; let skipped = 0;
-      out.forEach((o) => { const k = sig(o); if (seen.has(k)) { skipped++; } else { seen.add(k); fresh.push(o); } });
+      // 중복 = 같은 파일 재업로드만 거름. 같은 이름이어도 합배송·동명이인은 살림(주소·주문번호·건수 기준)
+      const sig = (o) => `${o.store || ""}|${o.year}|${o.month}|${o.day}|${o.recipient}|${o.addr}|${o.item}|${o.total}|${o.no}`;
+      const existing = {}; (S.data.settlements || []).forEach((o) => { const k = sig(o); existing[k] = (existing[k] || 0) + 1; });
+      const batch = {}; const fresh = []; let skipped = 0;
+      out.forEach((o) => { const k = sig(o); const i = (batch[k] = (batch[k] || 0) + 1); if ((existing[k] || 0) >= i) { skipped++; } else { fresh.push(o); } });
       if (!fresh.length) { q("#se-prev").innerHTML = `<div class="err">모두 이미 등록된 정산이에요 (중복 ${skipped}건).</div>`; return; }
       fresh.forEach((s) => S.data.settlements.push(Object.assign({ id: S.uid() }, s)));
       if (App.scope) { App.scope.year = fresh[0].year; App.scope.month = fresh[0].month; }
