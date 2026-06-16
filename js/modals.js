@@ -475,16 +475,29 @@ const Modals = (function () {
       const ymM = (q("#od-ym").value || "").match(/(\d{4})\D+(\d{1,2})/);
       const fallbackStore = q("#od-store").value, baseV = q("#od-vendor").value.trim();
       const yr = ymM ? +ymM[1] : new Date().getFullYear(), mo = ymM ? +ymM[2] : "";
+      // 파일명에서 거래처 추출 (날짜·스토어·발주서 등 제외하고 첫 의미있는 토큰)
+      const fileVendor = (name) => {
+        const base = String(name).replace(/\.[^.]+$/, "");
+        const toks = base.split(/[-_\s]+/).filter(Boolean);
+        const skip = /^\d+$|발주서|회신|주문|그로븐|옐로우브릿지|옐브|면세|과세|grov|^yb$/i;
+        return (toks.find((x) => !skip.test(x) && /[가-힣A-Za-z]/.test(x)) || "");
+      };
       const out = [];
-      files.forEach(({ table, store }) => {
+      files.forEach(({ table, store, name }) => {
         const st = store || fallbackStore;
+        const fd = String(name).match(/(\d{2})(\d{2})(\d{2})/); // 파일명 YYMMDD
+        const fYr = fd ? 2000 + +fd[1] : null, fMo = fd ? +fd[2] : null, fDy = fd ? +fd[3] : null;
+        const fVen = fileVendor(name);
+        const hRcv = table.headers.find((h) => /수령인|받는분|수령자|수취인/.test(String(h.name).replace(/\s/g, "")));
         table.body.forEach((r) => {
           const get = (f) => map[f] != null ? r[map[f]] : null;
-          const desc = Parsers.str(get("desc")), vendor = Parsers.str(get("vendor")) || baseV;
+          const desc = Parsers.str(get("desc"));
+          const vendor = Parsers.str(get("vendor")) || baseV || fVen;
           const qty = Parsers.num(get("qty"));
           if (!desc && !vendor) return;
           const d = Parsers.parseDate(get("date"));
-          out.push({ store: st, year: d.y || yr, month: d.m || mo, day: d.d || "", vendor, desc, qty, note: "발주서" });
+          out.push({ store: st, year: d.y || fYr || yr, month: d.m || fMo || mo, day: d.d || fDy || "",
+            vendor, desc, qty, recipient: hRcv ? Parsers.str(r[hRcv.index]) : "", note: "발주서" });
         });
       });
       if (!out.length) { q("#od-prev").innerHTML = `<div class="err">읽을 행이 없어요.</div>`; return; }
