@@ -743,41 +743,14 @@ const Modals = (function () {
       lastYM = { y: yr, m: mo };
       const out = [];
       files.forEach(({ table, store, name }) => {
-        const vendor = baseVendor || fileVendor(name);
-        const H = table.headers;
-        const idx = (re) => { const h = H.find((x) => re.test(nm(x))); return h ? h.index : -1; };
-        const iDate = idx(/발주일|주문일|일자|날짜/), iName = idx(/수취인|받는분성|수령인/),
-          iAddr = idx(/주소/), iItem = idx(/상품명|품목명|품명/), iQty = idx(/수량/),
-          iSup = idx(/공급가|상품가격|상품금액/), iShip = idx(/^배송비$|배송비\(/), iTot = idx(/^합계$|합계\(|총합계|총액/);
-        const iGu = idx(/발생구분|구분/); // 매출/리뷰/CS 등
-        const iNo = idx(/주문번호|고유번호|^번호$|^no$/i); // 동명이인·합배송 구분용 고유번호
-        table.body.forEach((r) => {
-          const name = iName >= 0 ? Parsers.str(r[iName]) : "";
-          const item = iItem >= 0 ? Parsers.str(r[iItem]) : "";
-          if (!name && !item) return;
-          if (/^합계|총\s*합계/.test(name) || /^합계/.test(Parsers.str(r[0]))) return;
-          const qRaw = iQty >= 0 ? Parsers.str(r[iQty]) : "";
-          const gu = iGu >= 0 ? Parsers.str(r[iGu]) : "";
-          const review = /리뷰/.test(qRaw) || /리뷰/.test(gu);
-          const dRaw = iDate >= 0 ? Parsers.str(r[iDate]) : "";
-          const d = Parsers.parseDate(dRaw);
-          out.push({ store, vendor, year: d.y || yr, month: d.m || mo, day: d.d || "", date: dRaw,
-            recipient: name, addr: iAddr >= 0 ? Parsers.str(r[iAddr]) : "", item, no: iNo >= 0 ? Parsers.str(r[iNo]) : "", note: "",
-            qty: review ? 0 : Parsers.num(qRaw), review,
-            supply: iSup >= 0 ? Parsers.num(r[iSup]) : 0, ship: iShip >= 0 ? Parsers.num(r[iShip]) : 0, total: iTot >= 0 ? Parsers.num(r[iTot]) : 0 });
-        });
+        buildSettlements(table, { name, baseVendor, yr, mo, store }).forEach((o) => out.push(o));
       });
       if (!out.length) { q("#se-prev").innerHTML = `<div class="err">읽을 행이 없어요. (정산상세 시트를 못 찾았을 수 있어요)</div>`; return; }
-      // 중복 = 같은 파일 재업로드만 거름. 같은 이름이어도 합배송·동명이인은 살림(주소·주문번호·건수 기준)
-      const sig = (o) => `${o.store || ""}|${o.vendor || ""}|${o.year}|${o.month}|${o.day}|${o.recipient}|${o.addr}|${o.item}|${o.total}|${o.no}`;
-      const existing = {}; (S.data.settlements || []).forEach((o) => { const k = sig(o); existing[k] = (existing[k] || 0) + 1; });
-      const batch = {}; const fresh = []; let skipped = 0;
-      out.forEach((o) => { const k = sig(o); const i = (batch[k] = (batch[k] || 0) + 1); if ((existing[k] || 0) >= i) { skipped++; } else { fresh.push(o); } });
-      if (!fresh.length) { q("#se-prev").innerHTML = `<div class="err">모두 이미 등록된 정산이에요 (중복 ${skipped}건).</div>`; return; }
-      fresh.forEach((s) => S.data.settlements.push(Object.assign({ id: S.uid() }, s)));
-      if (App.scope) { App.scope.year = fresh[0].year; App.scope.month = fresh[0].month; }
-      S.save(); close(); App.go("settlements");
-      if (skipped) alert(`${fresh.length}건 추가, 중복 ${skipped}건은 건너뛰었어요.`);
+      const { added, skipped, first } = addSettlementsDedup(out);
+      if (!added) { q("#se-prev").innerHTML = `<div class="err">모두 이미 등록된 정산이에요 (중복 ${skipped}건).</div>`; return; }
+      if (first && App.scope) { App.scope.year = first.year; App.scope.month = first.month; }
+      close(); App.go("settlements");
+      if (skipped) alert(`${added}건 추가, 중복 ${skipped}건은 건너뛰었어요.`);
     };
   }
 
@@ -785,25 +758,55 @@ const Modals = (function () {
   function storeFromName(name) {
     return /옐로우|옐브|yellow|yb|과세/i.test(name) ? "yb" : (/그로븐|groven|grov|면세/i.test(name) ? "groven" : "");
   }
+  // 헤더 후보 정규식을 우선순위대로 찾되, 제외패턴(번호·코드·보내는분 등)은 건너뜀. 못 찾으면 -1.
+  function pickCol(H, cands, excl) {
+    for (const re of cands) {
+      const h = H.find((x) => { const n = String(x.name).replace(/\s/g, ""); return re.test(n) && !(excl && excl.test(n)); });
+      if (h) return h.index;
+    }
+    return -1;
+  }
+  // 발주서·정산서(쇼핑몰/택배 송장 양식 등)의 열을 의미별로 추정. 거래처마다 양식이 달라도 최대한 맞춤.
+  function detectCols(H) {
+    return {
+      date: pickCol(H, [/발주일|주문일|결제일/, /집하예정일|출고일|발송일/, /^일자$|^날짜$|일자|날짜/]),
+      // 받는분: '보내는분/발송/판매자'는 제외 (= 받는 사람만)
+      recipient: pickCol(H, [/받는분성명|수령자명|수취인명|수령인명/, /받는분|수령자|수령인|수취인|받는사람|수하인/], /보내|발송|판매자|판매처/),
+      addr: pickCol(H, [/받는분주소|수령.*주소|수취.*주소|수하인주소/, /배송지주소|배송주소|배송지/, /^주소|주소$/], /보내|발송|판매자|우편/),
+      addr2: pickCol(H, [/상세주소|배송상세|나머지주소/], /보내|우편|선택입력.*$/),
+      // 품목: 이름 컬럼만. '번호·코드·송장·주문·금액·가격' 들어간 건 제외 (상품번호 → 품목으로 잘못 잡던 버그)
+      item: pickCol(H, [/품목명|상품명|품명|주문상품명|제품명/, /옵션명|옵션정보/, /품목|상품내용|상품정보|주문상품/, /^내역$|^내용$/], /번호|코드|운송장|송장|주문|우편|구분|금액|가격|단가|수량/),
+      qty: pickCol(H, [/박스수량|주문수량|^수량$|수량/, /개수/], /번호|코드/),
+      supply: pickCol(H, [/공급가|상품가격|상품금액|판매가|판매금액/, /단가/]),
+      ship: pickCol(H, [/^배송비$|배송비\(|배송비$|택배비/]),
+      total: pickCol(H, [/^합계$|총합계|총액|정산금액|정산액|합계금액/, /합계\(/, /합계/]),
+      no: pickCol(H, [/고객주문번호|주문번호|고유번호/, /운송장번호|송장번호/, /^번호$|^no$/i]),
+      gu: pickCol(H, [/발생구분|구분/], /우편|주소|상품/),
+      vendor: pickCol(H, [/거래처|공급처|공급업체|업체명/, /마켓|쇼핑몰|판매처|채널|상호/]),
+    };
+  }
   function buildOrders(table, opt) {
     opt = opt || {};
     const { name = "", baseVendor = "", yr, mo } = opt;
     const store = opt.store || storeFromName(name);
-    const map = {}; ["date", "vendor", "desc", "qty"].forEach((f) => { const h = table.headers.find((x) => guess(f, x.name)); if (h) map[f] = h.index; });
-    const fd = String(name).match(/(\d{2})(\d{2})(\d{2})/);
+    const H = table.headers;
+    const C = detectCols(H);
+    const fd = String(name).match(/(\d{2})(\d{2})(\d{2})/); // 파일명 YYMMDD = 발주일자
     const fYr = fd ? 2000 + +fd[1] : null, fMo = fd ? +fd[2] : null, fDy = fd ? +fd[3] : null;
     const fVen = fileVendor(name);
-    const hRcv = table.headers.find((h) => /수령인|받는분|수령자|수취인/.test(String(h.name).replace(/\s/g, "")));
+    const g = (r, i) => i >= 0 ? Parsers.str(r[i]) : "";
     const out = [];
     table.body.forEach((r) => {
-      const get = (f) => map[f] != null ? r[map[f]] : null;
-      const desc = Parsers.str(get("desc"));
-      const vendor = Parsers.str(get("vendor")) || baseVendor || fVen;
-      const qty = Parsers.num(get("qty"));
-      if (!desc && !vendor) return;
-      const d = Parsers.parseDate(get("date"));
-      out.push({ store, year: d.y || fYr || yr, month: d.m || fMo || mo, day: d.d || fDy || "",
-        vendor, desc, qty, recipient: hRcv ? Parsers.str(r[hRcv.index]) : "", note: "발주서" });
+      const recipient = g(r, C.recipient);
+      const desc = g(r, C.item);
+      const vendor = g(r, C.vendor) || baseVendor || fVen;
+      if (!recipient && !desc) return; // 받는분·품목 둘 다 없으면 빈 줄
+      if (/^합계|총\s*합계/.test(recipient) || /^합계/.test(Parsers.str(r[0]))) return;
+      const d = Parsers.parseDate(C.date >= 0 ? r[C.date] : null);
+      const addr = (g(r, C.addr) + (C.addr2 >= 0 ? " " + g(r, C.addr2) : "")).trim();
+      out.push({ store, year: fYr || d.y || yr, month: fMo || d.m || mo, day: fDy || d.d || "", // 발주일은 파일명 우선
+        vendor, desc, qty: C.qty >= 0 ? Parsers.num(r[C.qty]) : 0,
+        recipient, addr, no: g(r, C.no), note: "발주서" });
     });
     return out;
   }
@@ -817,7 +820,7 @@ const Modals = (function () {
   }
   function settlementSheetPick(sheets) {
     const nm = (h) => String(h.name).replace(/\s/g, "");
-    const score = (sh) => { const has = (re) => sh.headers.some((h) => re.test(nm(h))); return (has(/수량/) ? 1 : 0) + (has(/상품명|품목명|품명/) ? 1 : 0) + (has(/수취인|받는분|수령인/) ? 1 : 0) + (has(/공급가|상품가격|합계/) ? 1 : 0); };
+    const score = (sh) => { const has = (re) => sh.headers.some((h) => re.test(nm(h))); return (has(/수량/) ? 1 : 0) + (has(/상품명|품목명|품명|옵션명/) ? 1 : 0) + (has(/수취인|받는분|수령인|수령자/) ? 1 : 0) + (has(/공급가|상품가격|합계|배송주소/) ? 1 : 0); };
     let best = sheets[0], bs = -1;
     sheets.forEach((sh) => { const s = score(sh); if (s > bs || (s === bs && sh.body.length > best.body.length)) { bs = s; best = sh; } });
     return best;
@@ -827,28 +830,26 @@ const Modals = (function () {
     const { name = "", baseVendor = "", yr, mo } = opt;
     const store = opt.store || storeFromName(name);
     const vendor = baseVendor || fileVendor(name);
-    const nm = (h) => String(h.name).replace(/\s/g, "");
     const H = table.headers;
-    const idx = (re) => { const h = H.find((x) => re.test(nm(x))); return h ? h.index : -1; };
-    const iDate = idx(/발주일|주문일|일자|날짜/), iName = idx(/수취인|받는분성|수령인/),
-      iAddr = idx(/주소/), iItem = idx(/상품명|품목명|품명/), iQty = idx(/수량/),
-      iSup = idx(/공급가|상품가격|상품금액/), iShip = idx(/^배송비$|배송비\(/), iTot = idx(/^합계$|합계\(|총합계|총액/),
-      iGu = idx(/발생구분|구분/), iNo = idx(/주문번호|고유번호|^번호$|^no$/i);
+    const C = detectCols(H);
+    const fd = String(name).match(/(\d{2})(\d{2})(\d{2})/);
+    const fYr = fd ? 2000 + +fd[1] : null, fMo = fd ? +fd[2] : null, fDy = fd ? +fd[3] : null;
+    const g = (r, i) => i >= 0 ? Parsers.str(r[i]) : "";
     const out = [];
     table.body.forEach((r) => {
-      const nme = iName >= 0 ? Parsers.str(r[iName]) : "";
-      const item = iItem >= 0 ? Parsers.str(r[iItem]) : "";
-      if (!nme && !item) return;
-      if (/^합계|총\s*합계/.test(nme) || /^합계/.test(Parsers.str(r[0]))) return;
-      const qRaw = iQty >= 0 ? Parsers.str(r[iQty]) : "";
-      const gu = iGu >= 0 ? Parsers.str(r[iGu]) : "";
-      const review = /리뷰/.test(qRaw) || /리뷰/.test(gu);
-      const dRaw = iDate >= 0 ? Parsers.str(r[iDate]) : "";
+      const recipient = g(r, C.recipient);
+      const item = g(r, C.item);
+      if (!recipient && !item) return;
+      if (/^합계|총\s*합계/.test(recipient) || /^합계/.test(Parsers.str(r[0]))) return;
+      const qRaw = g(r, C.qty);
+      const review = /리뷰/.test(qRaw) || /리뷰/.test(g(r, C.gu));
+      const dRaw = g(r, C.date);
       const d = Parsers.parseDate(dRaw);
-      out.push({ store, vendor, year: d.y || yr, month: d.m || mo, day: d.d || "", date: dRaw,
-        recipient: nme, addr: iAddr >= 0 ? Parsers.str(r[iAddr]) : "", item, no: iNo >= 0 ? Parsers.str(r[iNo]) : "", note: "",
+      const addr = (g(r, C.addr) + (C.addr2 >= 0 ? " " + g(r, C.addr2) : "")).trim();
+      out.push({ store, vendor, year: d.y || fYr || yr, month: d.m || fMo || mo, day: d.d || fDy || "", date: dRaw,
+        recipient, addr, item, no: g(r, C.no), note: "",
         qty: review ? 0 : Parsers.num(qRaw), review,
-        supply: iSup >= 0 ? Parsers.num(r[iSup]) : 0, ship: iShip >= 0 ? Parsers.num(r[iShip]) : 0, total: iTot >= 0 ? Parsers.num(r[iTot]) : 0 });
+        supply: C.supply >= 0 ? Parsers.num(r[C.supply]) : 0, ship: C.ship >= 0 ? Parsers.num(r[C.ship]) : 0, total: C.total >= 0 ? Parsers.num(r[C.total]) : 0 });
     });
     return out;
   }

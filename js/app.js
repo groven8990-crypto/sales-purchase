@@ -403,7 +403,7 @@ const App = (function () {
       const items = [...new Set(g.ord.map((o) => o.desc).concat(g.set.map((s) => s.item)).filter(Boolean))].join(", ");
       const vendor = (g.set[0] && g.set[0].vendor) || (g.ord[0] && g.ord[0].vendor) || "";
       const date = dateOf(g.set[0] || g.ord[0] || {});
-      const addr = (g.set[0] && g.set[0].addr) || "";
+      const addr = (g.set[0] && g.set[0].addr) || (g.ord.find((o) => o.addr) || {}).addr || "";
       return { name: g.name, store: g.store, vendor, date, addr, ordCnt, setCnt, items,
         setSup: g.set.reduce((a, s) => a + S.num(s.supply), 0), setTot: g.set.reduce((a, s) => a + S.num(s.total), 0), status };
     }).sort((a, b) => {
