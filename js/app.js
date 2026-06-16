@@ -237,6 +237,7 @@ const App = (function () {
         <div><h2>📦 발주내역 <span class="muted" id="od-cnt">(${rows.length}건)</span></h2>
           <div class="muted">${esc(scopeLabel())} · 발주서 기준 (매입 증빙과 별개)</div></div>
         <div class="row-actions"><button class="btn primary" data-act="import-orders">📦 발주서 올리기</button>
+          <button class="btn" id="od-gdrive">📁 드라이브에서 가져오기</button>
           <button class="btn danger" id="od-clear">🗑️ 전체삭제</button></div>
       </div>
       ${help("orders")}
@@ -252,6 +253,7 @@ const App = (function () {
           `<tr><td colspan="8" class="empty">발주 내역이 없어요. '발주서 올리기'로 추가하세요.</td></tr>`}
         </tbody></table></div>`;
     wire(main);
+    $("#od-gdrive", main).addEventListener("click", () => GDrive.run("orders"));
     $("#od-clear", main).addEventListener("click", () => {
       if (!rows.length) { alert("삭제할 발주내역이 없어요."); return; }
       const lbl = `${scope.store ? (scope.store === "yb" ? "YB" : "그로븐") : "전체"}${scope.year ? " " + scope.year + "년" : ""}${scope.month ? " " + scope.month + "월" : ""}`;
@@ -296,6 +298,7 @@ const App = (function () {
       <div class="page-head"><div><h2>🧾 정산서 <span class="muted" id="se-cnt">(${rows.length}건)</span></h2>
         <div class="muted">${esc(scopeLabel())} · 발주정산내역서 (받는분·품목·공급가)</div></div>
         <div class="row-actions"><button class="btn primary" data-act="import-settlement">🧾 정산서 올리기</button>
+          <button class="btn" id="se-gdrive">📁 드라이브에서 가져오기</button>
           <button class="btn" id="se-delsel">🗑️ 선택 삭제 <span id="se-selcnt" class="muted">(0)</span></button>
           <button class="btn" id="se-delnov">⚠️ 거래처 없는 건 삭제</button>
           <button class="btn danger" id="se-clear">🗑️ 전체삭제</button></div></div>
@@ -318,6 +321,7 @@ const App = (function () {
           `<tr><td colspan="13" class="empty">정산서가 없어요. 위 버튼으로 발주정산내역서를 올려보세요.</td></tr>`}
         </tbody></table></div>`;
     wire(main);
+    $("#se-gdrive", main).addEventListener("click", () => GDrive.run("settlements"));
     const cks = () => $$(".se-ck", main);
     const checkedIds = () => cks().filter((c) => c.checked).map((c) => c.dataset.id);
     const refreshSelCnt = () => { const el = $("#se-selcnt", main); if (el) el.textContent = `(${checkedIds().length})`; };

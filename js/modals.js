@@ -781,5 +781,87 @@ const Modals = (function () {
     };
   }
 
-  return { importExisting, importBank, importPO, importPaste, importEvidence, importOrders, importDeposits, importDepositPaste, importSettlement, editRow, close };
+  /* ===== 공용: 파일명/표 → 발주·정산 레코드 (파일업로드·구글드라이브 공용) ===== */
+  function storeFromName(name) {
+    return /옐로우|옐브|yellow|yb|과세/i.test(name) ? "yb" : (/그로븐|groven|grov|면세/i.test(name) ? "groven" : "");
+  }
+  function buildOrders(table, opt) {
+    opt = opt || {};
+    const { name = "", baseVendor = "", yr, mo } = opt;
+    const store = opt.store || storeFromName(name);
+    const map = {}; ["date", "vendor", "desc", "qty"].forEach((f) => { const h = table.headers.find((x) => guess(f, x.name)); if (h) map[f] = h.index; });
+    const fd = String(name).match(/(\d{2})(\d{2})(\d{2})/);
+    const fYr = fd ? 2000 + +fd[1] : null, fMo = fd ? +fd[2] : null, fDy = fd ? +fd[3] : null;
+    const fVen = fileVendor(name);
+    const hRcv = table.headers.find((h) => /수령인|받는분|수령자|수취인/.test(String(h.name).replace(/\s/g, "")));
+    const out = [];
+    table.body.forEach((r) => {
+      const get = (f) => map[f] != null ? r[map[f]] : null;
+      const desc = Parsers.str(get("desc"));
+      const vendor = Parsers.str(get("vendor")) || baseVendor || fVen;
+      const qty = Parsers.num(get("qty"));
+      if (!desc && !vendor) return;
+      const d = Parsers.parseDate(get("date"));
+      out.push({ store, year: d.y || fYr || yr, month: d.m || fMo || mo, day: d.d || fDy || "",
+        vendor, desc, qty, recipient: hRcv ? Parsers.str(r[hRcv.index]) : "", note: "발주서" });
+    });
+    return out;
+  }
+  function addOrdersDedup(out) {
+    const sig = (o) => `${o.store || ""}|${o.year}|${o.month}|${o.day}|${o.vendor}|${o.desc}|${o.recipient || ""}`;
+    const seen = new Set((S.data.orders || []).map(sig));
+    const fresh = []; let skipped = 0;
+    out.forEach((o) => { const k = sig(o); if (seen.has(k)) { skipped++; } else { seen.add(k); fresh.push(o); } });
+    if (fresh.length) S.addOrders(fresh);
+    return { added: fresh.length, skipped, first: fresh[0] };
+  }
+  function settlementSheetPick(sheets) {
+    const nm = (h) => String(h.name).replace(/\s/g, "");
+    const score = (sh) => { const has = (re) => sh.headers.some((h) => re.test(nm(h))); return (has(/수량/) ? 1 : 0) + (has(/상품명|품목명|품명/) ? 1 : 0) + (has(/수취인|받는분|수령인/) ? 1 : 0) + (has(/공급가|상품가격|합계/) ? 1 : 0); };
+    let best = sheets[0], bs = -1;
+    sheets.forEach((sh) => { const s = score(sh); if (s > bs || (s === bs && sh.body.length > best.body.length)) { bs = s; best = sh; } });
+    return best;
+  }
+  function buildSettlements(table, opt) {
+    opt = opt || {};
+    const { name = "", baseVendor = "", yr, mo } = opt;
+    const store = opt.store || storeFromName(name);
+    const vendor = baseVendor || fileVendor(name);
+    const nm = (h) => String(h.name).replace(/\s/g, "");
+    const H = table.headers;
+    const idx = (re) => { const h = H.find((x) => re.test(nm(x))); return h ? h.index : -1; };
+    const iDate = idx(/발주일|주문일|일자|날짜/), iName = idx(/수취인|받는분성|수령인/),
+      iAddr = idx(/주소/), iItem = idx(/상품명|품목명|품명/), iQty = idx(/수량/),
+      iSup = idx(/공급가|상품가격|상품금액/), iShip = idx(/^배송비$|배송비\(/), iTot = idx(/^합계$|합계\(|총합계|총액/),
+      iGu = idx(/발생구분|구분/), iNo = idx(/주문번호|고유번호|^번호$|^no$/i);
+    const out = [];
+    table.body.forEach((r) => {
+      const nme = iName >= 0 ? Parsers.str(r[iName]) : "";
+      const item = iItem >= 0 ? Parsers.str(r[iItem]) : "";
+      if (!nme && !item) return;
+      if (/^합계|총\s*합계/.test(nme) || /^합계/.test(Parsers.str(r[0]))) return;
+      const qRaw = iQty >= 0 ? Parsers.str(r[iQty]) : "";
+      const gu = iGu >= 0 ? Parsers.str(r[iGu]) : "";
+      const review = /리뷰/.test(qRaw) || /리뷰/.test(gu);
+      const dRaw = iDate >= 0 ? Parsers.str(r[iDate]) : "";
+      const d = Parsers.parseDate(dRaw);
+      out.push({ store, vendor, year: d.y || yr, month: d.m || mo, day: d.d || "", date: dRaw,
+        recipient: nme, addr: iAddr >= 0 ? Parsers.str(r[iAddr]) : "", item, no: iNo >= 0 ? Parsers.str(r[iNo]) : "", note: "",
+        qty: review ? 0 : Parsers.num(qRaw), review,
+        supply: iSup >= 0 ? Parsers.num(r[iSup]) : 0, ship: iShip >= 0 ? Parsers.num(r[iShip]) : 0, total: iTot >= 0 ? Parsers.num(r[iTot]) : 0 });
+    });
+    return out;
+  }
+  function addSettlementsDedup(out) {
+    const sig = (o) => `${o.store || ""}|${o.vendor || ""}|${o.year}|${o.month}|${o.day}|${o.recipient}|${o.addr}|${o.item}|${o.total}|${o.no}`;
+    const existing = {}; (S.data.settlements || []).forEach((o) => { const k = sig(o); existing[k] = (existing[k] || 0) + 1; });
+    const batch = {}; const fresh = []; let skipped = 0;
+    out.forEach((o) => { const k = sig(o); const i = (batch[k] = (batch[k] || 0) + 1); if ((existing[k] || 0) >= i) { skipped++; } else { fresh.push(o); } });
+    fresh.forEach((s) => S.data.settlements.push(Object.assign({ id: S.uid() }, s)));
+    if (fresh.length) S.save();
+    return { added: fresh.length, skipped, first: fresh[0] };
+  }
+
+  return { importExisting, importBank, importPO, importPaste, importEvidence, importOrders, importDeposits, importDepositPaste, importSettlement, editRow, open, close,
+    fileVendor, storeFromName, buildOrders, addOrdersDedup, settlementSheetPick, buildSettlements, addSettlementsDedup };
 })();
