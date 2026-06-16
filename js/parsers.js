@@ -239,6 +239,22 @@ const Parsers = (function () {
    *  3) 발주서(양식 다양) — 열 매칭형 유연 가져오기
    *     모든 열 헤더를 돌려주고, 사용자가 매핑을 고르게 함
    * ========================================================= */
+  // 행 배열 → {headers, body} (헤더 = 채워진 칸 가장 많은 상위 행)
+  function tableFromRows(rows) {
+    let hi = 0, best = -1;
+    for (let i = 0; i < Math.min(rows.length, 15); i++) {
+      const filled = (rows[i] || []).filter((c) => c != null && c !== "").length;
+      if (filled > best) { best = filled; hi = i; }
+    }
+    const headers = (rows[hi] || []).map((c, i) => ({ index: i, name: str(c) || `열${i + 1}` }));
+    return { headers, body: rows.slice(hi + 1) };
+  }
+  function wbCreated(wb, file) {
+    let wbDate = null;
+    try { const cd = wb.Props && wb.Props.CreatedDate; const d = cd instanceof Date ? cd : (cd ? new Date(cd) : null); if (d && !isNaN(d)) wbDate = d; } catch (e) { /* ignore */ }
+    if (!wbDate && file.lastModified) { const d = new Date(file.lastModified); if (!isNaN(d)) wbDate = d; }
+    return wbDate;
+  }
   async function readGenericTable(file) {
     const wb = await readWorkbook(file);
     // 데이터가 가장 많은 시트 선택 (빈 '시트1' 같은 건 건너뜀)
@@ -247,23 +263,18 @@ const Parsers = (function () {
       const r = sheetToRows(wb.Sheets[name]).filter((row) => row && row.some((c) => c != null && c !== ""));
       if (r.length > bestCount) { bestCount = r.length; rows = r; }
     });
-    // 헤더 후보: 가장 많은 채워진 칸을 가진 상위 행
-    let hi = 0, best = -1;
-    for (let i = 0; i < Math.min(rows.length, 15); i++) {
-      const filled = (rows[i] || []).filter((c) => c != null && c !== "").length;
-      if (filled > best) { best = filled; hi = i; }
-    }
-    const headers = (rows[hi] || []).map((c, i) => ({ index: i, name: str(c) || `열${i + 1}` }));
-    const body = rows.slice(hi + 1);
-    // 워크북 생성일(보고서 발행일) — 도매꾹 등 '당일=시각만' 파일의 날짜 보정용
-    let wbDate = null;
-    try {
-      const cd = wb.Props && wb.Props.CreatedDate;
-      const d = cd instanceof Date ? cd : (cd ? new Date(cd) : null);
-      if (d && !isNaN(d)) wbDate = d;
-    } catch (e) { /* ignore */ }
-    if (!wbDate && file.lastModified) { const d = new Date(file.lastModified); if (!isNaN(d)) wbDate = d; }
-    return { headers, body, sheetNames: wb.SheetNames, wbDate };
+    const t = tableFromRows(rows);
+    return { headers: t.headers, body: t.body, sheetNames: wb.SheetNames, wbDate: wbCreated(wb, file) };
+  }
+  // 모든 시트를 각각 표로 반환 (정산서처럼 특정 시트를 골라야 할 때)
+  async function readSheets(file) {
+    const wb = await readWorkbook(file);
+    const sheets = wb.SheetNames.map((name) => {
+      const rows = sheetToRows(wb.Sheets[name]).filter((row) => row && row.some((c) => c != null && c !== ""));
+      const t = tableFromRows(rows);
+      return { name, headers: t.headers, body: t.body, rowCount: rows.length };
+    });
+    return { sheets, wbDate: wbCreated(wb, file) };
   }
 
   // 매핑 {field: colIndex} 적용 → 매입행 생성
@@ -362,7 +373,7 @@ const Parsers = (function () {
     num, str, parseDate,
     importExistingWorkbook,
     parseBankStatement,
-    readGenericTable,
+    readGenericTable, readSheets,
     applyPurchaseMapping,
     parseHometaxEvidence,
     COLMAP,

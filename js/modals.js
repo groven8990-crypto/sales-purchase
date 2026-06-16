@@ -707,9 +707,19 @@ const Modals = (function () {
       files = [];
       const fl = [...e.target.files]; if (!fl.length) return;
       q("#se-prev").innerHTML = `<div class="muted">읽는 중…</div>`;
+      // 정산 컬럼(수량·상품/품목·받는분/수취인 등)이 있는 시트를 자동 선택 (해담별=2번째 시트)
+      const sheetScore = (sh) => {
+        const has = (re) => sh.headers.some((h) => re.test(nm(h)));
+        return (has(/수량/) ? 1 : 0) + (has(/상품명|품목명|품명/) ? 1 : 0) + (has(/수취인|받는분|수령인/) ? 1 : 0) + (has(/공급가|상품가격|합계/) ? 1 : 0);
+      };
       for (const f of fl) {
-        const detected = /옐로우|옐브|yb|과세/i.test(f.name) ? "yb" : (/그로븐|grov|면세/i.test(f.name) ? "groven" : "");
-        try { const t = await Parsers.readGenericTable(f); files.push({ table: t, store: detected, name: f.name }); } catch (err) { /* skip */ }
+        const detected = /옐로우|옐브|yellow|yb|과세/i.test(f.name) ? "yb" : (/그로븐|groven|grov|면세/i.test(f.name) ? "groven" : "");
+        try {
+          const { sheets } = await Parsers.readSheets(f);
+          let best = sheets[0], bs = -1;
+          sheets.forEach((sh) => { const s = sheetScore(sh); if (s > bs || (s === bs && sh.body.length > best.body.length)) { bs = s; best = sh; } });
+          files.push({ table: best, store: detected, name: f.name });
+        } catch (err) { /* skip */ }
       }
       if (!files.length) { q("#se-prev").innerHTML = `<div class="err">읽을 수 있는 파일이 없어요.</div>`; return; }
       const rows = files.reduce((a, x) => a + x.table.body.length, 0);
@@ -725,28 +735,36 @@ const Modals = (function () {
       files.forEach(({ table, store }) => {
         const H = table.headers;
         const idx = (re) => { const h = H.find((x) => re.test(nm(x))); return h ? h.index : -1; };
-        const iDate = idx(/발주일|일자|날짜/), iName = idx(/받는분성|수령|성명|이름|받는분(?!주소)/),
-          iAddr = idx(/주소/), iItem = idx(/품목|상품명|품명/), iQty = idx(/수량/),
-          iSup = idx(/공급가/), iShip = idx(/배송비/), iTot = idx(/합계|총액/);
+        const iDate = idx(/발주일|주문일|일자|날짜/), iName = idx(/수취인|받는분성|수령인/),
+          iAddr = idx(/주소/), iItem = idx(/상품명|품목명|품명/), iQty = idx(/수량/),
+          iSup = idx(/공급가|상품가격|상품금액/), iShip = idx(/^배송비$|배송비\(/), iTot = idx(/^합계$|합계\(|총합계|총액/);
+        const iGu = idx(/발생구분|구분/); // 매출/리뷰/CS 등
         table.body.forEach((r) => {
           const name = iName >= 0 ? Parsers.str(r[iName]) : "";
           const item = iItem >= 0 ? Parsers.str(r[iItem]) : "";
           if (!name && !item) return;
           if (/^합계|총\s*합계/.test(name) || /^합계/.test(Parsers.str(r[0]))) return;
           const qRaw = iQty >= 0 ? Parsers.str(r[iQty]) : "";
-          const review = /리뷰/.test(qRaw);
+          const gu = iGu >= 0 ? Parsers.str(r[iGu]) : "";
+          const review = /리뷰/.test(qRaw) || /리뷰/.test(gu);
           const dRaw = iDate >= 0 ? Parsers.str(r[iDate]) : "";
-          const dm = dRaw.match(/(\d{1,2})[./\-](\d{1,2})/);
-          out.push({ store, year: yr, month: dm ? +dm[1] : mo, day: dm ? +dm[2] : "", date: dRaw,
+          const d = Parsers.parseDate(dRaw);
+          out.push({ store, year: d.y || yr, month: d.m || mo, day: d.d || "", date: dRaw,
             recipient: name, addr: iAddr >= 0 ? Parsers.str(r[iAddr]) : "", item,
             qty: review ? 0 : Parsers.num(qRaw), review,
             supply: iSup >= 0 ? Parsers.num(r[iSup]) : 0, ship: iShip >= 0 ? Parsers.num(r[iShip]) : 0, total: iTot >= 0 ? Parsers.num(r[iTot]) : 0 });
         });
       });
-      if (!out.length) { q("#se-prev").innerHTML = `<div class="err">읽을 행이 없어요.</div>`; return; }
-      out.forEach((s) => S.data.settlements.push(Object.assign({ id: S.uid() }, s)));
-      if (App.scope) { App.scope.year = out[0].year; App.scope.month = out[0].month; }
+      if (!out.length) { q("#se-prev").innerHTML = `<div class="err">읽을 행이 없어요. (정산상세 시트를 못 찾았을 수 있어요)</div>`; return; }
+      const sig = (o) => `${o.store || ""}|${o.year}|${o.month}|${o.day}|${o.recipient}|${o.item}|${o.total}`;
+      const seen = new Set((S.data.settlements || []).map(sig));
+      const fresh = []; let skipped = 0;
+      out.forEach((o) => { const k = sig(o); if (seen.has(k)) { skipped++; } else { seen.add(k); fresh.push(o); } });
+      if (!fresh.length) { q("#se-prev").innerHTML = `<div class="err">모두 이미 등록된 정산이에요 (중복 ${skipped}건).</div>`; return; }
+      fresh.forEach((s) => S.data.settlements.push(Object.assign({ id: S.uid() }, s)));
+      if (App.scope) { App.scope.year = fresh[0].year; App.scope.month = fresh[0].month; }
       S.save(); close(); App.go("settlements");
+      if (skipped) alert(`${fresh.length}건 추가, 중복 ${skipped}건은 건너뛰었어요.`);
     };
   }
 

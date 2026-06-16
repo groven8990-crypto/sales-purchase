@@ -261,7 +261,8 @@ const App = (function () {
     main.innerHTML = `
       <div class="page-head"><div><h2>🧾 정산서 <span class="muted" id="se-cnt">(${rows.length}건)</span></h2>
         <div class="muted">${esc(scopeLabel())} · 발주정산내역서 (받는분·품목·공급가)</div></div>
-        <div class="row-actions"><button class="btn primary" data-act="import-settlement">🧾 정산서 올리기</button></div></div>
+        <div class="row-actions"><button class="btn primary" data-act="import-settlement">🧾 정산서 올리기</button>
+          <button class="btn danger" id="se-clear">🗑️ 전체삭제</button></div></div>
       <div class="kpibar">
         <div class="kb"><div class="l">실주문 / 리뷰</div><div class="v">${real.length} / ${rev.length}건</div></div>
         <div class="kb p"><div class="l">공급가 합계</div><div class="v">₩${won(supT)}</div></div>
@@ -279,6 +280,14 @@ const App = (function () {
           `<tr><td colspan="9" class="empty">정산서가 없어요. 위 버튼으로 발주정산내역서를 올려보세요.</td></tr>`}
         </tbody></table></div>`;
     wire(main);
+    $("#se-clear", main).addEventListener("click", () => {
+      if (!rows.length) { alert("삭제할 정산서가 없어요."); return; }
+      const lbl = `${scope.store ? (scope.store === "yb" ? "YB" : "그로븐") : "전체"}${scope.year ? " " + scope.year + "년" : ""}${scope.month ? " " + scope.month + "월" : ""}`;
+      if (!confirm(`현재 보고 있는 ${lbl} 정산서 ${rows.length}건을 모두 삭제할까요?`)) return;
+      const ids = new Set(rows.map((r) => r.id));
+      S.data.settlements = (S.data.settlements || []).filter((r) => !ids.has(r.id));
+      S.save(); renderSettlements(main);
+    });
     const sIn = $("#se-search", main);
     if (sIn) sIn.addEventListener("input", () => {
       const q = sIn.value.trim().toLowerCase(); let n = 0;
