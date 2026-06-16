@@ -34,6 +34,13 @@ const Modals = (function () {
       <option value="yb" ${def === "yb" ? "selected" : ""}>옐로우브릿지 (과세)</option>
     </select>`;
   }
+  // 파일명에서 거래처 추출 (날짜·스토어·발주서 등 제외하고 첫 의미있는 토큰)
+  function fileVendor(name) {
+    const base = String(name).replace(/\.[^.]+$/, "");
+    const toks = base.split(/[-_\s]+/).filter(Boolean);
+    const skip = /^\d+$|발주서|정산|회신|주문|내역서?|그로븐|옐로우브릿지|옐브|면세|과세|grov|groven|yellow|bridge|^yb$/i;
+    return (toks.find((x) => !skip.test(x) && /[가-힣A-Za-z]/.test(x)) || "");
+  }
   // 기본 연/월 선택 (드롭다운) — 상단 스코프/마지막 입력값을 기본값으로
   let lastYM = null;
   function ymSelect(yId, mId) {
@@ -276,6 +283,7 @@ const Modals = (function () {
     ],
     settlements: [
       { k: "store", l: "사업장", t: "sel", opts: () => [["groven", "그로븐"], ["yb", "YB"]] },
+      { k: "vendor", l: "거래처", t: "text" },
       { k: "date", l: "발주일", t: "text" },
       { k: "recipient", l: "받는분", t: "text" },
       { k: "addr", l: "주소", t: "text", wide: true },
@@ -284,6 +292,7 @@ const Modals = (function () {
       { k: "supply", l: "공급가", t: "num" },
       { k: "ship", l: "배송비", t: "num" },
       { k: "total", l: "합계", t: "num" },
+      { k: "note", l: "비고(C/S 등)", t: "text", wide: true },
     ],
     cs: [
       { k: "date", l: "일자", t: "date" },
@@ -487,13 +496,6 @@ const Modals = (function () {
       const fallbackStore = q("#od-store").value, baseV = q("#od-vendor").value.trim();
       const yr = +q("#od-year").value, mo = +q("#od-month").value;
       lastYM = { y: yr, m: mo };
-      // 파일명에서 거래처 추출 (날짜·스토어·발주서 등 제외하고 첫 의미있는 토큰)
-      const fileVendor = (name) => {
-        const base = String(name).replace(/\.[^.]+$/, "");
-        const toks = base.split(/[-_\s]+/).filter(Boolean);
-        const skip = /^\d+$|발주서|회신|주문|그로븐|옐로우브릿지|옐브|면세|과세|grov|^yb$/i;
-        return (toks.find((x) => !skip.test(x) && /[가-힣A-Za-z]/.test(x)) || "");
-      };
       const out = [];
       files.forEach(({ table, store, name }) => {
         const st = store || fallbackStore;
@@ -697,7 +699,10 @@ const Modals = (function () {
     open("🧾 정산서(발주정산내역서) 올리기",
       `<p>발주정산내역서 엑셀을 올리면 <b>정산서</b>로 등록돼요. 여러 개 <b>한꺼번에</b> 선택 가능.<br>
         <span class="muted" style="font-size:12px">컬럼(번호·발주일자·받는분·품목·수량·공급가·배송비·합계)은 <b>자동 인식</b>, 스토어는 <b>파일명</b>으로 자동 구분돼요.</span></p>
-       <div class="form-row"><label>기본 연/월 <span class="muted" style="font-size:11px">(발주일자에 연도 없을 때)</span></label><div>${ymSelect("se-year", "se-month")}</div></div>
+       <div class="form-row two">
+         <span><label>거래처 <span class="muted" id="se-vendor-auto" style="font-size:11px">(파일명에서 자동)</span></label><input id="se-vendor" placeholder="예: 해담별 / 일비" style="width:100%"></span>
+         <span><label>기본 연/월 <span class="muted" style="font-size:11px">(발주일자에 연도 없을 때)</span></label><div>${ymSelect("se-year", "se-month")}</div></span>
+       </div>
        <div class="form-row"><label>정산서 파일 (여러 개 가능)</label><input type="file" id="se-file" accept=".xlsx,.xls,.csv" multiple></div>
        <div id="se-prev" class="preview"></div>`,
       `<button class="btn" id="se-cancel">취소</button><button class="btn primary" id="se-apply" disabled>정산서에 추가</button>`);
@@ -723,6 +728,8 @@ const Modals = (function () {
         } catch (err) { /* skip */ }
       }
       if (!files.length) { q("#se-prev").innerHTML = `<div class="err">읽을 수 있는 파일이 없어요.</div>`; return; }
+      const fv = fileVendor(files[0].name);
+      if (fv && q("#se-vendor") && !q("#se-vendor").value.trim()) q("#se-vendor").value = fv;
       const rows = files.reduce((a, x) => a + x.table.body.length, 0);
       q("#se-prev").innerHTML = `<div class="ok">✅ ${files.length}개 파일 (약 ${rows}행)<br>${files.map((x) => `· ${E(x.name)} → <b>${stLbl(x.store)}</b>`).join("<br>")}</div>`;
       q("#se-apply").disabled = false;
@@ -731,9 +738,11 @@ const Modals = (function () {
     q("#se-apply").onclick = () => {
       if (!files.length) return;
       const yr = +q("#se-year").value, mo = +q("#se-month").value;
+      const baseVendor = q("#se-vendor") ? q("#se-vendor").value.trim() : "";
       lastYM = { y: yr, m: mo };
       const out = [];
-      files.forEach(({ table, store }) => {
+      files.forEach(({ table, store, name }) => {
+        const vendor = baseVendor || fileVendor(name);
         const H = table.headers;
         const idx = (re) => { const h = H.find((x) => re.test(nm(x))); return h ? h.index : -1; };
         const iDate = idx(/발주일|주문일|일자|날짜/), iName = idx(/수취인|받는분성|수령인/),
@@ -751,15 +760,15 @@ const Modals = (function () {
           const review = /리뷰/.test(qRaw) || /리뷰/.test(gu);
           const dRaw = iDate >= 0 ? Parsers.str(r[iDate]) : "";
           const d = Parsers.parseDate(dRaw);
-          out.push({ store, year: d.y || yr, month: d.m || mo, day: d.d || "", date: dRaw,
-            recipient: name, addr: iAddr >= 0 ? Parsers.str(r[iAddr]) : "", item, no: iNo >= 0 ? Parsers.str(r[iNo]) : "",
+          out.push({ store, vendor, year: d.y || yr, month: d.m || mo, day: d.d || "", date: dRaw,
+            recipient: name, addr: iAddr >= 0 ? Parsers.str(r[iAddr]) : "", item, no: iNo >= 0 ? Parsers.str(r[iNo]) : "", note: "",
             qty: review ? 0 : Parsers.num(qRaw), review,
             supply: iSup >= 0 ? Parsers.num(r[iSup]) : 0, ship: iShip >= 0 ? Parsers.num(r[iShip]) : 0, total: iTot >= 0 ? Parsers.num(r[iTot]) : 0 });
         });
       });
       if (!out.length) { q("#se-prev").innerHTML = `<div class="err">읽을 행이 없어요. (정산상세 시트를 못 찾았을 수 있어요)</div>`; return; }
       // 중복 = 같은 파일 재업로드만 거름. 같은 이름이어도 합배송·동명이인은 살림(주소·주문번호·건수 기준)
-      const sig = (o) => `${o.store || ""}|${o.year}|${o.month}|${o.day}|${o.recipient}|${o.addr}|${o.item}|${o.total}|${o.no}`;
+      const sig = (o) => `${o.store || ""}|${o.vendor || ""}|${o.year}|${o.month}|${o.day}|${o.recipient}|${o.addr}|${o.item}|${o.total}|${o.no}`;
       const existing = {}; (S.data.settlements || []).forEach((o) => { const k = sig(o); existing[k] = (existing[k] || 0) + 1; });
       const batch = {}; const fresh = []; let skipped = 0;
       out.forEach((o) => { const k = sig(o); const i = (batch[k] = (batch[k] || 0) + 1); if ((existing[k] || 0) >= i) { skipped++; } else { fresh.push(o); } });

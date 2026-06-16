@@ -149,6 +149,17 @@ table.grid tbody tr:hover{background:#fafbff}
 .dp-chip.kc.on{background:var(--green);border-color:var(--green)}
 .dp-chip.ku.on{background:var(--red);border-color:var(--red)}
 
+/* 탭별 사용방법 안내 */
+details.help{background:#eef6f6;border:1px solid #cfe9e9;border-radius:10px;margin-bottom:16px}
+details.help>summary{cursor:pointer;padding:10px 14px;font-weight:700;color:var(--teal);font-size:13.5px;list-style:none}
+details.help>summary::-webkit-details-marker{display:none}
+details.help>summary::before{content:"▸ ";font-size:11px}
+details.help[open]>summary::before{content:"▾ "}
+details.help[open]>summary{border-bottom:1px solid #cfe9e9}
+details.help .hb{padding:11px 16px;color:#33414f;font-size:13px;line-height:1.75}
+details.help .hb b{color:var(--navy)}
+details.help .hb ol,details.help .hb ul{margin:4px 0 0;padding-left:20px}
+
 @media(max-width:760px){.doc-2col,.doc-charts{flex-direction:column}.sheet{padding:14px}}
 @media print{
   /* 브라우저 머릿말·꼬리말(날짜·제목·URL·페이지번호) 제거 — 페이지 여백 0 */

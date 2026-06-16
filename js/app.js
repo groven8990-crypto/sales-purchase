@@ -48,6 +48,27 @@ const App = (function () {
       (scope.year ? scope.year + "년 " : "전체 ") + (scope.month ? scope.month + "월" : "");
   }
 
+  /* ===== 탭별 사용방법 안내 ===== */
+  const HELP = {
+    home: `이 화면은 <b>이번 달 마감 진행 상황</b> 요약이에요.<ol><li>맨 위 오른쪽에서 <b>연도·월·사업장</b>(통합/그로븐/YB)을 고르세요.</li><li>각 단계의 버튼으로 자료(매출·매입·통장 등)를 올리면 진행률이 채워져요.</li><li>자주 보는 연·월·사업장은 <b>📌 고정</b>으로 기억시킬 수 있어요.</li></ol>`,
+    sales: `채널별 <b>매출</b> 내역이에요. (상단에서 고른 연·월·사업장 기준)<ul><li><b>엑셀 불러오기</b>로 기존 매출 자료를 올려요.</li><li>각 줄 오른쪽 <b>✎ 수정 / ✕ 삭제</b>, 위 칸에서 <b>검색</b> 가능.</li></ul>`,
+    purchases: `상품 <b>매입(원가)</b> 내역이에요.<ul><li><b>발주서로 매입 정리</b> 또는 <b>직접 추가(붙여넣기)</b>로 입력.</li><li><b>홈택스 증빙 대조</b>로 세금계산서·현금영수증과 장부를 비교할 수 있어요.</li><li>각 줄 ✎수정 / ✕삭제, 검색 가능.</li></ul>`,
+    transactions: `<b>통장 입출금</b> 내역이에요.<ul><li><b>🏦 통장내역 올리기</b>로 기업은행 거래내역을 올리면 입금/출금이 자동 분류돼요.</li><li>각 줄을 ✎수정해서 <b>사업장(그로븐/YB)</b>을 지정할 수 있어요.</li></ul>`,
+    orders: `마켓에서 받은 <b>발주서(주문/배송 파일)</b>를 올려 발주내역으로 모아요.<ol><li><b>📦 발주서 올리기</b> → 파일을 <b>여러 개 한꺼번에</b> 선택해도 돼요.</li><li>파일명에 '그로븐/옐로우브릿지'가 있으면 <b>사업장 자동</b>, 날짜·거래처도 파일명에서 자동.</li><li>열은 자동으로 맞춰지니 그대로 <b>추가</b>. 같은 파일을 또 올려도 중복은 안 쌓여요.</li><li>다 지우려면 <b>🗑️ 전체삭제</b>.</li></ol>`,
+    settlements: `거래처에서 받은 <b>발주정산내역서</b>를 올려요.<ol><li><b>🧾 정산서 올리기</b> → 여러 개 동시 가능, 파일명으로 사업장 자동.</li><li>시트가 2개여도(예: 해담별) <b>정산상세 시트를 자동으로</b> 찾아 읽어요.</li><li>받는분·품목·수량·공급가·배송비·합계가 자동 정리, <b>실주문/리뷰</b> 구분.</li></ol>`,
+    reconcile: `<b>발주내역 ↔ 정산서</b>를 <b>받는분(수령인)</b> 기준으로 대조해요.<ul><li><b>🔴 미정산</b>: 발주는 했는데 정산 안 됨 / <b>⚠️ 건수차이</b>: 건수가 다름</li><li><b>🟡 발주없음</b>: 정산엔 있는데 발주기록 없음 / <b>✅ 정산완료</b></li><li>상단 카드를 누르면 그 상태만 모아 봐요.</li></ul>`,
+    deposits: `거래처별 <b>예치금·적립금</b> 충전·사용·잔액을 관리해요.<ul><li><b>📥 파일 올리기</b>(도매꾹 등) 또는 <b>직접 입력</b>(거래처·구분·금액 칩 선택).</li><li>잔액 = 충전 합계 − 사용 합계. <b>📸 현황 보고(PNG)</b>로 이미지 저장.</li></ul>`,
+    adspend: `플랫폼 <b>광고비 소진</b>을 매일 빠르게 기록해요.<ol><li>플랫폼·사업장 <b>칩</b>을 고르고(선택은 유지됨) <b>소진액</b>만 입력해 추가.</li><li>상단에서 이번 달 플랫폼별 합계를 바로 봐요.</li></ol>`,
+    cs: `고객 <b>C/S(반품·교환·환불 등)</b> 처리 상태를 관리해요.<ol><li>C/S가 오면 <b>접수</b>로 등록.</li><li>처리하면서 ✎로 <b>처리중 → 완료</b>, 처리내용을 적어요.</li><li>상단 카드로 밀린 건(접수/처리중)을 확인.</li></ol>`,
+    report: `상단 연·월·사업장 기준의 <b>자동 마감 보고서</b>예요. 입력한 매출·매입·통장 데이터로 자동 생성돼요. <b>🖨️ 인쇄</b>로 출력하세요.`,
+    manual: `<b>직접 작성하는 마감 보고서</b>예요.<ol><li>그 달을 처음 열면 실제 데이터로 <b>자동으로 채워져요</b>. 자유롭게 수정(자동 저장).</li><li>상단 <b>그로븐 / 옐로우브릿지</b> 탭은 각각, <b>통합</b>은 자동 합산본.</li><li><b>📸 PNG 저장</b>은 미리보기 후 이미지로 저장돼요.</li></ol>`,
+    data: `자료 가져오기와 설정이에요.<ul><li><b>고정비·정기결제</b>: 임대료·구독 등 매월 똑같은 항목을 등록하면 마감보고서에 자동 반영.</li><li><b>공급처 내용</b>: 거래처별 취급품목 메모.</li><li><b>백업(JSON)</b>: 다른 PC에서 쓰려면 내보내기 → 가져오기. (데이터는 이 브라우저에만 저장)</li></ul>`,
+  };
+  function help(key) {
+    const t = HELP[key];
+    return t ? `<details class="help no-print"><summary>ℹ️ 사용방법</summary><div class="hb">${t}</div></details>` : "";
+  }
+
   function render() {
     refreshScopeOptions();
     const main = $("#main");
@@ -94,7 +115,7 @@ const App = (function () {
         <div><h2>마감 진행</h2><div class="muted">${esc(scopeLabel())}</div></div>
         <button class="btn primary" data-go="report">📄 마감 보고서 보기</button>
       </div>
-
+      ${help("home")}
       ${empty ? `<div class="hello card">
         <h3>👋 시작해볼까요?</h3>
         <p>매달 <b>매출 → 매입 → 통장</b> 순서로 자료를 올리면 자동으로 정리되고, 마지막에 인쇄용 마감 보고서가 만들어집니다.
@@ -175,6 +196,7 @@ const App = (function () {
           <div class="muted">${esc(scopeLabel())} · 금액 큰 순</div></div>
         <div class="row-actions">${importBtn}</div>
       </div>
+      ${help(kind)}
       <div class="card" style="padding:10px 14px"><input id="tb-search" placeholder="🔍 검색 (업체명·내용·증빙·분류…)" style="width:100%;border:1px solid var(--line);border-radius:9px;padding:9px 12px;font-size:13.5px"></div>
       <div class="table-wrap"><table class="grid">
         <thead><tr>${cols.map((c) => `<th class="${c[2] || ""}">${c[0]}</th>`).join("")}<th></th></tr></thead>
@@ -209,7 +231,7 @@ const App = (function () {
   function renderOrders(main) {
     let rows = S.filterBy(S.data.orders || [], { store: scope.store, year: scope.year, month: scope.month });
     rows = rows.slice().sort((a, b) => `${b.year}-${b.month}-${b.day}`.localeCompare(`${a.year}-${a.month}-${a.day}`));
-    const sText = (r) => [r.vendor, r.desc, r.note].map((x) => String(x == null ? "" : x)).join(" ").toLowerCase();
+    const sText = (r) => [r.vendor, r.recipient, r.desc, r.note].map((x) => String(x == null ? "" : x)).join(" ").toLowerCase();
     main.innerHTML = `
       <div class="page-head">
         <div><h2>📦 발주내역 <span class="muted" id="od-cnt">(${rows.length}건)</span></h2>
@@ -217,16 +239,17 @@ const App = (function () {
         <div class="row-actions"><button class="btn primary" data-act="import-orders">📦 발주서 올리기</button>
           <button class="btn danger" id="od-clear">🗑️ 전체삭제</button></div>
       </div>
+      ${help("orders")}
       <div class="card" style="padding:10px 14px"><input id="od-search" placeholder="🔍 검색 (거래처·품목)" style="width:100%;border:1px solid var(--line);border-radius:9px;padding:9px 12px;font-size:13.5px"></div>
       <div class="table-wrap"><table class="grid">
-        <thead><tr><th>일자</th><th>거래처</th><th>품목/내용</th><th class="num">수량</th><th>스토어</th><th>메모</th><th></th></tr></thead>
+        <thead><tr><th>일자</th><th>거래처</th><th>받는분</th><th>품목/내용</th><th class="num">수량</th><th>스토어</th><th>메모</th><th></th></tr></thead>
         <tbody>${rows.map((r) => `<tr data-s="${esc(sText(r))}">
-          <td>${esc((r.month || "") + "." + (r.day || ""))}</td><td>${esc(r.vendor || "")}</td>
+          <td>${esc((r.month || "") + "." + (r.day || ""))}</td><td>${esc(r.vendor || "")}</td><td>${esc(r.recipient || "")}</td>
           <td>${esc(r.desc || "")}</td><td class="num">${esc(r.qty || "")}</td>
           <td>${r.store === "yb" ? "YB" : (r.store === "groven" ? "그로븐" : "")}</td>
           <td>${esc(r.note || "")}</td>
-          <td class="row-actions"><button class="icon-btn" data-delod="${r.id}" title="삭제">✕</button></td></tr>`).join("") ||
-          `<tr><td colspan="7" class="empty">발주 내역이 없어요. '발주서 올리기'로 추가하세요.</td></tr>`}
+          <td class="row-actions"><button class="icon-btn" data-csod="${r.id}" title="C/S 등록">📞</button><button class="icon-btn" data-delod="${r.id}" title="삭제">✕</button></td></tr>`).join("") ||
+          `<tr><td colspan="8" class="empty">발주 내역이 없어요. '발주서 올리기'로 추가하세요.</td></tr>`}
         </tbody></table></div>`;
     wire(main);
     $("#od-clear", main).addEventListener("click", () => {
@@ -246,6 +269,16 @@ const App = (function () {
     $$("[data-delod]", main).forEach((b) => b.addEventListener("click", () => {
       if (confirm("이 발주 건을 삭제할까요?")) { S.remove("orders", b.dataset.delod); renderOrders(main); }
     }));
+    $$("[data-csod]", main).forEach((b) => b.addEventListener("click", () => {
+      const o = (S.data.orders || []).find((x) => x.id === b.dataset.csod); if (!o) return;
+      const p2 = (n) => String(n).padStart(2, "0");
+      const date = (o.year && o.month && o.day) ? `${o.year}-${p2(o.month)}-${p2(o.day)}` : new Date().toISOString().slice(0, 10);
+      S.data.cs = S.data.cs || [];
+      S.data.cs.push({ id: S.uid(), date, store: o.store, channel: o.vendor || "", orderNo: "", type: "반품", item: o.desc || "", status: "접수", note: o.recipient ? `받는분: ${o.recipient}` : "" });
+      S.save();
+      alert(`C/S 관리에 등록했어요. (받는분: ${o.recipient || "-"})\nC/S 탭에서 유형·처리내용을 보완하세요.`);
+      go("cs");
+    }));
   }
 
   /* ===================== 정산서 ===================== */
@@ -258,7 +291,7 @@ const App = (function () {
     const supT = rows.reduce((a, r) => a + S.num(r.supply), 0);
     const shipT = rows.reduce((a, r) => a + S.num(r.ship), 0);
     const totT = rows.reduce((a, r) => a + S.num(r.total), 0);
-    const sText = (r) => [r.recipient, r.item, r.addr].join(" ").toLowerCase();
+    const sText = (r) => [r.vendor, r.recipient, r.item, r.addr, r.date].join(" ").toLowerCase();
     main.innerHTML = `
       <div class="page-head"><div><h2>🧾 정산서 <span class="muted" id="se-cnt">(${rows.length}건)</span></h2>
         <div class="muted">${esc(scopeLabel())} · 발주정산내역서 (받는분·품목·공급가)</div></div>
@@ -270,15 +303,17 @@ const App = (function () {
         <div class="kb"><div class="l">배송비 합계</div><div class="v">₩${won(shipT)}</div></div>
         <div class="kb g"><div class="l">합계</div><div class="v">₩${won(totT)}</div></div>
       </div>
-      <div class="card" style="padding:10px 14px"><input id="se-search" placeholder="🔍 검색 (받는분·품목·주소)" style="width:100%;border:1px solid var(--line);border-radius:9px;padding:9px 12px;font-size:13.5px"></div>
+      ${help("settlements")}
+      <div class="card" style="padding:10px 14px"><input id="se-search" placeholder="🔍 검색 (거래처·받는분·품목·주소·일자)" style="width:100%;border:1px solid var(--line);border-radius:9px;padding:9px 12px;font-size:13.5px"></div>
       <div class="table-wrap"><table class="grid">
-        <thead><tr><th>발주일</th><th>사업장</th><th>받는분</th><th>주소</th><th>품목</th><th class="num">수량</th><th class="num">공급가</th><th class="num">배송비</th><th class="num">합계</th><th></th></tr></thead>
-        <tbody>${sorted.map((r) => `<tr data-s="${esc(sText(r))}"><td>${esc(r.date || (r.month ? r.month + "/" + r.day : ""))}</td><td>${stNm(r.store)}</td>
-          <td>${esc(r.recipient || "")}</td><td style="max-width:280px;white-space:normal;font-size:12px;color:var(--muted)">${esc(r.addr || "")}</td><td>${esc(r.item || "")}</td>
+        <thead><tr><th>발주일</th><th>사업장</th><th>거래처</th><th>받는분</th><th>주소</th><th>품목</th><th class="num">수량</th><th class="num">공급가</th><th class="num">합계</th><th>비고(C/S)</th><th></th></tr></thead>
+        <tbody>${sorted.map((r) => `<tr data-s="${esc(sText(r))}"><td>${esc(r.date || (r.month ? r.month + "/" + r.day : ""))}</td><td>${stNm(r.store)}</td><td>${esc(r.vendor || "")}</td>
+          <td>${esc(r.recipient || "")}</td><td style="max-width:240px;white-space:normal;font-size:12px;color:var(--muted)">${esc(r.addr || "")}</td><td>${esc(r.item || "")}</td>
           <td class="num">${r.review ? `<span class="tag out">리뷰</span>` : won(r.qty)}</td>
-          <td class="num">${won(r.supply)}</td><td class="num">${won(r.ship)}</td><td class="num">₩${won(r.total)}</td>
+          <td class="num">${won(r.supply)}</td><td class="num">₩${won(r.total)}</td>
+          <td><input class="se-note" data-id="${r.id}" value="${esc(r.note || "")}" placeholder="C/S 메모" style="width:130px;border:1px solid var(--line);border-radius:6px;padding:4px 7px;font-size:12px"></td>
           <td class="row-actions"><button class="icon-btn edit" data-editse="${r.id}" title="수정">✎</button><button class="icon-btn" data-delse="${r.id}" title="삭제">✕</button></td></tr>`).join("") ||
-          `<tr><td colspan="10" class="empty">정산서가 없어요. 위 버튼으로 발주정산내역서를 올려보세요.</td></tr>`}
+          `<tr><td colspan="11" class="empty">정산서가 없어요. 위 버튼으로 발주정산내역서를 올려보세요.</td></tr>`}
         </tbody></table></div>`;
     wire(main);
     $("#se-clear", main).addEventListener("click", () => {
@@ -295,6 +330,7 @@ const App = (function () {
       $$("tbody tr", main).forEach((tr) => { const ok = !q || (tr.dataset.s || "").includes(q); tr.style.display = ok ? "" : "none"; if (ok) n++; });
       const c = $("#se-cnt", main); if (c) c.textContent = `(${n}건)`;
     });
+    $$(".se-note", main).forEach((el) => el.addEventListener("change", () => S.update("settlements", el.dataset.id, { note: el.value })));
     $$("[data-editse]", main).forEach((b) => b.addEventListener("click", () => Modals.editRow("settlements", b.dataset.editse)));
     $$("[data-delse]", main).forEach((b) => b.addEventListener("click", () => {
       if (confirm("이 정산 건을 삭제할까요?")) { S.remove("settlements", b.dataset.delse); renderSettlements(main); }
@@ -312,15 +348,19 @@ const App = (function () {
     orders.forEach((o) => { const k = norm(o.recipient); if (!k) return; (map[k] = map[k] || { name: o.recipient || "", store: o.store, ord: [], set: [] }).ord.push(o); });
     setts.forEach((s) => { const k = norm(s.recipient); if (!k) return; (map[k] = map[k] || { name: s.recipient || "", store: s.store, ord: [], set: [] }).set.push(s); });
     const noRecip = orders.filter((o) => !norm(o.recipient)).length + setts.filter((s) => !norm(s.recipient)).length;
+    const dateOf = (o) => o.date || (o.month ? o.month + "/" + (o.day || "") : "");
     const rows = Object.values(map).map((g) => {
       const ordCnt = g.ord.length, setCnt = g.set.length;
       const status = ordCnt && setCnt ? (ordCnt === setCnt ? "완료" : "건수차이") : (ordCnt ? "미정산" : "발주없음");
       const items = [...new Set(g.ord.map((o) => o.desc).concat(g.set.map((s) => s.item)).filter(Boolean))].join(", ");
-      return { name: g.name, store: g.store, ordCnt, setCnt, items,
+      const vendor = (g.set[0] && g.set[0].vendor) || (g.ord[0] && g.ord[0].vendor) || "";
+      const date = dateOf(g.set[0] || g.ord[0] || {});
+      const addr = (g.set[0] && g.set[0].addr) || "";
+      return { name: g.name, store: g.store, vendor, date, addr, ordCnt, setCnt, items,
         setSup: g.set.reduce((a, s) => a + S.num(s.supply), 0), setTot: g.set.reduce((a, s) => a + S.num(s.total), 0), status };
     }).sort((a, b) => {
       const rank = { 미정산: 0, 건수차이: 1, 발주없음: 2, 완료: 3 };
-      return (rank[a.status] - rank[b.status]) || a.name.localeCompare(b.name);
+      return (rank[a.status] - rank[b.status]) || (a.vendor || "").localeCompare(b.vendor || "") || a.name.localeCompare(b.name);
     });
     const cnt = (st) => rows.filter((r) => r.status === st).length;
     const view = recFilter ? rows.filter((r) => r.status === recFilter) : rows;
@@ -336,15 +376,17 @@ const App = (function () {
       </div>
       ${(!orders.length && !setts.length) ? `<div class="card"><p class="empty">이 달의 발주내역·정산서가 없어요. 먼저 발주서/정산서를 올려주세요.</p></div>` : ""}
       ${noRecip ? `<div class="hint" style="margin-bottom:10px">⚠️ 받는분(수령인) 정보가 없는 행 ${noRecip}건은 대조에서 빠졌어요. (예전에 올린 발주는 받는분이 없을 수 있어요 → 다시 올리면 포함돼요)</div>` : ""}
-      <div class="card" style="padding:10px 14px"><input id="rc-search" placeholder="🔍 검색 (받는분·품목)" style="width:100%;border:1px solid var(--line);border-radius:9px;padding:9px 12px;font-size:13.5px"></div>
+      ${help("reconcile")}
+      <div class="card" style="padding:10px 14px"><input id="rc-search" placeholder="🔍 검색 (거래처·받는분·품목·일자)" style="width:100%;border:1px solid var(--line);border-radius:9px;padding:9px 12px;font-size:13.5px"></div>
       <div class="table-wrap"><table class="grid">
-        <thead><tr><th>받는분</th><th>사업장</th><th>품목</th><th class="num">발주</th><th class="num">정산</th><th class="num">정산공급가</th><th class="num">정산합계</th><th>상태</th></tr></thead>
-        <tbody>${view.map((r) => `<tr data-s="${esc((r.name + " " + r.items).toLowerCase())}">
-          <td>${esc(r.name)}</td><td>${stNm(r.store)}</td><td>${esc(r.items)}</td>
+        <thead><tr><th>일자</th><th>거래처</th><th>사업장</th><th>받는분</th><th>주소</th><th>품목</th><th class="num">발주</th><th class="num">정산</th><th class="num">정산합계</th><th>상태</th></tr></thead>
+        <tbody>${view.map((r) => `<tr data-s="${esc([r.vendor, r.name, r.items, r.date, r.addr].join(" ").toLowerCase())}">
+          <td>${esc(r.date)}</td><td>${esc(r.vendor)}</td><td>${stNm(r.store)}</td><td>${esc(r.name)}</td>
+          <td style="max-width:220px;white-space:normal;font-size:12px;color:var(--muted)">${esc(r.addr)}</td><td>${esc(r.items)}</td>
           <td class="num">${r.ordCnt}건</td><td class="num">${r.setCnt}건</td>
-          <td class="num">${won(r.setSup)}</td><td class="num">₩${won(r.setTot)}</td>
+          <td class="num">₩${won(r.setTot)}</td>
           <td><span class="tag ${badge(r.status)}" style="${stStyle(r.status)}">${r.status}</span></td></tr>`).join("") ||
-          `<tr><td colspan="8" class="empty">해당 상태의 건이 없어요.</td></tr>`}
+          `<tr><td colspan="10" class="empty">해당 상태의 건이 없어요.</td></tr>`}
         </tbody></table></div>`;
     wire(main);
     $$(".rc-fl", main).forEach((b) => b.addEventListener("click", () => { recFilter = recFilter === b.dataset.fl ? "" : b.dataset.fl; renderReconcile(main); }));
@@ -380,6 +422,7 @@ const App = (function () {
       <div class="page-head"><div><h2>📣 광고비 소진현황 <span class="muted">${esc(scope.store ? stNm(scope.store) : "통합")} · ${scope.year || ""}년 ${scope.month || ""}월</span></h2>
         <div class="muted">매일 플랫폼에서 본 소진액을 빠르게 기록 (플랫폼·사업장은 유지돼요)</div></div></div>
       <div class="kpibar">${kpi}<div class="kb g"><div class="l">이번 달 합계</div><div class="v">₩${won(total)}</div></div></div>
+      ${help("adspend")}
       <div class="card"><h3>오늘 소진 입력</h3>
         <div class="form-row"><label>사업장</label>
           <div class="chips" data-g="store">
@@ -458,6 +501,7 @@ const App = (function () {
           <span style="flex:1"><label style="display:block;font-size:12px;color:var(--muted);margin-bottom:3px">처리내용</label><input id="cs-note" placeholder="예: 재발송 완료 / 환불 처리" style="width:100%;border:1px solid var(--line);border-radius:8px;padding:7px 9px"></span>
           <button class="btn primary" id="cs-add">➕ 등록</button>
         </div></div>
+      ${help("cs")}
       <div class="card" style="padding:10px 14px"><input id="cs-search" placeholder="🔍 검색 (채널·주문번호·상품·내용)" style="width:100%;border:1px solid var(--line);border-radius:9px;padding:9px 12px;font-size:13.5px"></div>
       <div class="table-wrap"><table class="grid">
         <thead><tr><th>일자</th><th>사업장</th><th>채널</th><th>주문번호</th><th>유형</th><th>상품·내용</th><th>상태</th><th>처리내용</th><th></th></tr></thead>
@@ -544,6 +588,7 @@ const App = (function () {
         <button class="btn" id="dp-dedup">🧹 중복 정리</button>
         <button class="btn danger" id="dp-clear">🗑️ 전체삭제</button></div></div>
       ${sections || `<div class="kpibar"><div class="kb"><div class="l">아직 기록 없음</div></div></div>`}
+      ${help("deposits")}
       <div class="card"><h3>예치금 직접 입력</h3>
         <div class="form-row"><label>사업장</label>
           <div class="chips" data-g="store">
@@ -1110,6 +1155,7 @@ const App = (function () {
           <button class="btn" id="mr-png">📸 PNG 저장</button>
           <button class="btn primary" id="mr-print">🖨️ 인쇄</button></div>
       </div>
+      ${help("manual")}
       <div class="sheet">
         <div class="doc-head"><h1>${mo}월 마감 보고서</h1><div class="doc-sub">${fullNm} ${yr}년 ${mo}월 MONTHLY CLOSING REPORT</div></div>
         <div class="doc-meta"><div class="meta"><div><b>대상월</b> ${yr}년 ${mo}월</div>
@@ -1326,6 +1372,7 @@ const App = (function () {
           <div class="muted">그로븐 · YB 수기 보고서를 자동 합산한 결과예요. (수정은 위 <b>그로븐 / 옐로우브릿지</b> 탭에서)</div></div>
         <div class="row-actions"><button class="btn" id="mr-png">📸 PNG 저장</button><button class="btn primary" id="mr-print">🖨️ 인쇄</button></div>
       </div>
+      ${help("manual")}
       <div class="sheet">
         <div class="doc-head"><h1>${mo}월 마감 보고서</h1><div class="doc-sub">그로븐 · 옐로우브릿지 ${yr}년 ${mo}월 통합</div></div>
         <div class="doc-meta"><div class="meta"><div><b>대상월</b> ${yr}년 ${mo}월</div>
@@ -1408,7 +1455,7 @@ const App = (function () {
           <button class="btn" onclick="window.print()">🖨️ 인쇄 / PDF</button>
         </div>
       </div>
-
+      ${help("report")}
       <div class="sheet">
         <div class="doc-head">
           <h1>월 마감 보고서</h1>
@@ -1475,6 +1522,7 @@ const App = (function () {
   function renderData(main) {
     main.innerHTML = `
       <div class="page-head"><h2>데이터 · 설정</h2></div>
+      ${help("data")}
       <div class="card"><h3>자료 가져오기</h3>
         <div class="flow-actions">
           <button class="btn" data-act="import-existing">📂 기존 마감 엑셀 불러오기</button>
