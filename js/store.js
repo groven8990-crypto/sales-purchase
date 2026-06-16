@@ -324,6 +324,22 @@ const SPC = (function () {
         if (!data.rules.some((x) => x.kw === r.kw && x.type === r.type)) data.rules.push(r);
       });
       if (inc.vendorItems) data.vendorItems = Object.assign({}, inc.vendorItems, data.vendorItems);
+      // 발주내역·정산서·C/S: 중복(같은 건) 제외하고 더하기
+      if (Array.isArray(inc.orders)) {
+        const sig = (o) => `${o.store || ""}|${o.year}|${o.month}|${o.day}|${o.vendor}|${o.desc}|${o.recipient || ""}`;
+        const seen = new Set((data.orders || []).map(sig));
+        inc.orders.forEach((o) => { const k = sig(o); if (!seen.has(k)) { seen.add(k); data.orders.push(Object.assign({ id: uid() }, o, { id: o.id || uid() })); } });
+      }
+      if (Array.isArray(inc.settlements)) {
+        const sig = (o) => `${o.store || ""}|${o.vendor || ""}|${o.year}|${o.month}|${o.day}|${o.recipient}|${o.addr}|${o.item}|${o.total}|${o.no}`;
+        const cnt = {}; (data.settlements || []).forEach((o) => { const k = sig(o); cnt[k] = (cnt[k] || 0) + 1; });
+        const batch = {};
+        inc.settlements.forEach((o) => { const k = sig(o); const i = (batch[k] = (batch[k] || 0) + 1); if ((cnt[k] || 0) < i) data.settlements.push(Object.assign({ id: o.id || uid() }, o)); });
+      }
+      if (Array.isArray(inc.cs)) {
+        const ids = new Set((data.cs || []).map((c) => c.id));
+        inc.cs.forEach((c) => { if (!c.id || !ids.has(c.id)) { const nc = Object.assign({ id: c.id || uid() }, c); data.cs.push(nc); ids.add(nc.id); } });
+      }
       save();
     },
   };
