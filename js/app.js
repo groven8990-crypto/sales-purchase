@@ -296,6 +296,8 @@ const App = (function () {
       <div class="page-head"><div><h2>🧾 정산서 <span class="muted" id="se-cnt">(${rows.length}건)</span></h2>
         <div class="muted">${esc(scopeLabel())} · 발주정산내역서 (받는분·품목·공급가)</div></div>
         <div class="row-actions"><button class="btn primary" data-act="import-settlement">🧾 정산서 올리기</button>
+          <button class="btn" id="se-delsel">🗑️ 선택 삭제 <span id="se-selcnt" class="muted">(0)</span></button>
+          <button class="btn" id="se-delnov">⚠️ 거래처 없는 건 삭제</button>
           <button class="btn danger" id="se-clear">🗑️ 전체삭제</button></div></div>
       <div class="kpibar">
         <div class="kb"><div class="l">실주문 / 리뷰</div><div class="v">${real.length} / ${rev.length}건</div></div>
@@ -306,16 +308,40 @@ const App = (function () {
       ${help("settlements")}
       <div class="card" style="padding:10px 14px"><input id="se-search" placeholder="🔍 검색 (거래처·받는분·품목·주소·일자)" style="width:100%;border:1px solid var(--line);border-radius:9px;padding:9px 12px;font-size:13.5px"></div>
       <div class="table-wrap"><table class="grid">
-        <thead><tr><th>발주일</th><th>사업장</th><th>거래처</th><th>받는분</th><th>주소</th><th>품목</th><th class="num">수량</th><th class="num">공급가</th><th class="num">배송비</th><th class="num">합계</th><th>비고(C/S)</th><th></th></tr></thead>
-        <tbody>${sorted.map((r) => `<tr data-s="${esc(sText(r))}"><td>${esc(r.date || (r.month ? r.month + "/" + r.day : ""))}</td><td>${stNm(r.store)}</td><td>${esc(r.vendor || "")}</td>
+        <thead><tr><th style="width:30px"><input type="checkbox" id="se-all" title="보이는 항목 전체선택"></th><th>발주일</th><th>사업장</th><th>거래처</th><th>받는분</th><th>주소</th><th>품목</th><th class="num">수량</th><th class="num">공급가</th><th class="num">배송비</th><th class="num">합계</th><th>비고(C/S)</th><th></th></tr></thead>
+        <tbody>${sorted.map((r) => `<tr data-s="${esc(sText(r))}"><td><input type="checkbox" class="se-ck" data-id="${r.id}"></td><td>${esc(r.date || (r.month ? r.month + "/" + r.day : ""))}</td><td>${stNm(r.store)}</td><td>${esc(r.vendor || "") || `<span class="tag out">없음</span>`}</td>
           <td>${esc(r.recipient || "")}</td><td style="max-width:240px;white-space:normal;font-size:12px;color:var(--muted)">${esc(r.addr || "")}</td><td>${esc(r.item || "")}</td>
           <td class="num">${r.review ? `<span class="tag out">리뷰</span>` : won(r.qty)}</td>
           <td class="num">${won(r.supply)}</td><td class="num">${won(r.ship)}</td><td class="num">₩${won(r.total)}</td>
           <td><input class="se-note" data-id="${r.id}" value="${esc(r.note || "")}" placeholder="C/S 메모" style="width:130px;border:1px solid var(--line);border-radius:6px;padding:4px 7px;font-size:12px"></td>
           <td class="row-actions"><button class="icon-btn edit" data-editse="${r.id}" title="수정">✎</button><button class="icon-btn" data-delse="${r.id}" title="삭제">✕</button></td></tr>`).join("") ||
-          `<tr><td colspan="12" class="empty">정산서가 없어요. 위 버튼으로 발주정산내역서를 올려보세요.</td></tr>`}
+          `<tr><td colspan="13" class="empty">정산서가 없어요. 위 버튼으로 발주정산내역서를 올려보세요.</td></tr>`}
         </tbody></table></div>`;
     wire(main);
+    const cks = () => $$(".se-ck", main);
+    const checkedIds = () => cks().filter((c) => c.checked).map((c) => c.dataset.id);
+    const refreshSelCnt = () => { const el = $("#se-selcnt", main); if (el) el.textContent = `(${checkedIds().length})`; };
+    cks().forEach((c) => c.addEventListener("change", refreshSelCnt));
+    const allBox = $("#se-all", main);
+    if (allBox) allBox.addEventListener("change", () => {
+      cks().forEach((c) => { if (c.closest("tr").style.display !== "none") c.checked = allBox.checked; });
+      refreshSelCnt();
+    });
+    $("#se-delsel", main).addEventListener("click", () => {
+      const ids = new Set(checkedIds());
+      if (!ids.size) { alert("삭제할 항목을 체크하세요. (행 왼쪽 체크박스)"); return; }
+      if (!confirm(`체크한 정산서 ${ids.size}건을 삭제할까요?`)) return;
+      S.data.settlements = (S.data.settlements || []).filter((r) => !ids.has(r.id));
+      S.save(); renderSettlements(main);
+    });
+    $("#se-delnov", main).addEventListener("click", () => {
+      const noVend = rows.filter((r) => !String(r.vendor || "").trim());
+      if (!noVend.length) { alert("거래처가 비어 있는 건이 없어요."); return; }
+      if (!confirm(`거래처 이름이 없는 정산서 ${noVend.length}건을 삭제할까요?\n(현재 화면 기준)`)) return;
+      const ids = new Set(noVend.map((r) => r.id));
+      S.data.settlements = (S.data.settlements || []).filter((r) => !ids.has(r.id));
+      S.save(); renderSettlements(main);
+    });
     $("#se-clear", main).addEventListener("click", () => {
       if (!rows.length) { alert("삭제할 정산서가 없어요."); return; }
       const lbl = `${scope.store ? (scope.store === "yb" ? "YB" : "그로븐") : "전체"}${scope.year ? " " + scope.year + "년" : ""}${scope.month ? " " + scope.month + "월" : ""}`;
