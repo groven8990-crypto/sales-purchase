@@ -231,7 +231,7 @@ const App = (function () {
   function renderOrders(main) {
     let rows = S.filterBy(S.data.orders || [], { store: scope.store, year: scope.year, month: scope.month });
     rows = rows.slice().sort((a, b) => `${b.year}-${b.month}-${b.day}`.localeCompare(`${a.year}-${a.month}-${a.day}`));
-    const sText = (r) => [r.vendor, r.recipient, r.addr, r.phone, r.desc, r.note].map((x) => String(x == null ? "" : x)).join(" ").toLowerCase();
+    const sText = (r) => [r.vendor, r.recipient, r.addr, r.phone, r.desc, r.note, r.tracking].map((x) => String(x == null ? "" : x)).join(" ").toLowerCase();
     main.innerHTML = `
       <div class="page-head">
         <div><h2>📦 발주내역 <span class="muted" id="od-cnt">(${rows.length}건)</span></h2>
@@ -243,7 +243,7 @@ const App = (function () {
       ${help("orders")}
       <div class="card" style="padding:10px 14px"><input id="od-search" placeholder="🔍 검색 (거래처·품목)" style="width:100%;border:1px solid var(--line);border-radius:9px;padding:9px 12px;font-size:13.5px"></div>
       <div class="table-wrap"><table class="grid">
-        <thead><tr><th>일자</th><th>거래처</th><th>받는분</th><th>주소</th><th>연락처</th><th>품목/내용</th><th class="num">수량</th><th>스토어</th><th>메모</th><th></th></tr></thead>
+        <thead><tr><th>일자</th><th>거래처</th><th>받는분</th><th>주소</th><th>연락처</th><th>품목/내용</th><th class="num">수량</th><th>스토어</th><th>메모</th><th>송장번호</th><th></th></tr></thead>
         <tbody>${rows.map((r) => `<tr data-s="${esc(sText(r))}">
           <td>${esc((r.month || "") + "." + (r.day || ""))}</td><td>${esc(r.vendor || "")}</td><td>${esc(r.recipient || "")}</td>
           <td style="max-width:230px;white-space:normal;font-size:12px;color:var(--muted)">${esc(r.addr || "")}</td>
@@ -251,8 +251,9 @@ const App = (function () {
           <td>${esc(r.desc || "")}</td><td class="num">${esc(r.qty || "")}</td>
           <td>${r.store === "yb" ? "YB" : (r.store === "groven" ? "그로븐" : "")}</td>
           <td>${esc(r.note || "")}</td>
+          <td style="font-size:12px;${r.tracking ? "" : "color:var(--muted)"}white-space:nowrap">${esc(r.tracking || "—")}</td>
           <td class="row-actions"><button class="icon-btn" data-csod="${r.id}" title="C/S 등록">📞</button><button class="icon-btn" data-delod="${r.id}" title="삭제">✕</button></td></tr>`).join("") ||
-          `<tr><td colspan="10" class="empty">발주 내역이 없어요. '발주서 올리기'로 추가하세요.</td></tr>`}
+          `<tr><td colspan="11" class="empty">발주 내역이 없어요. '발주서 올리기'로 추가하세요.</td></tr>`}
         </tbody></table></div>`;
     wire(main);
     $("#od-gdrive", main).addEventListener("click", () => GDrive.run("orders"));

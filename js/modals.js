@@ -516,16 +516,11 @@ const Modals = (function () {
         });
       });
       if (!out.length) { q("#od-prev").innerHTML = `<div class="err">읽을 행이 없어요.</div>`; return; }
-      // 중복 제거 (같은 파일 재업로드해도 안 쌓이게)
-      const sig = (o) => `${o.store || ""}|${o.year}|${o.month}|${o.day}|${o.vendor}|${o.desc}|${o.recipient || ""}`;
-      const seen = new Set((S.data.orders || []).map(sig));
-      const fresh = []; let skipped = 0;
-      out.forEach((o) => { const k = sig(o); if (seen.has(k)) { skipped++; } else { seen.add(k); fresh.push(o); } });
-      if (!fresh.length) { q("#od-prev").innerHTML = `<div class="err">모두 이미 등록된 발주예요 (중복 ${skipped}건).</div>`; return; }
-      S.addOrders(fresh);
-      if (App.scope) { App.scope.year = fresh[0].year; App.scope.month = fresh[0].month; }
+      const { added, skipped, first } = addOrdersDedup(out);
+      if (!added && !skipped) { q("#od-prev").innerHTML = `<div class="err">추가할 발주가 없어요.</div>`; return; }
+      if (first && App.scope) { App.scope.year = first.year; App.scope.month = first.month; }
       close(); App.go("orders");
-      if (skipped) alert(`${fresh.length}건 추가, 중복 ${skipped}건은 건너뛰었어요.`);
+      if (skipped) alert(`${added}건 추가, 중복 ${skipped}건은 건너뛰었어요.`);
     };
   }
   function renderODMap(table) {
@@ -781,7 +776,8 @@ const Modals = (function () {
       supply: pickCol(H, [/공급가|상품가격|상품금액|판매가|판매금액/, /단가/]),
       ship: pickCol(H, [/^배송비$|배송비\(|배송비$|택배비/]),
       total: pickCol(H, [/^합계$|총합계|총액|정산금액|정산액|합계금액/, /합계\(/, /합계/]),
-      no: pickCol(H, [/고객주문번호|주문번호|고유번호/, /운송장번호|송장번호/, /^번호$|^no$/i]),
+      no: pickCol(H, [/고객주문번호|주문번호|고유번호/, /^번호$|^no$/i]),
+      tracking: pickCol(H, [/운송장번호|송장번호|운송장|^송장$|트래킹|tracking/i]),
       gu: pickCol(H, [/발생구분|구분/], /우편|주소|상품/),
       vendor: pickCol(H, [/거래처|공급처|공급업체|업체명/, /마켓|쇼핑몰|판매처|채널|상호/]),
     };
@@ -807,16 +803,30 @@ const Modals = (function () {
       const addr = (g(r, C.addr) + (C.addr2 >= 0 ? " " + g(r, C.addr2) : "")).trim();
       out.push({ store, year: fYr || d.y || yr, month: fMo || d.m || mo, day: fDy || d.d || "", // 발주일은 파일명 우선
         vendor, desc, qty: C.qty >= 0 ? Parsers.num(r[C.qty]) : 0,
-        recipient, addr, phone: g(r, C.phone), no: g(r, C.no), note: "발주서" });
+        recipient, addr, phone: g(r, C.phone), tracking: g(r, C.tracking), no: g(r, C.no), note: "발주서" });
     });
     return out;
   }
+  // 같은 사업장·받는분·주소의 발주행끼리 송장번호를 채워줌 (회신 파일에서 온 운송장번호 등)
+  function propagateTracking() {
+    const pk = (o) => `${o.store || ""}|${(o.recipient || "").trim()}|${(o.addr || "").replace(/\s+/g, "")}`;
+    const track = {};
+    (S.data.orders || []).forEach((o) => { if (o.tracking && (o.addr || "").trim()) { const k = pk(o); if (!track[k]) track[k] = o.tracking; } });
+    (S.data.orders || []).forEach((o) => { if (!o.tracking && (o.addr || "").trim()) { const t = track[pk(o)]; if (t) o.tracking = t; } });
+  }
   function addOrdersDedup(out) {
-    const sig = (o) => `${o.store || ""}|${o.year}|${o.month}|${o.day}|${o.vendor}|${o.desc}|${o.recipient || ""}`;
-    const seen = new Set((S.data.orders || []).map(sig));
+    // 주소까지 포함 → 동명이인·합배송은 따로 보존, 같은 발주(원본/회신)는 한 줄로 합침
+    const sig = (o) => `${o.store || ""}|${o.year}|${o.month}|${o.day}|${o.vendor}|${o.desc}|${o.recipient || ""}|${(o.addr || "").replace(/\s+/g, "")}`;
+    const byKey = {}; (S.data.orders || []).forEach((o) => { byKey[sig(o)] = o; });
     const fresh = []; let skipped = 0;
-    out.forEach((o) => { const k = sig(o); if (seen.has(k)) { skipped++; } else { seen.add(k); fresh.push(o); } });
-    if (fresh.length) S.addOrders(fresh);
+    out.forEach((o) => {
+      const k = sig(o), ex = byKey[k];
+      if (ex) { if (o.tracking && !ex.tracking) ex.tracking = o.tracking; skipped++; } // 회신=중복이지만 송장번호는 받아옴
+      else { const no = Object.assign({ id: S.uid() }, o); byKey[k] = no; fresh.push(no); }
+    });
+    fresh.forEach((o) => S.data.orders.push(o));
+    propagateTracking();
+    S.save();
     return { added: fresh.length, skipped, first: fresh[0] };
   }
   function settlementSheetPick(sheets) {
