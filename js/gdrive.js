@@ -188,7 +188,7 @@ const GDrive = (function () {
     // 점검용: 거래처(하위폴더)별 '최신 1일치' 전부 (원본+회신 같이 와야 송장번호 매칭 확인 가능)
     const sample = qq("#gd-sample") && qq("#gd-sample").checked;
     if (sample) {
-      const dateOf = (n) => { const m = String(n).match(/(\d{6})/); return m ? m[1] : "000000"; };
+      const dateOf = (n) => { const h = String(n).trim().split(/[\s_\-]/)[0]; return /^\d{4,6}$/.test(h) ? h : "0"; };
       const groups = {};
       sheetFiles.forEach((f) => { const k = f.isRoot ? "__root__" : (f.parentName || "?"); (groups[k] = groups[k] || []).push(f); });
       const picked = [];

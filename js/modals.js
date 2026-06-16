@@ -782,14 +782,37 @@ const Modals = (function () {
       vendor: pickCol(H, [/거래처|공급처|공급업체|업체명/, /마켓|쇼핑몰|판매처|채널|상호/]),
     };
   }
+  // 파일명에서 발주일자 추출. 앞 토큰의 YYMMDD(6자리) 또는 MMDD(4자리)만 인정(월 1~12·일 1~31 검증).
+  // 뒤에 붙는 긴 타임스탬프(_20260615034217 등)는 무시.
+  function parseFileDate(name) {
+    const head = String(name).trim().split(/[\s_\-]/)[0];
+    let m;
+    if ((m = head.match(/^(\d{2})(\d{2})(\d{2})$/)) && +m[2] >= 1 && +m[2] <= 12 && +m[3] >= 1 && +m[3] <= 31)
+      return { y: 2000 + +m[1], mo: +m[2], d: +m[3] };
+    if ((m = head.match(/^(\d{2})(\d{2})$/)) && +m[1] >= 1 && +m[1] <= 12 && +m[2] >= 1 && +m[2] <= 31)
+      return { y: null, mo: +m[1], d: +m[2] };
+    return { y: null, mo: null, d: null };
+  }
+  // 송장번호 헤더가 이름으로 안 잡힐 때(예: 'Column2'): 본문값이 대부분 10~14자리 순수숫자인 미사용 열을 송장으로 추정
+  function findTrackingFallback(table, C) {
+    const used = new Set([C.recipient, C.addr, C.addr2, C.item, C.qty, C.phone, C.no, C.date, C.supply, C.ship, C.total, C.vendor, C.gu].filter((i) => i >= 0));
+    let bestIdx = -1, bestRatio = 0.6;
+    table.headers.forEach((h) => {
+      if (used.has(h.index)) return;
+      let tot = 0, hit = 0;
+      for (const r of table.body) { const v = Parsers.str(r[h.index]).replace(/\s/g, ""); if (!v) continue; tot++; if (/^\d{10,14}$/.test(v)) hit++; }
+      if (tot >= 3 && hit / tot > bestRatio) { bestRatio = hit / tot; bestIdx = h.index; }
+    });
+    return bestIdx;
+  }
   function buildOrders(table, opt) {
     opt = opt || {};
     const { name = "", baseVendor = "", yr, mo } = opt;
     const store = opt.store || storeFromName(name);
     const H = table.headers;
     const C = detectCols(H);
-    const fd = String(name).match(/(\d{2})(\d{2})(\d{2})/); // 파일명 YYMMDD = 발주일자
-    const fYr = fd ? 2000 + +fd[1] : null, fMo = fd ? +fd[2] : null, fDy = fd ? +fd[3] : null;
+    const fd = parseFileDate(name); // 발주일자 = 파일명 우선
+    const trackCol = C.tracking >= 0 ? C.tracking : findTrackingFallback(table, C);
     const fVen = fileVendor(name);
     const g = (r, i) => i >= 0 ? Parsers.str(r[i]) : "";
     const out = [];
@@ -801,9 +824,9 @@ const Modals = (function () {
       if (/^합계|총\s*합계/.test(recipient) || /^합계/.test(Parsers.str(r[0]))) return;
       const d = Parsers.parseDate(C.date >= 0 ? r[C.date] : null);
       const addr = (g(r, C.addr) + (C.addr2 >= 0 ? " " + g(r, C.addr2) : "")).trim();
-      out.push({ store, year: fYr || d.y || yr, month: fMo || d.m || mo, day: fDy || d.d || "", // 발주일은 파일명 우선
+      out.push({ store, year: fd.y || d.y || yr, month: fd.mo || d.m || mo, day: fd.d || d.d || "",
         vendor, desc, qty: C.qty >= 0 ? Parsers.num(r[C.qty]) : 0,
-        recipient, addr, phone: g(r, C.phone), tracking: g(r, C.tracking), no: g(r, C.no), note: "발주서" });
+        recipient, addr, phone: g(r, C.phone), tracking: g(r, trackCol), no: g(r, C.no), note: "발주서" });
     });
     return out;
   }
@@ -843,8 +866,8 @@ const Modals = (function () {
     const vendor = baseVendor || fileVendor(name);
     const H = table.headers;
     const C = detectCols(H);
-    const fd = String(name).match(/(\d{2})(\d{2})(\d{2})/);
-    const fYr = fd ? 2000 + +fd[1] : null, fMo = fd ? +fd[2] : null, fDy = fd ? +fd[3] : null;
+    const fd = parseFileDate(name);
+    const fYr = fd.y, fMo = fd.mo, fDy = fd.d;
     const g = (r, i) => i >= 0 ? Parsers.str(r[i]) : "";
     const out = [];
     table.body.forEach((r) => {
