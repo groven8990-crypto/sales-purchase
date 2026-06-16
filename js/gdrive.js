@@ -8,6 +8,8 @@ const GDrive = (function () {
   const E = (s) => String(s == null ? "" : s).replace(/[&<>"]/g, (c) =>
     ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
   const SCOPE = "https://www.googleapis.com/auth/drive.readonly";
+  // 웹 OAuth 클라이언트 ID는 공개 값(브라우저 노출)이라 기본값으로 넣어둠. 접근은 본인 로그인 + 등록 도메인에서만.
+  const DEFAULT_CLIENT_ID = "215210820068-un89iorav0ih78q2dl5lvdl65oveedph.apps.googleusercontent.com";
   const CFG_KEY = "spc_gdrive";
   const cfg = () => { try { return JSON.parse(localStorage.getItem(CFG_KEY)) || {}; } catch (e) { return {}; } };
   const saveCfg = (c) => localStorage.setItem(CFG_KEY, JSON.stringify(c));
@@ -117,7 +119,7 @@ const GDrive = (function () {
     Modals.open(`📁 구글드라이브에서 ${spec.label} 가져오기`,
       `<p>구글드라이브 폴더의 ${spec.label} 엑셀을 앱이 직접 읽어 등록해요. 하위(거래처) 폴더까지 자동으로 훑어요.</p>
        <div class="form-row"><label>구글 OAuth 클라이언트 ID <span class="muted" style="font-size:11px">(최초 1회만)</span></label>
-         <input id="gd-cid" placeholder="0000....apps.googleusercontent.com" value="${E(c.clientId || "")}" style="width:100%"></div>
+         <input id="gd-cid" placeholder="0000....apps.googleusercontent.com" value="${E(c.clientId || DEFAULT_CLIENT_ID)}" style="width:100%"></div>
        ${savedFolder ? `<div class="hint">최근 사용 폴더: <b>${E(savedFolder.name)}</b> <button class="btn" id="gd-usesaved" style="padding:2px 8px;margin-left:6px">이 폴더로 바로 가져오기</button></div>` : ""}
        <div id="gd-status" class="preview" style="margin-top:8px"></div>
        <div id="gd-folders" style="margin-top:8px"></div>
