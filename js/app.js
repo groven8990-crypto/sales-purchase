@@ -56,7 +56,7 @@ const App = (function () {
     transactions: `<b>통장 입출금</b> 내역이에요.<ul><li><b>🏦 통장내역 올리기</b>로 기업은행 거래내역을 올리면 입금/출금이 자동 분류돼요.</li><li>각 줄을 ✎수정해서 <b>사업장(그로븐/YB)</b>을 지정할 수 있어요.</li></ul>`,
     orders: `마켓에서 받은 <b>발주서(주문/배송 파일)</b>를 올려 발주내역으로 모아요.<ol><li><b>📦 발주서 올리기</b> → 파일을 <b>여러 개 한꺼번에</b> 선택해도 돼요.</li><li>파일명에 '그로븐/옐로우브릿지'가 있으면 <b>사업장 자동</b>, 날짜·거래처도 파일명에서 자동.</li><li>열은 자동으로 맞춰지니 그대로 <b>추가</b>. 같은 파일을 또 올려도 중복은 안 쌓여요.</li><li>다 지우려면 <b>🗑️ 전체삭제</b>.</li></ol>`,
     settlements: `거래처에서 받은 <b>발주정산내역서</b>를 올려요.<ol><li><b>🧾 정산서 올리기</b> → 여러 개 동시 가능, 파일명으로 사업장 자동.</li><li>시트가 2개여도(예: 해담별) <b>정산상세 시트를 자동으로</b> 찾아 읽어요.</li><li>받는분·품목·수량·공급가·배송비·합계가 자동 정리, <b>실주문/리뷰</b> 구분.</li></ol>`,
-    reconcile: `<b>발주내역 ↔ 정산서</b>를 <b>받는분(수령인)</b> 기준으로 대조해요.<ul><li><b>🔴 미정산</b>: 발주는 했는데 정산 안 됨 / <b>⚠️ 건수차이</b>: 건수가 다름</li><li><b>🟡 발주없음</b>: 정산엔 있는데 발주기록 없음 / <b>✅ 정산완료</b></li><li>상단 카드를 누르면 그 상태만 모아 봐요.</li></ul>`,
+    reconcile: `<b>발주내역 ↔ 정산서</b>를 <b>받는분(수령인)</b> 기준으로 대조해요.<ul><li><b>🔴 미정산</b>: 발주는 했는데 정산 안 됨 / <b>⚠️ 건수차이</b>: 건수가 다름</li><li><b>🟡 발주없음</b>: 정산엔 있는데 발주기록 없음 / <b>✅ 정산완료</b></li><li>상단 카드를 누르면 그 상태만 모아 봐요.</li><li><b>시작일~종료일</b>을 골라 <b>📅 이 기간으로 대조</b>를 누르면, 정산주기(주결제·15일결제 등)에 맞춘 기간만 대조해요. <b>↩︎ 이번 달 전체</b>로 되돌려요.</li></ul>`,
     deposits: `거래처별 <b>예치금·적립금</b> 충전·사용·잔액을 관리해요.<ul><li><b>📥 파일 올리기</b>(도매꾹 등) 또는 <b>직접 입력</b>(거래처·구분·금액 칩 선택).</li><li>잔액 = 충전 합계 − 사용 합계. <b>📸 현황 보고(PNG)</b>로 이미지 저장.</li></ul>`,
     adspend: `플랫폼 <b>광고비 소진</b>을 매일 빠르게 기록해요.<ol><li>플랫폼·사업장 <b>칩</b>을 고르고(선택은 유지됨) <b>소진액</b>만 입력해 추가.</li><li>상단에서 이번 달 플랫폼별 합계를 바로 봐요.</li></ol>`,
     cs: `고객 <b>C/S(반품·교환·환불 등)</b> 처리 상태를 관리해요.<ol><li>C/S가 오면 <b>접수</b>로 등록.</li><li>처리하면서 ✎로 <b>처리중 → 완료</b>, 처리내용을 적어요.</li><li>상단 카드로 밀린 건(접수/처리중)을 확인.</li></ol>`,
@@ -339,11 +339,29 @@ const App = (function () {
 
   /* ===================== 발주 ↔ 정산 대조 ===================== */
   let recFilter = ""; // "" | 완료 | 건수차이 | 미정산 | 발주없음
+  let recRange = { from: "", to: "" }; // 정산주기(주결제·15일결제 등)에 맞춘 기간 대조
   function renderReconcile(main) {
     const stNm = (s) => s === "yb" ? "YB" : (s === "groven" ? "그로븐" : "");
     const norm = (s) => String(s || "").trim().replace(/\s/g, "");
-    const orders = S.filterBy(S.data.orders || [], { store: scope.store, year: scope.year, month: scope.month });
-    const setts = S.filterBy(S.data.settlements || [], { store: scope.store, year: scope.year, month: scope.month });
+    const p2 = (n) => String(n).padStart(2, "0");
+    const ymd = (r) => (r.year && r.month && r.day) ? `${r.year}-${p2(r.month)}-${p2(r.day)}` : "";
+    const ymOf = (r) => (r.year && r.month) ? `${r.year}-${p2(r.month)}` : "";
+    const useRange = !!(recRange.from || recRange.to);
+    const inRange = (r) => {
+      const { from, to } = recRange;
+      if (!from && !to) return true;
+      const d = ymd(r);
+      if (d) return (!from || d >= from) && (!to || d <= to);
+      const m = ymOf(r); if (!m) return false; // 일자 없는 옛 데이터는 연·월로 느슨하게 판정
+      const mf = from ? from.slice(0, 7) : "", mt = to ? to.slice(0, 7) : "";
+      return (!mf || m >= mf) && (!mt || m <= mt);
+    };
+    const baseOrders = useRange ? (S.data.orders || []).filter((o) => !scope.store || (o.store || "") === scope.store)
+      : S.filterBy(S.data.orders || [], { store: scope.store, year: scope.year, month: scope.month });
+    const baseSetts = useRange ? (S.data.settlements || []).filter((s) => !scope.store || (s.store || "") === scope.store)
+      : S.filterBy(S.data.settlements || [], { store: scope.store, year: scope.year, month: scope.month });
+    const orders = baseOrders.filter(inRange);
+    const setts = baseSetts.filter(inRange);
     const map = {};
     orders.forEach((o) => { const k = norm(o.recipient); if (!k) return; (map[k] = map[k] || { name: o.recipient || "", store: o.store, ord: [], set: [] }).ord.push(o); });
     setts.forEach((s) => { const k = norm(s.recipient); if (!k) return; (map[k] = map[k] || { name: s.recipient || "", store: s.store, ord: [], set: [] }).set.push(s); });
@@ -368,8 +386,15 @@ const App = (function () {
     const stStyle = (st) => st === "건수차이" ? "background:#fef3c7;color:#92400e" : (st === "발주없음" ? "background:#ede9fe;color:#6d28d9" : "");
 
     main.innerHTML = `
-      <div class="page-head"><div><h2>🔁 발주 ↔ 정산 대조 <span class="muted">${esc(scopeLabel())}</span></h2>
+      <div class="page-head"><div><h2>🔁 발주 ↔ 정산 대조 <span class="muted">${useRange ? esc((recRange.from || "처음") + " ~ " + (recRange.to || "끝")) : esc(scopeLabel())}</span></h2>
         <div class="muted">받는분(수령인) 기준 · 발주내역 ↔ 정산서 비교</div></div></div>
+      <div class="card" style="padding:10px 14px;display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
+        <span><label style="display:block;font-size:12px;color:var(--muted);margin-bottom:3px">시작일</label><input id="rc-from" type="date" value="${recRange.from}" style="border:1px solid var(--line);border-radius:8px;padding:7px 9px"></span>
+        <span><label style="display:block;font-size:12px;color:var(--muted);margin-bottom:3px">종료일</label><input id="rc-to" type="date" value="${recRange.to}" style="border:1px solid var(--line);border-radius:8px;padding:7px 9px"></span>
+        <button class="btn primary" id="rc-apply">📅 이 기간으로 대조</button>
+        <button class="btn" id="rc-reset">↩︎ 이번 달 전체</button>
+        <span class="muted" style="font-size:12px">${useRange ? "선택한 기간의 발주·정산만 대조 중이에요." : "정산주기(주결제·15일결제 등)에 맞춰 기간을 골라 대조하세요."}</span>
+      </div>
       <div class="kpibar">
         ${[["", "전체", rows.length], ["완료", "✅ 정산완료", cnt("완료")], ["건수차이", "⚠️ 건수차이", cnt("건수차이")], ["미정산", "🔴 미정산", cnt("미정산")], ["발주없음", "🟡 발주없음", cnt("발주없음")]].map(([v, l, n]) =>
           `<div class="kb rc-fl" data-fl="${v}" style="cursor:pointer;${recFilter === v ? "outline:2px solid var(--navy)" : ""}"><div class="l">${l}</div><div class="v">${n}</div></div>`).join("")}
@@ -389,6 +414,12 @@ const App = (function () {
           `<tr><td colspan="10" class="empty">해당 상태의 건이 없어요.</td></tr>`}
         </tbody></table></div>`;
     wire(main);
+    $("#rc-apply", main).addEventListener("click", () => {
+      const from = $("#rc-from", main).value, to = $("#rc-to", main).value;
+      if (from && to && from > to) { alert("시작일이 종료일보다 늦어요."); return; }
+      recRange = { from, to }; renderReconcile(main);
+    });
+    $("#rc-reset", main).addEventListener("click", () => { recRange = { from: "", to: "" }; renderReconcile(main); });
     $$(".rc-fl", main).forEach((b) => b.addEventListener("click", () => { recFilter = recFilter === b.dataset.fl ? "" : b.dataset.fl; renderReconcile(main); }));
     const sIn = $("#rc-search", main);
     if (sIn) sIn.addEventListener("input", () => {
