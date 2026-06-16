@@ -274,7 +274,7 @@ const App = (function () {
       const p2 = (n) => String(n).padStart(2, "0");
       const date = (o.year && o.month && o.day) ? `${o.year}-${p2(o.month)}-${p2(o.day)}` : new Date().toISOString().slice(0, 10);
       S.data.cs = S.data.cs || [];
-      S.data.cs.push({ id: S.uid(), date, store: o.store, channel: o.vendor || "", orderNo: "", type: "반품", item: o.desc || "", status: "접수", note: o.recipient ? `받는분: ${o.recipient}` : "" });
+      S.data.cs.push({ id: S.uid(), date, store: o.store, channel: o.vendor || "", recipient: o.recipient || "", orderNo: "", type: "반품", item: o.desc || "", status: "접수", note: "" });
       S.save();
       alert(`C/S 관리에 등록했어요. (받는분: ${o.recipient || "-"})\nC/S 탭에서 유형·처리내용을 보완하세요.`);
       go("cs");
@@ -306,14 +306,14 @@ const App = (function () {
       ${help("settlements")}
       <div class="card" style="padding:10px 14px"><input id="se-search" placeholder="🔍 검색 (거래처·받는분·품목·주소·일자)" style="width:100%;border:1px solid var(--line);border-radius:9px;padding:9px 12px;font-size:13.5px"></div>
       <div class="table-wrap"><table class="grid">
-        <thead><tr><th>발주일</th><th>사업장</th><th>거래처</th><th>받는분</th><th>주소</th><th>품목</th><th class="num">수량</th><th class="num">공급가</th><th class="num">합계</th><th>비고(C/S)</th><th></th></tr></thead>
+        <thead><tr><th>발주일</th><th>사업장</th><th>거래처</th><th>받는분</th><th>주소</th><th>품목</th><th class="num">수량</th><th class="num">공급가</th><th class="num">배송비</th><th class="num">합계</th><th>비고(C/S)</th><th></th></tr></thead>
         <tbody>${sorted.map((r) => `<tr data-s="${esc(sText(r))}"><td>${esc(r.date || (r.month ? r.month + "/" + r.day : ""))}</td><td>${stNm(r.store)}</td><td>${esc(r.vendor || "")}</td>
           <td>${esc(r.recipient || "")}</td><td style="max-width:240px;white-space:normal;font-size:12px;color:var(--muted)">${esc(r.addr || "")}</td><td>${esc(r.item || "")}</td>
           <td class="num">${r.review ? `<span class="tag out">리뷰</span>` : won(r.qty)}</td>
-          <td class="num">${won(r.supply)}</td><td class="num">₩${won(r.total)}</td>
+          <td class="num">${won(r.supply)}</td><td class="num">${won(r.ship)}</td><td class="num">₩${won(r.total)}</td>
           <td><input class="se-note" data-id="${r.id}" value="${esc(r.note || "")}" placeholder="C/S 메모" style="width:130px;border:1px solid var(--line);border-radius:6px;padding:4px 7px;font-size:12px"></td>
           <td class="row-actions"><button class="icon-btn edit" data-editse="${r.id}" title="수정">✎</button><button class="icon-btn" data-delse="${r.id}" title="삭제">✕</button></td></tr>`).join("") ||
-          `<tr><td colspan="11" class="empty">정산서가 없어요. 위 버튼으로 발주정산내역서를 올려보세요.</td></tr>`}
+          `<tr><td colspan="12" class="empty">정산서가 없어요. 위 버튼으로 발주정산내역서를 올려보세요.</td></tr>`}
         </tbody></table></div>`;
     wire(main);
     $("#se-clear", main).addEventListener("click", () => {
@@ -492,6 +492,7 @@ const App = (function () {
           <span><label style="display:block;font-size:12px;color:var(--muted);margin-bottom:3px">일자</label><input id="cs-date" type="date" value="${new Date().toISOString().slice(0, 10)}" style="border:1px solid var(--line);border-radius:8px;padding:7px 9px"></span>
           <span><label style="display:block;font-size:12px;color:var(--muted);margin-bottom:3px">사업장</label><select id="cs-store" style="border:1px solid var(--line);border-radius:8px;padding:7px 9px"><option value="groven">그로븐</option><option value="yb" ${scope.store === "yb" ? "selected" : ""}>YB</option></select></span>
           <span><label style="display:block;font-size:12px;color:var(--muted);margin-bottom:3px">채널</label><input id="cs-channel" placeholder="쿠팡 등" style="width:90px;border:1px solid var(--line);border-radius:8px;padding:7px 9px"></span>
+          <span><label style="display:block;font-size:12px;color:var(--muted);margin-bottom:3px">주문자(받는분)</label><input id="cs-recipient" placeholder="이름" style="width:90px;border:1px solid var(--line);border-radius:8px;padding:7px 9px"></span>
           <span><label style="display:block;font-size:12px;color:var(--muted);margin-bottom:3px">주문번호</label><input id="cs-order" placeholder="(선택)" style="width:120px;border:1px solid var(--line);border-radius:8px;padding:7px 9px"></span>
           <span><label style="display:block;font-size:12px;color:var(--muted);margin-bottom:3px">유형</label><select id="cs-type" style="border:1px solid var(--line);border-radius:8px;padding:7px 9px">${CS_TYPES.map((t) => `<option>${t}</option>`).join("")}</select></span>
           <span style="flex:1;min-width:140px"><label style="display:block;font-size:12px;color:var(--muted);margin-bottom:3px">상품·내용</label><input id="cs-item" placeholder="예: 간고등어 / 파손 도착" style="width:100%;border:1px solid var(--line);border-radius:8px;padding:7px 9px"></span>
@@ -502,16 +503,16 @@ const App = (function () {
           <button class="btn primary" id="cs-add">➕ 등록</button>
         </div></div>
       ${help("cs")}
-      <div class="card" style="padding:10px 14px"><input id="cs-search" placeholder="🔍 검색 (채널·주문번호·상품·내용)" style="width:100%;border:1px solid var(--line);border-radius:9px;padding:9px 12px;font-size:13.5px"></div>
+      <div class="card" style="padding:10px 14px"><input id="cs-search" placeholder="🔍 검색 (채널·주문자·주문번호·상품·내용)" style="width:100%;border:1px solid var(--line);border-radius:9px;padding:9px 12px;font-size:13.5px"></div>
       <div class="table-wrap"><table class="grid">
-        <thead><tr><th>일자</th><th>사업장</th><th>채널</th><th>주문번호</th><th>유형</th><th>상품·내용</th><th>상태</th><th>처리내용</th><th></th></tr></thead>
-        <tbody>${sorted.map((c) => `<tr data-s="${esc([c.channel, c.orderNo, c.item, c.note, c.type].join(" ").toLowerCase())}">
-          <td>${esc(c.date)}</td><td>${stNm(c.store)}</td><td>${esc(c.channel || "")}</td><td>${esc(c.orderNo || "")}</td>
+        <thead><tr><th>일자</th><th>사업장</th><th>채널</th><th>주문자(받는분)</th><th>주문번호</th><th>유형</th><th>상품·내용</th><th>상태</th><th>처리내용</th><th></th></tr></thead>
+        <tbody>${sorted.map((c) => `<tr data-s="${esc([c.channel, c.recipient, c.orderNo, c.item, c.note, c.type].join(" ").toLowerCase())}">
+          <td>${esc(c.date)}</td><td>${stNm(c.store)}</td><td>${esc(c.channel || "")}</td><td>${esc(c.recipient || "")}</td><td>${esc(c.orderNo || "")}</td>
           <td>${esc(c.type || "")}</td><td>${esc(c.item || "")}</td>
           <td><span class="tag ${statColor(c.status || "접수")}">${esc(c.status || "접수")}</span></td>
           <td>${esc(c.note || "")}</td>
           <td class="row-actions"><button class="icon-btn edit" data-editcs="${c.id}" title="수정">✎</button><button class="icon-btn" data-delcs="${c.id}" title="삭제">✕</button></td></tr>`).join("") ||
-          `<tr><td colspan="9" class="empty">아직 C/S 건이 없어요. 위에서 등록하세요.</td></tr>`}
+          `<tr><td colspan="10" class="empty">아직 C/S 건이 없어요. 위에서 등록하세요.</td></tr>`}
         </tbody></table></div>`;
     wire(main);
     $$(".cs-fl", main).forEach((b) => b.addEventListener("click", () => { csFilter = csFilter === b.dataset.fl ? "" : b.dataset.fl; renderCS(main); }));
@@ -524,7 +525,7 @@ const App = (function () {
       const item = $("#cs-item", main).value.trim();
       if (!item) { alert("상품·내용을 입력하세요."); return; }
       S.data.cs.push({ id: S.uid(), date: $("#cs-date", main).value, store: $("#cs-store", main).value,
-        channel: $("#cs-channel", main).value.trim(), orderNo: $("#cs-order", main).value.trim(),
+        channel: $("#cs-channel", main).value.trim(), recipient: $("#cs-recipient", main).value.trim(), orderNo: $("#cs-order", main).value.trim(),
         type: $("#cs-type", main).value, item, status: $("#cs-status", main).value, note: $("#cs-note", main).value.trim() });
       S.save(); renderCS(main);
     });

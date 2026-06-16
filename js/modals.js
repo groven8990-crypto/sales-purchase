@@ -298,6 +298,7 @@ const Modals = (function () {
       { k: "date", l: "일자", t: "date" },
       { k: "store", l: "사업장", t: "sel", opts: () => [["groven", "그로븐"], ["yb", "YB"]] },
       { k: "channel", l: "채널", t: "text" },
+      { k: "recipient", l: "주문자(받는분)", t: "text" },
       { k: "orderNo", l: "주문번호", t: "text" },
       { k: "type", l: "유형", t: "sel", opts: () => ["반품", "교환", "환불", "오배송", "파손", "단순문의", "기타"] },
       { k: "item", l: "상품·내용", t: "text", wide: true },
