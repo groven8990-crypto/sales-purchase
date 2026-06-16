@@ -213,7 +213,8 @@ const App = (function () {
       <div class="page-head">
         <div><h2>📦 발주내역 <span class="muted" id="od-cnt">(${rows.length}건)</span></h2>
           <div class="muted">${esc(scopeLabel())} · 발주서 기준 (매입 증빙과 별개)</div></div>
-        <div class="row-actions"><button class="btn primary" data-act="import-orders">📦 발주서 올리기</button></div>
+        <div class="row-actions"><button class="btn primary" data-act="import-orders">📦 발주서 올리기</button>
+          <button class="btn danger" id="od-clear">🗑️ 전체삭제</button></div>
       </div>
       <div class="card" style="padding:10px 14px"><input id="od-search" placeholder="🔍 검색 (거래처·품목)" style="width:100%;border:1px solid var(--line);border-radius:9px;padding:9px 12px;font-size:13.5px"></div>
       <div class="table-wrap"><table class="grid">
@@ -227,6 +228,14 @@ const App = (function () {
           `<tr><td colspan="7" class="empty">발주 내역이 없어요. '발주서 올리기'로 추가하세요.</td></tr>`}
         </tbody></table></div>`;
     wire(main);
+    $("#od-clear", main).addEventListener("click", () => {
+      if (!rows.length) { alert("삭제할 발주내역이 없어요."); return; }
+      const lbl = `${scope.store ? (scope.store === "yb" ? "YB" : "그로븐") : "전체"}${scope.year ? " " + scope.year + "년" : ""}${scope.month ? " " + scope.month + "월" : ""}`;
+      if (!confirm(`현재 보고 있는 ${lbl} 발주내역 ${rows.length}건을 모두 삭제할까요? (되돌릴 수 없어요)`)) return;
+      const ids = new Set(rows.map((r) => r.id));
+      S.data.orders = (S.data.orders || []).filter((r) => !ids.has(r.id));
+      S.save(); renderOrders(main);
+    });
     const sIn = $("#od-search", main);
     if (sIn) sIn.addEventListener("input", () => {
       const q = sIn.value.trim().toLowerCase(); let n = 0;

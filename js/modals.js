@@ -512,10 +512,16 @@ const Modals = (function () {
         });
       });
       if (!out.length) { q("#od-prev").innerHTML = `<div class="err">읽을 행이 없어요.</div>`; return; }
-      S.addOrders(out);
-      // 추가한 데이터의 달로 상단 연·월 이동(바로 보이게)
-      if (App.scope) { App.scope.year = out[0].year; App.scope.month = out[0].month; }
+      // 중복 제거 (같은 파일 재업로드해도 안 쌓이게)
+      const sig = (o) => `${o.store || ""}|${o.year}|${o.month}|${o.day}|${o.vendor}|${o.desc}|${o.recipient || ""}`;
+      const seen = new Set((S.data.orders || []).map(sig));
+      const fresh = []; let skipped = 0;
+      out.forEach((o) => { const k = sig(o); if (seen.has(k)) { skipped++; } else { seen.add(k); fresh.push(o); } });
+      if (!fresh.length) { q("#od-prev").innerHTML = `<div class="err">모두 이미 등록된 발주예요 (중복 ${skipped}건).</div>`; return; }
+      S.addOrders(fresh);
+      if (App.scope) { App.scope.year = fresh[0].year; App.scope.month = fresh[0].month; }
       close(); App.go("orders");
+      if (skipped) alert(`${fresh.length}건 추가, 중복 ${skipped}건은 건너뛰었어요.`);
     };
   }
   function renderODMap(table) {
