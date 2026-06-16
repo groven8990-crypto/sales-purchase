@@ -393,6 +393,7 @@ const App = (function () {
     const dVendor = depLastInput.vendor || "";
     const dKind = depLastInput.kind || "사용";
     const all = S.data.deposits || [];
+    const vendorChips = [...new Set(SUGGEST.concat(all.map((d) => d.vendor).filter(Boolean)))]; // 기본 + 입력한 거래처 자동 칩
     const deps = scope.store ? all.filter((d) => (d.store || "") === scope.store) : all;
     const vendors = [...new Set(deps.map((d) => `${d.store || ""}|${d.vendor}`))];
     if (depFilter && vendors.indexOf(depFilter) === -1) depFilter = "";
@@ -432,8 +433,8 @@ const App = (function () {
             <button type="button" class="dp-chip ${dStore === "yb" ? "on" : ""}" data-v="yb">YB</button>
           </div></div>
         <div class="form-row"><label>거래처</label>
-          <div class="chips" data-g="vendor">${SUGGEST.map((v) => `<button type="button" class="dp-chip ${v === dVendor ? "on" : ""}" data-v="${esc(v)}">${esc(v)}</button>`).join("")}</div>
-          <input id="dp-vendor" placeholder="또는 직접 입력" value="${dVendor && !SUGGEST.includes(dVendor) ? esc(dVendor) : ""}" style="width:100%;border:1px solid var(--line);border-radius:8px;padding:7px 9px;margin-top:7px"></div>
+          <div class="chips" data-g="vendor">${vendorChips.map((v) => `<button type="button" class="dp-chip ${v === dVendor ? "on" : ""}" data-v="${esc(v)}">${esc(v)}</button>`).join("")}</div>
+          <input id="dp-vendor" placeholder="또는 직접 입력" value="${dVendor && !vendorChips.includes(dVendor) ? esc(dVendor) : ""}" style="width:100%;border:1px solid var(--line);border-radius:8px;padding:7px 9px;margin-top:7px"></div>
         <div class="form-row"><label>구분</label>
           <div class="chips" data-g="kind">
             <button type="button" class="dp-chip kc ${dKind === "충전" ? "on" : ""}" data-v="충전">충전</button>
