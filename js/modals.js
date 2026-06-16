@@ -34,6 +34,17 @@ const Modals = (function () {
       <option value="yb" ${def === "yb" ? "selected" : ""}>옐로우브릿지 (과세)</option>
     </select>`;
   }
+  // 기본 연/월 선택 (드롭다운) — 상단 스코프/마지막 입력값을 기본값으로
+  let lastYM = null;
+  function ymSelect(yId, mId) {
+    const sc = (typeof App !== "undefined" && App.scope) ? App.scope : {};
+    const now = new Date();
+    const y = +(sc.year || (lastYM && lastYM.y) || now.getFullYear());
+    const m = +(sc.month || (lastYM && lastYM.m) || (now.getMonth() + 1));
+    const years = []; for (let yy = now.getFullYear() + 1; yy >= now.getFullYear() - 3; yy--) years.push(yy);
+    return `<select id="${yId}" style="padding:7px 9px;border:1px solid var(--line);border-radius:8px">${years.map((yy) => `<option value="${yy}" ${yy === y ? "selected" : ""}>${yy}년</option>`).join("")}</select>` +
+      `<select id="${mId}" style="padding:7px 9px;border:1px solid var(--line);border-radius:8px;margin-left:5px">${Array.from({ length: 12 }, (_, i) => i + 1).map((mm) => `<option value="${mm}" ${mm === m ? "selected" : ""}>${mm}월</option>`).join("")}</select>`;
+  }
 
   /* ===== 1) 기존 마감 엑셀 불러오기 ===== */
   function importExisting() {
@@ -446,7 +457,7 @@ const Modals = (function () {
         <span class="muted" style="font-size:12px">스토어는 <b>파일명</b>의 '그로븐'/'옐로우브릿지'로 파일마다 자동 구분돼요. 열 매칭은 첫 파일 기준으로 모든 파일에 적용돼요.</span></p>
        <div class="form-row two">
          <span><label>스토어 <span class="muted" id="od-store-auto" style="font-size:11px">(파일명으로 자동)</span></label>${storeSelect("od-store")}</span>
-         <span><label>기본 연/월</label><input id="od-ym" placeholder="예: 2026-5" style="width:100%"></span>
+         <span><label>기본 연/월 <span class="muted" style="font-size:11px">(날짜 없을 때)</span></label><div>${ymSelect("od-year", "od-month")}</div></span>
        </div>
        <div class="form-row"><label>기본 거래처(열에 없을 때)</label><input id="od-vendor" placeholder="예: 일비"></div>
        <div class="form-row"><label>발주서 파일 (여러 개 가능)</label><input type="file" id="od-file" accept=".xlsx,.xls,.csv" multiple></div>
@@ -472,9 +483,9 @@ const Modals = (function () {
     q("#od-apply").onclick = () => {
       if (!files.length) return;
       const map = {}; OD_FIELDS.forEach(([f]) => { const v = q(`#od-f-${f}`).value; if (v !== "") map[f] = +v; });
-      const ymM = (q("#od-ym").value || "").match(/(\d{4})\D+(\d{1,2})/);
       const fallbackStore = q("#od-store").value, baseV = q("#od-vendor").value.trim();
-      const yr = ymM ? +ymM[1] : new Date().getFullYear(), mo = ymM ? +ymM[2] : "";
+      const yr = +q("#od-year").value, mo = +q("#od-month").value;
+      lastYM = { y: yr, m: mo };
       // 파일명에서 거래처 추출 (날짜·스토어·발주서 등 제외하고 첫 의미있는 토큰)
       const fileVendor = (name) => {
         const base = String(name).replace(/\.[^.]+$/, "");
@@ -501,7 +512,10 @@ const Modals = (function () {
         });
       });
       if (!out.length) { q("#od-prev").innerHTML = `<div class="err">읽을 행이 없어요.</div>`; return; }
-      S.addOrders(out); close(); App.go("orders");
+      S.addOrders(out);
+      // 추가한 데이터의 달로 상단 연·월 이동(바로 보이게)
+      if (App.scope) { App.scope.year = out[0].year; App.scope.month = out[0].month; }
+      close(); App.go("orders");
     };
   }
   function renderODMap(table) {
@@ -676,7 +690,7 @@ const Modals = (function () {
     open("🧾 정산서(발주정산내역서) 올리기",
       `<p>발주정산내역서 엑셀을 올리면 <b>정산서</b>로 등록돼요. 여러 개 <b>한꺼번에</b> 선택 가능.<br>
         <span class="muted" style="font-size:12px">컬럼(번호·발주일자·받는분·품목·수량·공급가·배송비·합계)은 <b>자동 인식</b>, 스토어는 <b>파일명</b>으로 자동 구분돼요.</span></p>
-       <div class="form-row"><label>기본 연/월 (발주일자에 연도 없을 때)</label><input id="se-ym" placeholder="예: 2026-6"></div>
+       <div class="form-row"><label>기본 연/월 <span class="muted" style="font-size:11px">(발주일자에 연도 없을 때)</span></label><div>${ymSelect("se-year", "se-month")}</div></div>
        <div class="form-row"><label>정산서 파일 (여러 개 가능)</label><input type="file" id="se-file" accept=".xlsx,.xls,.csv" multiple></div>
        <div id="se-prev" class="preview"></div>`,
       `<button class="btn" id="se-cancel">취소</button><button class="btn primary" id="se-apply" disabled>정산서에 추가</button>`);
@@ -699,8 +713,8 @@ const Modals = (function () {
     q("#se-cancel").onclick = close;
     q("#se-apply").onclick = () => {
       if (!files.length) return;
-      const ymM = (q("#se-ym").value || "").match(/(\d{4})\D+(\d{1,2})/);
-      const yr = ymM ? +ymM[1] : new Date().getFullYear(), mo = ymM ? +ymM[2] : "";
+      const yr = +q("#se-year").value, mo = +q("#se-month").value;
+      lastYM = { y: yr, m: mo };
       const out = [];
       files.forEach(({ table, store }) => {
         const H = table.headers;
@@ -725,6 +739,7 @@ const Modals = (function () {
       });
       if (!out.length) { q("#se-prev").innerHTML = `<div class="err">읽을 행이 없어요.</div>`; return; }
       out.forEach((s) => S.data.settlements.push(Object.assign({ id: S.uid() }, s)));
+      if (App.scope) { App.scope.year = out[0].year; App.scope.month = out[0].month; }
       S.save(); close(); App.go("settlements");
     };
   }
