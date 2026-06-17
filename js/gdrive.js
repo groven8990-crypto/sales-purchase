@@ -184,6 +184,8 @@ const GDrive = (function () {
     try { files = await collectFiles(folder.id, folder.name); }
     catch (e) { setStatus(`<div class="err">${E(e.message)}</div>`); return; }
     let sheetFiles = files.filter(isSheetFile);
+    // 발주: 파일명에 '발주'(발주서 등) 또는 회신표시(회신·운송장·송장)만. 그 외(정산·기타)는 건너뜀
+    if (kind === "orders") sheetFiles = sheetFiles.filter((f) => /발주|회신|운송장|송장/.test(f.name || ""));
     if (!sheetFiles.length) { setStatus(`<div class="err">폴더에서 ${spec.label} 엑셀을 못 찾았어요.</div>`); return; }
     // 점검용: 거래처(하위폴더)별 '최신 1일치' 전부 (원본+회신 같이 와야 송장번호 매칭 확인 가능)
     const sample = qq("#gd-sample") && qq("#gd-sample").checked;
@@ -202,18 +204,19 @@ const GDrive = (function () {
 
     const yr = (App.scope && App.scope.year) || new Date().getFullYear();
     const mo = (App.scope && App.scope.month) || (new Date().getMonth() + 1);
-    const out = [];
-    let done = 0, failed = 0;
+    const isReply = (n) => /회신|운송장|송장/.test(n || ""); // 회신(송장번호) 파일 판별
+    const out = [], replies = [];
+    let done = 0, failed = 0, replyFiles = 0;
     for (const f of sheetFiles) {
       done++;
       setStatus(`<div class="muted">⬇️ (${done}/${sheetFiles.length}) ${E(f.name)} 읽는 중…</div>`);
       try {
         const file = await download(f);
-        // 하위 폴더명 = 거래처(있으면 우선)
-        const baseVendor = f.isRoot ? "" : (f.parentName || "");
+        const baseVendor = f.isRoot ? "" : (f.parentName || ""); // 하위 폴더명 = 거래처
         if (kind === "orders") {
           const t = await Parsers.readGenericTable(file);
-          Modals.buildOrders(t, { name: f.name, baseVendor, yr, mo }).forEach((o) => out.push(o));
+          if (isReply(f.name)) { Modals.buildTracking(t, { name: f.name }).forEach((e) => replies.push(e)); replyFiles++; }
+          else Modals.buildOrders(t, { name: f.name, baseVendor, yr, mo }).forEach((o) => out.push(o));
         } else {
           const { sheets } = await Parsers.readSheets(file);
           const best = Modals.settlementSheetPick(sheets);
@@ -221,11 +224,12 @@ const GDrive = (function () {
         }
       } catch (e) { failed++; }
     }
-    if (!out.length) { setStatus(`<div class="err">읽을 행이 없었어요. (파일 ${sheetFiles.length}개${failed ? `, 실패 ${failed}개` : ""})</div>`); return; }
+    if (!out.length && !replies.length) { setStatus(`<div class="err">읽을 행이 없었어요. (파일 ${sheetFiles.length}개${failed ? `, 실패 ${failed}개` : ""})</div>`); return; }
     const res = kind === "orders" ? Modals.addOrdersDedup(out) : Modals.addSettlementsDedup(out);
+    const tracked = kind === "orders" ? Modals.applyTracking(replies) : 0; // 회신 송장번호를 같은 받는분+주소 발주에 채움
     if (res.first && App.scope) { App.scope.year = res.first.year; App.scope.month = res.first.month; }
-    setStatus(`<div class="ok">✅ 파일 ${sheetFiles.length}개 처리 — <b>${res.added}건 추가</b>${res.skipped ? `, 중복 ${res.skipped}건 건너뜀` : ""}${failed ? `, 실패 ${failed}개` : ""}</div>`);
-    setTimeout(() => { Modals.close(); App.go(spec.view); }, 1200);
+    setStatus(`<div class="ok">✅ 파일 ${sheetFiles.length}개 처리 — <b>${res.added}건 추가</b>${res.skipped ? `, 중복 ${res.skipped}건` : ""}${replyFiles ? `, 회신 ${replyFiles}개→송장 ${tracked}건 매칭` : ""}${failed ? `, 실패 ${failed}개` : ""}</div>`);
+    setTimeout(() => { Modals.close(); App.go(spec.view); }, 1400);
   }
 
   return { run: openFor };

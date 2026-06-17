@@ -837,6 +837,33 @@ const Modals = (function () {
     (S.data.orders || []).forEach((o) => { if (o.tracking && (o.addr || "").trim()) { const k = pk(o); if (!track[k]) track[k] = o.tracking; } });
     (S.data.orders || []).forEach((o) => { if (!o.tracking && (o.addr || "").trim()) { const t = track[pk(o)]; if (t) o.tracking = t; } });
   }
+  // 회신(운송장/송장/회신) 파일 → 송장번호만 추출 {recipient, addr, tracking}
+  function buildTracking(table, opt) {
+    opt = opt || {};
+    const H = table.headers;
+    const C = detectCols(H);
+    const trackCol = C.tracking >= 0 ? C.tracking : findTrackingFallback(table, C);
+    if (trackCol < 0) return [];
+    const g = (r, i) => i >= 0 ? Parsers.str(r[i]) : "";
+    const out = [];
+    table.body.forEach((r) => {
+      const tracking = g(r, trackCol); if (!tracking) return;
+      const recipient = g(r, C.recipient);
+      const addr = (g(r, C.addr) + (C.addr2 >= 0 ? " " + g(r, C.addr2) : "")).trim();
+      if (!recipient && !addr) return;
+      out.push({ recipient, addr, tracking });
+    });
+    return out;
+  }
+  // 송장번호를 같은 받는분+주소의 발주행에 채움. 채운 건수 반환.
+  function applyTracking(entries) {
+    const pk = (o) => `${(o.recipient || "").trim()}|${(o.addr || "").replace(/\s+/g, "")}`;
+    const map = {}; entries.forEach((e) => { if (e.tracking) { const k = pk(e); if (!map[k]) map[k] = e.tracking; } });
+    let matched = 0;
+    (S.data.orders || []).forEach((o) => { if (!o.tracking) { const t = map[pk(o)]; if (t) { o.tracking = t; matched++; } } });
+    if (matched) S.save();
+    return matched;
+  }
   function addOrdersDedup(out) {
     // 주소까지 포함 → 동명이인·합배송은 따로 보존, 같은 발주(원본/회신)는 한 줄로 합침
     const sig = (o) => `${o.store || ""}|${o.year}|${o.month}|${o.day}|${o.vendor}|${o.desc}|${o.recipient || ""}|${(o.addr || "").replace(/\s+/g, "")}`;
@@ -898,5 +925,5 @@ const Modals = (function () {
   }
 
   return { importExisting, importBank, importPO, importPaste, importEvidence, importOrders, importDeposits, importDepositPaste, importSettlement, editRow, open, close,
-    fileVendor, storeFromName, buildOrders, addOrdersDedup, settlementSheetPick, buildSettlements, addSettlementsDedup };
+    fileVendor, storeFromName, buildOrders, addOrdersDedup, buildTracking, applyTracking, settlementSheetPick, buildSettlements, addSettlementsDedup };
 })();
