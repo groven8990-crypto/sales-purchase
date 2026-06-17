@@ -1011,6 +1011,44 @@ const App = (function () {
     } catch (e) { console.warn("도넛 차트 실패", e); }
   }
 
+  // ===== 저장 폴더 (File System Access API) — 한 번 고른 폴더에 이미지 바로 저장 =====
+  const fsSupported = typeof window.showDirectoryPicker === "function";
+  function idbDir(method, val) {
+    return new Promise((res) => {
+      let open; try { open = indexedDB.open("spc_fs", 1); } catch (e) { return res(null); }
+      open.onupgradeneeded = () => open.result.createObjectStore("h");
+      open.onsuccess = () => {
+        try {
+          const tx = open.result.transaction("h", method === "get" ? "readonly" : "readwrite");
+          const st = tx.objectStore("h");
+          const rq = method === "get" ? st.get("saveDir") : st.put(val, "saveDir");
+          rq.onsuccess = () => res(method === "get" ? rq.result : true);
+          rq.onerror = () => res(null);
+        } catch (e) { res(null); }
+      };
+      open.onerror = () => res(null);
+    });
+  }
+  async function dirPerm(handle) {
+    if (!handle) return false;
+    const opts = { mode: "readwrite" };
+    try {
+      if ((await handle.queryPermission(opts)) === "granted") return true;
+      return (await handle.requestPermission(opts)) === "granted";
+    } catch (e) { return false; }
+  }
+  async function pickSaveDir() { const h = await window.showDirectoryPicker({ mode: "readwrite" }); await idbDir("put", h); return h; }
+  // 저장 폴더에 PNG 기록. 성공 시 true, 폴더 미지원/취소 시 false(→기본 다운로드로 폴백)
+  async function savePngToFolder(canvas, filename, forcePick) {
+    if (!fsSupported) return false;
+    let h = forcePick ? null : await idbDir("get");
+    if (!h || !(await dirPerm(h))) { h = await pickSaveDir(); } // 미설정/권한없음 → 폴더 고르기
+    const blob = await new Promise((r) => canvas.toBlob(r, "image/png"));
+    const fh = await h.getFileHandle(filename, { create: true });
+    const w = await fh.createWritable(); await w.write(blob); await w.close();
+    return h.name;
+  }
+
   // 캔버스 미리보기 모달 — 저장 전에 확인
   function previewCanvas(canvas, filename) {
     const url = canvas.toDataURL("image/png");
@@ -1022,9 +1060,11 @@ const App = (function () {
           <b style="font-size:15px">🖼️ 미리보기 <span style="font-weight:500;color:#6b7588;font-size:12.5px">— 확인 후 저장하세요</span></b>
           <div style="display:flex;gap:8px">
             <button class="btn" id="pv-close">닫기</button>
+            ${fsSupported ? `<button class="btn" id="pv-folder" title="저장할 폴더를 고르면 다음부터 그 폴더에 바로 저장돼요">📁 폴더 설정</button>` : ""}
             <button class="btn primary" id="pv-save">📥 PNG 저장</button>
           </div>
         </div>
+        ${fsSupported ? `<div id="pv-folder-info" style="padding:7px 18px 0;font-size:12px;color:#6b7588"></div>` : ""}
         <div style="overflow:auto;padding:16px;background:#eef1f6;text-align:center">
           <img src="${url}" style="max-width:100%;box-shadow:0 2px 12px rgba(0,0,0,.15);border-radius:4px">
         </div>
@@ -1033,7 +1073,26 @@ const App = (function () {
     const close = () => host.remove();
     host.addEventListener("click", (e) => { if (e.target === host) close(); });
     host.querySelector("#pv-close").onclick = close;
-    host.querySelector("#pv-save").onclick = () => { const a = document.createElement("a"); a.download = filename; a.href = url; a.click(); close(); };
+    const info = host.querySelector("#pv-folder-info");
+    const showFolder = (name) => { if (info) info.innerHTML = name ? `저장 폴더: <b>${esc(name)}</b> 에 바로 저장돼요` : `저장 폴더가 아직 없어요. 저장 시 폴더를 고르면 그 폴더로 들어가요.`; };
+    if (fsSupported) idbDir("get").then((h) => showFolder(h && h.name));
+    const fallbackDownload = () => { const a = document.createElement("a"); a.download = filename; a.href = url; a.click(); };
+    if (fsSupported) host.querySelector("#pv-folder").onclick = async () => {
+      try { const h = await pickSaveDir(); showFolder(h.name); } catch (e) { /* 취소 */ }
+    };
+    host.querySelector("#pv-save").onclick = async () => {
+      const btn = host.querySelector("#pv-save");
+      if (!fsSupported) { fallbackDownload(); close(); return; }
+      btn.disabled = true; btn.textContent = "저장 중…";
+      try {
+        const dir = await savePngToFolder(canvas, filename);
+        if (dir) { close(); return; }
+        fallbackDownload(); close();
+      } catch (e) {
+        if (e && e.name === "AbortError") { btn.disabled = false; btn.textContent = "📥 PNG 저장"; return; } // 폴더 선택 취소 → 모달 유지
+        alert("폴더 저장에 실패해 기본 다운로드로 저장해요.\n" + (e.message || e)); fallbackDownload(); close();
+      }
+    };
   }
 
   // 보고서(.sheet)를 한 장의 PNG로 — 미리보기 후 저장
