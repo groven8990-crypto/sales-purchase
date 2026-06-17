@@ -837,7 +837,7 @@ const Modals = (function () {
     (S.data.orders || []).forEach((o) => { if (o.tracking && (o.addr || "").trim()) { const k = pk(o); if (!track[k]) track[k] = o.tracking; } });
     (S.data.orders || []).forEach((o) => { if (!o.tracking && (o.addr || "").trim()) { const t = track[pk(o)]; if (t) o.tracking = t; } });
   }
-  // 회신(운송장/송장/회신) 파일 → 송장번호만 추출 {recipient, addr, tracking}
+  // 회신(운송장/송장/회신) 파일 → 송장번호만 추출 {recipient, addr, phone, tracking}
   function buildTracking(table, opt) {
     opt = opt || {};
     const H = table.headers;
@@ -851,16 +851,26 @@ const Modals = (function () {
       const recipient = g(r, C.recipient);
       const addr = (g(r, C.addr) + (C.addr2 >= 0 ? " " + g(r, C.addr2) : "")).trim();
       if (!recipient && !addr) return;
-      out.push({ recipient, addr, tracking });
+      out.push({ recipient, addr, phone: g(r, C.phone), tracking });
     });
     return out;
   }
-  // 송장번호를 같은 받는분+주소의 발주행에 채움. 채운 건수 반환.
+  // 송장번호를 발주행에 채움: '이름+주소'로 먼저, 안 되면 '이름+연락처'로 매칭. 채운 건수 반환.
   function applyTracking(entries) {
-    const pk = (o) => `${(o.recipient || "").trim()}|${(o.addr || "").replace(/\s+/g, "")}`;
-    const map = {}; entries.forEach((e) => { if (e.tracking) { const k = pk(e); if (!map[k]) map[k] = e.tracking; } });
+    const aKey = (o) => `${(o.recipient || "").trim()}|${(o.addr || "").replace(/\s+/g, "")}`;
+    const pKey = (o) => { const ph = String(o.phone || "").replace(/\D/g, ""); return ph ? `${(o.recipient || "").trim()}|${ph}` : ""; };
+    const aMap = {}, pMap = {};
+    entries.forEach((e) => {
+      if (!e.tracking) return;
+      if ((e.addr || "").trim()) { const k = aKey(e); if (!aMap[k]) aMap[k] = e.tracking; }
+      const pk = pKey(e); if (pk && !pMap[pk]) pMap[pk] = e.tracking;
+    });
     let matched = 0;
-    (S.data.orders || []).forEach((o) => { if (!o.tracking) { const t = map[pk(o)]; if (t) { o.tracking = t; matched++; } } });
+    (S.data.orders || []).forEach((o) => {
+      if (o.tracking) return;
+      const t = ((o.addr || "").trim() && aMap[aKey(o)]) || (pKey(o) && pMap[pKey(o)]);
+      if (t) { o.tracking = t; matched++; }
+    });
     if (matched) S.save();
     return matched;
   }
