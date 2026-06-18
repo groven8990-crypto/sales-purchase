@@ -841,7 +841,7 @@ const App = (function () {
     if (typeof html2canvas !== "function") { alert("이미지 변환 라이브러리를 불러오지 못했어요. 인터넷 연결을 확인해주세요."); host.remove(); return; }
     html2canvas(node, { scale: 2, backgroundColor: "#ffffff" }).then((canvas) => {
       host.remove();
-      previewCanvas(canvas, `예치금현황_${today}.png`);
+      previewCanvas(canvas, `${today.slice(2).replace(/-/g, "")}-예치금현황.png`);
     }).catch((e) => { alert("이미지 저장 실패: " + e); host.remove(); });
   }
 
