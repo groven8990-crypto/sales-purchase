@@ -13,6 +13,10 @@ const GDrive = (function () {
   const CFG_KEY = "spc_gdrive";
   const cfg = () => { try { return JSON.parse(localStorage.getItem(CFG_KEY)) || {}; } catch (e) { return {}; } };
   const saveCfg = (c) => localStorage.setItem(CFG_KEY, JSON.stringify(c));
+  // 이미 가져온 파일 기록 (kind별 fileId→modifiedTime) — 새 파일만 받기용
+  const IMP_KEY = "spc_gdrive_imported";
+  const impMap = () => { try { return JSON.parse(localStorage.getItem(IMP_KEY)) || {}; } catch (e) { return {}; } };
+  const saveImp = (m) => localStorage.setItem(IMP_KEY, JSON.stringify(m));
 
   const SPEC = {
     orders: { label: "발주서", folderHint: "발주관리", target: "orders", view: "orders" },
@@ -60,7 +64,7 @@ const GDrive = (function () {
   }
   async function listChildren(folderId, pageToken) {
     const q = `'${folderId}' in parents and trashed=false`;
-    const j = await api("q=" + encodeURIComponent(q) + "&fields=nextPageToken,files(id,name,mimeType)&pageSize=200" + (pageToken ? "&pageToken=" + pageToken : ""));
+    const j = await api("q=" + encodeURIComponent(q) + "&fields=nextPageToken,files(id,name,mimeType,modifiedTime)&pageSize=200" + (pageToken ? "&pageToken=" + pageToken : ""));
     return j;
   }
   // 폴더(및 하위 폴더 최대 3단계) 안의 엑셀 파일 모으기. 각 파일에 부모 폴더명(=거래처) 기록.
@@ -78,7 +82,7 @@ const GDrive = (function () {
           const j = await listChildren(fol.id, pt);
           (j.files || []).forEach((f) => {
             if (f.mimeType === FOLDER) { if (fol.depth < 3) next.push({ id: f.id, name: f.name, depth: fol.depth + 1 }); }
-            else files.push({ id: f.id, name: f.name, mimeType: f.mimeType, parentName: fol.name, isRoot: fol.depth === 0 });
+            else files.push({ id: f.id, name: f.name, mimeType: f.mimeType, modifiedTime: f.modifiedTime, parentName: fol.name, isRoot: fol.depth === 0 });
           });
           pt = j.nextPageToken || "";
         } while (pt);
@@ -121,7 +125,8 @@ const GDrive = (function () {
        <div class="form-row"><label>구글 OAuth 클라이언트 ID <span class="muted" style="font-size:11px">(최초 1회만)</span></label>
          <input id="gd-cid" placeholder="0000....apps.googleusercontent.com" value="${E(c.clientId || DEFAULT_CLIENT_ID)}" style="width:100%"></div>
        ${savedFolder ? `<div class="hint">최근 사용 폴더: <b>${E(savedFolder.name)}</b> <button class="btn" id="gd-usesaved" style="padding:2px 8px;margin-left:6px">이 폴더로 바로 가져오기</button></div>` : ""}
-       <label style="display:block;margin-top:8px;font-size:13px"><input type="checkbox" id="gd-sample"> 🔎 거래처별 <b>최신 1일치만</b> 가져오기 (점검용 — 원본+회신 같이 와서 송장번호까지 확인)</label>
+       <label style="display:block;margin-top:8px;font-size:13px"><input type="checkbox" id="gd-newonly" checked> ⚡ <b>새로 올라온 파일만</b> 가져오기 (이미 가져온 파일은 건너뛰기 — 빠름)</label>
+       <label style="display:block;margin-top:5px;font-size:13px"><input type="checkbox" id="gd-sample"> 🔎 거래처별 <b>최신 1일치만</b> 가져오기 (점검용 — 원본+회신 같이 와서 송장번호까지 확인)</label>
        <div id="gd-status" class="preview" style="margin-top:8px"></div>
        <div id="gd-folders" style="margin-top:8px"></div>
        <details class="help" style="margin-top:10px"><summary>ℹ️ 클라이언트 ID 설정 방법 (최초 1회)</summary><div class="hb">
@@ -187,6 +192,16 @@ const GDrive = (function () {
     // 발주: 파일명에 '발주'(발주서 등) 또는 회신표시(회신·운송장·송장)만. 그 외(정산·기타)는 건너뜀
     if (kind === "orders") sheetFiles = sheetFiles.filter((f) => /발주|회신|운송장|송장/.test(f.name || ""));
     if (!sheetFiles.length) { setStatus(`<div class="err">폴더에서 ${spec.label} 엑셀을 못 찾았어요.</div>`); return; }
+    // 새로 올라온 파일만: 이미 가져온(같은 수정시각) 파일은 건너뜀
+    const imp = impMap(); const impK = imp[kind] = imp[kind] || {};
+    const onlyNew = qq("#gd-newonly") && qq("#gd-newonly").checked;
+    let skippedExisting = 0;
+    if (onlyNew) {
+      const before = sheetFiles.length;
+      sheetFiles = sheetFiles.filter((f) => impK[f.id] !== f.modifiedTime);
+      skippedExisting = before - sheetFiles.length;
+    }
+    if (!sheetFiles.length) { setStatus(`<div class="ok">✅ 새로 가져올 ${spec.label}가 없어요. (이미 가져온 ${skippedExisting}개)</div>`); setTimeout(() => Modals.close(), 1400); return; }
     // 점검용: 거래처(하위폴더)별 '최신 1일치' 전부 (원본+회신 같이 와야 송장번호 매칭 확인 가능)
     const sample = qq("#gd-sample") && qq("#gd-sample").checked;
     if (sample) {
@@ -222,13 +237,15 @@ const GDrive = (function () {
           const best = Modals.settlementSheetPick(sheets);
           Modals.buildSettlements(best, { name: f.name, baseVendor, yr, mo }).forEach((o) => out.push(o));
         }
+        impK[f.id] = f.modifiedTime; // 처리 성공 → 가져온 파일로 기록
       } catch (e) { failed++; }
     }
+    saveImp(imp);
     if (!out.length && !replies.length) { setStatus(`<div class="err">읽을 행이 없었어요. (파일 ${sheetFiles.length}개${failed ? `, 실패 ${failed}개` : ""})</div>`); return; }
     const res = kind === "orders" ? Modals.addOrdersDedup(out) : Modals.addSettlementsDedup(out);
     const tracked = kind === "orders" ? Modals.applyTracking(replies) : 0; // 회신 송장번호를 같은 받는분+주소 발주에 채움
     if (res.first && App.scope) { App.scope.year = res.first.year; App.scope.month = res.first.month; }
-    setStatus(`<div class="ok">✅ 파일 ${sheetFiles.length}개 처리 — <b>${res.added}건 추가</b>${res.skipped ? `, 중복 ${res.skipped}건` : ""}${replyFiles ? `, 회신 ${replyFiles}개→송장 ${tracked}건 매칭` : ""}${failed ? `, 실패 ${failed}개` : ""}</div>`);
+    setStatus(`<div class="ok">✅ 파일 ${sheetFiles.length}개 처리 — <b>${res.added}건 추가</b>${res.skipped ? `, 중복 ${res.skipped}건` : ""}${replyFiles ? `, 회신 ${replyFiles}개→송장 ${tracked}건 매칭` : ""}${skippedExisting ? `, 기존 ${skippedExisting}개 건너뜀` : ""}${failed ? `, 실패 ${failed}개` : ""}</div>`);
     setTimeout(() => { Modals.close(); App.go(spec.view); }, 1400);
   }
 
