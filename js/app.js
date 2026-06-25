@@ -567,23 +567,38 @@ const App = (function () {
           <button class="btn primary" id="cs-add">➕ 등록</button>
         </div></div>
       ${help("cs")}
-      <div class="card" style="padding:10px 14px"><input id="cs-search" placeholder="🔍 검색 (채널·주문자·주문번호·상품·내용)" style="width:100%;border:1px solid var(--line);border-radius:9px;padding:9px 12px;font-size:13.5px"></div>
+      <div class="card" style="padding:10px 14px;display:flex;gap:10px;align-items:center">
+        <input id="cs-search" placeholder="🔍 검색 (채널·주문자·주문번호·상품·내용)" style="flex:1;border:1px solid var(--line);border-radius:9px;padding:9px 12px;font-size:13.5px">
+        <span id="cs-found" class="muted" style="font-size:13px;white-space:nowrap;font-weight:700"></span></div>
       <div class="table-wrap"><table class="grid">
-        <thead><tr><th>일자</th><th>사업장</th><th>채널</th><th>주문자(받는분)</th><th>주문번호</th><th>유형</th><th>상품·내용</th><th>상태</th><th>처리내용</th><th></th></tr></thead>
+        <thead><tr><th style="width:40px" class="num">#</th><th>일자</th><th>사업장</th><th>채널</th><th>주문자(받는분)</th><th>주문번호</th><th>유형</th><th>상품·내용</th><th>상태</th><th>처리내용</th><th></th></tr></thead>
         <tbody>${sorted.map((c) => `<tr data-s="${esc([c.channel, c.recipient, c.orderNo, c.item, c.note, c.type].join(" ").toLowerCase())}">
+          <td class="cs-rn num" style="color:var(--muted)"></td>
           <td>${esc(c.date)}</td><td>${stNm(c.store)}</td><td>${esc(c.channel || "")}</td><td>${esc(c.recipient || "")}</td><td>${esc(c.orderNo || "")}</td>
           <td>${esc(c.type || "")}</td><td>${esc(c.item || "")}</td>
           <td><span class="tag ${statColor(c.status || "접수")}">${esc(c.status || "접수")}</span></td>
           <td>${esc(c.note || "")}</td>
           <td class="row-actions"><button class="icon-btn edit" data-editcs="${c.id}" title="수정">✎</button><button class="icon-btn" data-delcs="${c.id}" title="삭제">✕</button></td></tr>`).join("") ||
-          `<tr><td colspan="10" class="empty">아직 C/S 건이 없어요. 위에서 등록하세요.</td></tr>`}
+          `<tr><td colspan="11" class="empty">아직 C/S 건이 없어요. 위에서 등록하세요.</td></tr>`}
         </tbody></table></div>`;
     wire(main);
+    const found = $("#cs-found", main);
+    const renumber = (q) => {
+      let n = 0;
+      $$("tbody tr", main).forEach((tr) => {
+        const cell = tr.querySelector(".cs-rn"); if (!cell) return; // 빈 안내행 제외
+        if (tr.style.display === "none") { cell.textContent = ""; return; }
+        cell.textContent = ++n;
+      });
+      if (found) found.textContent = q ? `검색 ${n}건 / 전체 ${sorted.length}건` : `전체 ${sorted.length}건`;
+    };
+    renumber("");
     $$(".cs-fl", main).forEach((b) => b.addEventListener("click", () => { csFilter = csFilter === b.dataset.fl ? "" : b.dataset.fl; renderCS(main); }));
     const sIn = $("#cs-search", main);
     if (sIn) sIn.addEventListener("input", () => {
       const q = sIn.value.trim().toLowerCase();
-      $$("tbody tr", main).forEach((tr) => { tr.style.display = (!q || (tr.dataset.s || "").includes(q)) ? "" : "none"; });
+      $$("tbody tr", main).forEach((tr) => { if (tr.querySelector(".cs-rn")) tr.style.display = (!q || (tr.dataset.s || "").includes(q)) ? "" : "none"; });
+      renumber(q);
     });
     $("#cs-add", main).addEventListener("click", () => {
       const item = $("#cs-item", main).value.trim();
