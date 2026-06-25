@@ -563,6 +563,7 @@ const App = (function () {
           <span><label style="display:block;font-size:12px;color:var(--muted);margin-bottom:3px">상태</label><select id="cs-status" style="border:1px solid var(--line);border-radius:8px;padding:7px 9px">${CS_STAT.map((s) => `<option>${s}</option>`).join("")}</select></span>
         </div>
         <div style="display:flex;gap:8px;align-items:flex-end;margin-top:10px">
+          <span style="flex:1.6"><label style="display:block;font-size:12px;color:var(--muted);margin-bottom:3px">C/S내용 (고객 요청·컴플레인)</label><input id="cs-complaint" placeholder="예: 받자마자 터져있었다며 환불 요청" style="width:100%;border:1px solid var(--line);border-radius:8px;padding:7px 9px"></span>
           <span style="flex:1"><label style="display:block;font-size:12px;color:var(--muted);margin-bottom:3px">처리내용</label><input id="cs-note" placeholder="예: 재발송 완료 / 환불 처리" style="width:100%;border:1px solid var(--line);border-radius:8px;padding:7px 9px"></span>
           <button class="btn primary" id="cs-add">➕ 등록</button>
         </div></div>
@@ -571,15 +572,16 @@ const App = (function () {
         <input id="cs-search" placeholder="🔍 검색 (채널·주문자·주문번호·상품·내용)" style="flex:1;border:1px solid var(--line);border-radius:9px;padding:9px 12px;font-size:13.5px">
         <span id="cs-found" class="muted" style="font-size:13px;white-space:nowrap;font-weight:700"></span></div>
       <div class="table-wrap"><table class="grid">
-        <thead><tr><th style="width:40px" class="num">#</th><th>일자</th><th>사업장</th><th>채널</th><th>주문자(받는분)</th><th>주문번호</th><th>유형</th><th>상품·내용</th><th>상태</th><th>처리내용</th><th></th></tr></thead>
-        <tbody>${sorted.map((c) => `<tr data-s="${esc([c.channel, c.recipient, c.orderNo, c.item, c.note, c.type].join(" ").toLowerCase())}">
+        <thead><tr><th style="width:40px" class="num">#</th><th>일자</th><th>사업장</th><th>채널</th><th>주문자(받는분)</th><th>주문번호</th><th>유형</th><th>상품·내용</th><th style="min-width:220px">C/S내용(고객요청)</th><th>상태</th><th style="width:130px">처리내용</th><th></th></tr></thead>
+        <tbody>${sorted.map((c) => `<tr data-s="${esc([c.channel, c.recipient, c.orderNo, c.item, c.complaint, c.note, c.type].join(" ").toLowerCase())}">
           <td class="cs-rn num" style="color:var(--muted)"></td>
           <td>${esc(c.date)}</td><td>${stNm(c.store)}</td><td>${esc(c.channel || "")}</td><td>${esc(c.recipient || "")}</td><td>${esc(c.orderNo || "")}</td>
           <td>${esc(c.type || "")}</td><td>${esc(c.item || "")}</td>
+          <td style="min-width:220px;white-space:normal">${esc(c.complaint || "")}</td>
           <td><span class="tag ${statColor(c.status || "접수")}">${esc(c.status || "접수")}</span></td>
-          <td>${esc(c.note || "")}</td>
+          <td style="max-width:130px;white-space:normal;font-size:12px;color:var(--muted)">${esc(c.note || "")}</td>
           <td class="row-actions"><button class="icon-btn edit" data-editcs="${c.id}" title="수정">✎</button><button class="icon-btn" data-delcs="${c.id}" title="삭제">✕</button></td></tr>`).join("") ||
-          `<tr><td colspan="11" class="empty">아직 C/S 건이 없어요. 위에서 등록하세요.</td></tr>`}
+          `<tr><td colspan="12" class="empty">아직 C/S 건이 없어요. 위에서 등록하세요.</td></tr>`}
         </tbody></table></div>`;
     wire(main);
     const found = $("#cs-found", main);
@@ -605,7 +607,7 @@ const App = (function () {
       if (!item) { alert("상품·내용을 입력하세요."); return; }
       S.data.cs.push({ id: S.uid(), date: $("#cs-date", main).value, store: $("#cs-store", main).value,
         channel: $("#cs-channel", main).value.trim(), recipient: $("#cs-recipient", main).value.trim(), orderNo: $("#cs-order", main).value.trim(),
-        type: $("#cs-type", main).value, item, status: $("#cs-status", main).value, note: $("#cs-note", main).value.trim() });
+        type: $("#cs-type", main).value, item, complaint: $("#cs-complaint", main).value.trim(), status: $("#cs-status", main).value, note: $("#cs-note", main).value.trim() });
       S.save(); renderCS(main);
     });
     $$("[data-editcs]", main).forEach((b) => b.addEventListener("click", () => Modals.editRow("cs", b.dataset.editcs)));

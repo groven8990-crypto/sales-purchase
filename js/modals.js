@@ -302,6 +302,7 @@ const Modals = (function () {
       { k: "orderNo", l: "주문번호", t: "text" },
       { k: "type", l: "유형", t: "sel", opts: () => ["반품", "교환", "환불", "오배송", "파손", "단순문의", "기타"] },
       { k: "item", l: "상품·내용", t: "text", wide: true },
+      { k: "complaint", l: "C/S내용(고객요청)", t: "text", wide: true },
       { k: "status", l: "상태", t: "sel", opts: () => ["접수", "처리중", "완료"] },
       { k: "note", l: "처리내용", t: "text", wide: true },
     ],
