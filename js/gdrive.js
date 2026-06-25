@@ -238,6 +238,7 @@ const GDrive = (function () {
           Modals.buildSettlements(best, { name: f.name, baseVendor, yr, mo }).forEach((o) => out.push(o));
         }
         impK[f.id] = f.modifiedTime; // 처리 성공 → 가져온 파일로 기록
+        if (done % 10 === 0) saveImp(imp); // 중간에 끊겨도 진행분 보존
       } catch (e) { failed++; }
     }
     saveImp(imp);
