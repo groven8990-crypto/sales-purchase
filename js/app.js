@@ -1343,8 +1343,10 @@ const App = (function () {
         </div>
 
         <div id="mr-memo-wrap"${String(R.memo || "").trim() ? "" : ` class="no-print"`}>
-        <h4 class="doc-sec">Ⅳ. 비고</h4>
-        <textarea class="mr-in" data-sec="memo" data-i="0" data-f="memo" rows="3" style="width:100%" placeholder="특이사항(없으면 인쇄·이미지에서 자동 생략)">${esc(R.memo || "")}</textarea>
+        <h4 class="doc-sec" style="color:#c0392b">⚠️ Ⅳ. 특이사항 · 공유사항</h4>
+        <div style="background:#fff5f5;border:1.5px solid #f1a9a0;border-left:5px solid #e74c3c;border-radius:8px;padding:8px 10px">
+          <textarea class="mr-in" data-sec="memo" data-i="0" data-f="memo" rows="3" style="width:100%;border:none;background:transparent;color:#c0392b;font-weight:700;resize:vertical" placeholder="특이사항·공유사항 (없으면 인쇄·이미지에서 자동 생략)">${esc(R.memo || "")}</textarea>
+        </div>
         </div>
       </div>`;
 
@@ -1545,7 +1547,7 @@ const App = (function () {
         <table class="doc-table"><thead><tr><th class="c" style="width:40px">순번</th><th style="width:132px">공급처</th><th>내용</th><th class="n" style="width:64px">건수</th><th class="n" style="width:110px">공급가</th><th class="n" style="width:56px">비중</th></tr></thead>
           <tbody>${vnBody}<tr class="sum"><td colspan="4">합계</td><td class="n">${won(vnT)}</td><td class="n"></td></tr></tbody></table>
         ${pfSection}
-        ${memo ? `<h4 class="doc-sec">Ⅳ. 비고</h4><div style="white-space:pre-wrap;font-size:12px;padding:4px 2px">${esc(memo)}</div>` : ""}
+        ${memo ? `<h4 class="doc-sec" style="color:#c0392b">⚠️ Ⅳ. 특이사항 · 공유사항</h4><div style="white-space:pre-wrap;font-size:12.5px;font-weight:700;color:#c0392b;background:#fff5f5;border:1.5px solid #f1a9a0;border-left:5px solid #e74c3c;border-radius:8px;padding:9px 11px">${esc(memo)}</div>` : ""}
       </div>`;
     $("#mr-print", main).addEventListener("click", () => window.print());
     $("#mr-png", main).addEventListener("click", () => exportSheetPng(main, `통합_${yr}-${mo}`));
