@@ -533,7 +533,7 @@ const App = (function () {
     orders.forEach((o) => { const k = norm(o.recipient); if (!k) return; (map[k] = map[k] || { name: o.recipient || "", store: o.store, ord: [], set: [] }).ord.push(o); });
     setts.forEach((s) => { const k = norm(s.recipient); if (!k) return; (map[k] = map[k] || { name: s.recipient || "", store: s.store, ord: [], set: [] }).set.push(s); });
     const noRecip = orders.filter((o) => !norm(o.recipient)).length + setts.filter((s) => !norm(s.recipient)).length;
-    const dateOf = (o) => o.date || (o.month ? o.month + "/" + (o.day || "") : "");
+    const dateOf = (o) => o.date || (o.month ? o.month + "월" + (o.day ? " " + o.day + "일" : "") : "");
     const rows = Object.values(map).map((g) => {
       const ordCnt = g.ord.length, setCnt = g.set.length;
       const status = ordCnt && setCnt ? (ordCnt === setCnt ? "완료" : "건수차이") : (ordCnt ? "미정산" : "발주없음");
@@ -570,11 +570,12 @@ const App = (function () {
       ${noRecip ? `<div class="hint" style="margin-bottom:10px">⚠️ 받는분(수령인) 정보가 없는 행 ${noRecip}건은 대조에서 빠졌어요. (예전에 올린 발주는 받는분이 없을 수 있어요 → 다시 올리면 포함돼요)</div>` : ""}
       ${help("reconcile")}
       <div class="card" style="padding:10px 14px"><input id="rc-search" placeholder="🔍 검색 (거래처·받는분·품목·일자)" style="width:100%;border:1px solid var(--line);border-radius:9px;padding:9px 12px;font-size:13.5px"></div>
-      <div class="table-wrap"><table class="grid">
+      <div class="table-wrap"><table class="grid rc-table">
         <thead><tr><th>일자</th><th>거래처</th><th>사업장</th><th>받는분</th><th>주소</th><th>품목</th><th class="num">발주</th><th class="num">정산</th><th class="num">정산합계</th><th>상태</th></tr></thead>
         <tbody>${view.map((r) => `<tr data-s="${esc([r.vendor, r.name, r.items, r.date, r.addr].join(" ").toLowerCase())}">
-          <td>${esc(r.date)}</td><td>${esc(r.vendor)}</td><td>${stNm(r.store)}</td><td>${esc(r.name)}</td>
-          <td style="max-width:220px;white-space:normal;font-size:12px;color:var(--muted)">${esc(r.addr)}</td><td>${esc(r.items)}</td>
+          <td style="white-space:nowrap">${esc(r.date)}</td><td>${esc(r.vendor)}</td><td>${stNm(r.store)}</td><td style="white-space:nowrap">${esc(r.name)}</td>
+          <td class="rc-addr" title="${esc(r.addr)}">${esc(r.addr)}</td>
+          <td class="rc-item" title="${esc(r.items)}">${esc(r.items)}</td>
           <td class="num">${r.ordCnt}건</td><td class="num">${r.setCnt}건</td>
           <td class="num">₩${won(r.setTot)}</td>
           <td><span class="tag ${badge(r.status)}" style="${stStyle(r.status)}">${r.status}</span></td></tr>`).join("") ||

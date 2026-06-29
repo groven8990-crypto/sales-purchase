@@ -450,6 +450,24 @@ details.help .hb { padding: 11px 16px; color: #1e3a5f; font-size: 13px; line-hei
 details.help .hb b { color: var(--primary); }
 details.help .hb ol, details.help .hb ul { margin: 4px 0 0; padding-left: 20px; }
 
+/* ===== 발주대조 테이블 ===== */
+.rc-table td { white-space: nowrap; }
+.rc-addr {
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap !important;
+  font-size: 12px;
+  color: var(--muted);
+  cursor: default;
+}
+.rc-item {
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap !important;
+}
+
 /* ===== 자금현황 ===== */
 .kpibar .kb-sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
 .cf-card-title { font-size: 13.5px; font-weight: 700; color: var(--ink); margin-bottom: 14px; }
