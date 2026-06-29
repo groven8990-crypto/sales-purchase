@@ -3,43 +3,68 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>매입·매출 마감 · 그로븐 / 옐로우브릿지</title>
+  <title>매입·매출 마감 · 그로븐 / YB</title>
   <link rel="stylesheet" href="css/styles.css">
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧾</text></svg>">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📊</text></svg>">
 </head>
 <body>
-  <header class="topbar">
-    <div class="brand">🧾 매입·매출 마감</div>
-    <div class="scope">
+  <div class="app-shell">
+
+    <!-- ===== 사이드바 ===== -->
+    <nav class="sidebar">
+      <div class="sidebar-brand">
+        <div class="brand-logo">📊</div>
+        <div>
+          <div class="brand-name">매입·매출 마감</div>
+          <div class="brand-sub">그로븐 / YB</div>
+        </div>
+      </div>
+
       <div class="store-tabs">
         <button class="store-tab active" data-store="">통합</button>
         <button class="store-tab" data-store="groven">그로븐<small>면세</small></button>
-        <button class="store-tab" data-store="yb">옐로우브릿지<small>과세</small></button>
+        <button class="store-tab" data-store="yb">YB<small>과세</small></button>
       </div>
-      <select id="f-year"></select>
-      <select id="f-month"></select>
-      <button id="f-pin" class="pin-btn" title="현재 연·월·스토어를 고정해서 기억합니다">📌 고정</button>
-    </div>
-  </header>
 
-  <div class="layout">
-    <nav class="sidebar">
-      <button class="nav-item active" data-view="home">🧭 마감 진행</button>
-      <button class="nav-item" data-view="sales">💰 매출</button>
-      <button class="nav-item" data-view="orders">📦 발주내역</button>
-      <button class="nav-item" data-view="settlements">🧾 정산서</button>
-      <button class="nav-item" data-view="reconcile">🔁 발주대조</button>
-      <button class="nav-item" data-view="purchases">🧾 매입</button>
-      <button class="nav-item" data-view="transactions">🏦 입출금</button>
-      <button class="nav-item" data-view="deposits">💳 예치금</button>
-      <button class="nav-item" data-view="adspend">📣 광고비</button>
-      <button class="nav-item" data-view="cs">📞 C/S 관리</button>
-      <button class="nav-item" data-view="report">📄 마감 보고서</button>
-      <button class="nav-item" data-view="manual">📝 마감보고서(수기)</button>
-      <button class="nav-item" data-view="data">⚙️ 데이터·설정</button>
+      <div class="nav-section">
+        <div class="nav-label">업무</div>
+        <button class="nav-item active" data-view="home">🧭 마감 진행</button>
+        <button class="nav-item" data-view="sales">💰 매출</button>
+        <button class="nav-item" data-view="orders">📦 발주내역</button>
+        <button class="nav-item" data-view="settlements">🧾 정산서</button>
+        <button class="nav-item" data-view="reconcile">🔁 발주대조</button>
+        <button class="nav-item" data-view="purchases">🧾 매입</button>
+        <button class="nav-item" data-view="transactions">🏦 입출금</button>
+        <button class="nav-item" data-view="deposits">💳 예치금</button>
+        <button class="nav-item" data-view="adspend">📣 광고비</button>
+        <button class="nav-item" data-view="cs">📞 C/S</button>
+      </div>
+
+      <div class="nav-section">
+        <div class="nav-label">보고서</div>
+        <button class="nav-item" data-view="report">📄 마감 보고서</button>
+        <button class="nav-item" data-view="manual">✏️ 수기 보고서</button>
+      </div>
+
+      <div class="nav-section">
+        <div class="nav-label">설정</div>
+        <button class="nav-item" data-view="data">⚙️ 데이터·설정</button>
+      </div>
     </nav>
-    <main id="main" class="content"></main>
-  </div>
+
+    <!-- ===== 메인 영역 ===== -->
+    <div class="main-area">
+      <header class="main-header">
+        <div class="scope">
+          <select id="f-year"></select>
+          <select id="f-month"></select>
+          <button id="f-pin" class="pin-btn" title="현재 연·월·스토어를 고정해서 기억합니다">📌 고정</button>
+        </div>
+      </header>
+      <main id="main" class="content"></main>
+    </div>
+
+  </div><!-- /.app-shell -->
 
   <script src="vendor/xlsx.full.min.js"></script>
   <script src="vendor/chart.umd.min.js"></script>

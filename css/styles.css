@@ -170,10 +170,6 @@ h3 { font-size: 15px; margin: 0 0 12px; font-weight: 700; }
 .pin-btn:hover { background: var(--panel); color: var(--ink); }
 .pin-btn.active { background: var(--primary-bg); color: var(--primary-text); border-color: #bfdbfe; }
 
-/* 레거시 호환 — 이전 코드에서 .topbar 클래스 사용 시 */
-.topbar { display: none; }
-.layout { display: contents; }
-
 .content { flex: 1; padding: 24px 28px; min-width: 0; }
 
 .page-head {
