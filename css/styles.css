@@ -450,6 +450,22 @@ details.help .hb { padding: 11px 16px; color: #1e3a5f; font-size: 13px; line-hei
 details.help .hb b { color: var(--primary); }
 details.help .hb ol, details.help .hb ul { margin: 4px 0 0; padding-left: 20px; }
 
+/* ===== 자금현황 ===== */
+.kpibar .kb-sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
+.cf-card-title { font-size: 13.5px; font-weight: 700; color: var(--ink); margin-bottom: 14px; }
+.cf-charts { display: flex; gap: 16px; margin-bottom: 16px; }
+.cf-bar-card { flex: 2; min-width: 0; }
+.cf-side { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 16px; }
+.cf-donut-card { flex: 1; }
+.cf-bottom { display: flex; gap: 16px; }
+.cf-incoming { flex: 1; min-width: 0; }
+.cf-recent { flex: 2; min-width: 0; }
+
+@media (max-width: 1100px) {
+  .cf-charts { flex-direction: column; }
+  .cf-bottom { flex-direction: column; }
+}
+
 /* ===== 반응형 ===== */
 @media (max-width: 760px) {
   .doc-2col, .doc-charts { flex-direction: column; }

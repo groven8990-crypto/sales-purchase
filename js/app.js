@@ -53,6 +53,7 @@ const App = (function () {
     home: `이 화면은 <b>이번 달 마감 진행 상황</b> 요약이에요.<ol><li>맨 위 오른쪽에서 <b>연도·월·사업장</b>(통합/그로븐/YB)을 고르세요.</li><li>각 단계의 버튼으로 자료(매출·매입·통장 등)를 올리면 진행률이 채워져요.</li><li>자주 보는 연·월·사업장은 <b>📌 고정</b>으로 기억시킬 수 있어요.</li></ol>`,
     sales: `채널별 <b>매출</b> 내역이에요. (상단에서 고른 연·월·사업장 기준)<ul><li><b>엑셀 불러오기</b>로 기존 매출 자료를 올려요.</li><li>각 줄 오른쪽 <b>✎ 수정 / ✕ 삭제</b>, 위 칸에서 <b>검색</b> 가능.</li></ul>`,
     purchases: `상품 <b>매입(원가)</b> 내역이에요.<ul><li><b>발주서로 매입 정리</b> 또는 <b>직접 추가(붙여넣기)</b>로 입력.</li><li><b>홈택스 증빙 대조</b>로 세금계산서·현금영수증과 장부를 비교할 수 있어요.</li><li>각 줄 ✎수정 / ✕삭제, 검색 가능.</li></ul>`,
+    cashflow: `<b>기업은행 거래내역</b>을 올리면 자동으로 입출금 추이와 지출 분석이 나와요.<ul><li><b>🏦 통장내역 올리기</b>로 기업은행 거래내역 엑셀을 올리세요.</li><li>일별 입출금 막대 차트와 카테고리별 지출 도넛 차트가 자동 생성돼요.</li></ul>`,
     transactions: `<b>통장 입출금</b> 내역이에요.<ul><li><b>🏦 통장내역 올리기</b>로 기업은행 거래내역을 올리면 입금/출금이 자동 분류돼요.</li><li>각 줄을 ✎수정해서 <b>사업장(그로븐/YB)</b>을 지정할 수 있어요.</li></ul>`,
     orders: `마켓에서 받은 <b>발주서(주문/배송 파일)</b>를 올려 발주내역으로 모아요.<ol><li><b>📦 발주서 올리기</b> → 파일을 <b>여러 개 한꺼번에</b> 선택해도 돼요.</li><li>파일명에 '그로븐/옐로우브릿지'가 있으면 <b>사업장 자동</b>, 날짜·거래처도 파일명에서 자동.</li><li>열은 자동으로 맞춰지니 그대로 <b>추가</b>. 같은 파일을 또 올려도 중복은 안 쌓여요.</li><li>다 지우려면 <b>🗑️ 전체삭제</b>.</li></ol>`,
     settlements: `거래처에서 받은 <b>발주정산내역서</b>를 올려요.<ol><li><b>🧾 정산서 올리기</b> → 여러 개 동시 가능, 파일명으로 사업장 자동.</li><li>시트가 2개여도(예: 해담별) <b>정산상세 시트를 자동으로</b> 찾아 읽어요.</li><li>받는분·품목·수량·공급가·배송비·합계가 자동 정리, <b>실주문/리뷰</b> 구분.</li></ol>`,
@@ -76,6 +77,7 @@ const App = (function () {
     else if (scope.view === "sales") renderTable(main, "sales");
     else if (scope.view === "purchases") renderTable(main, "purchases");
     else if (scope.view === "transactions") renderTable(main, "transactions");
+    else if (scope.view === "cashflow") renderCashFlow(main);
     else if (scope.view === "orders") renderOrders(main);
     else if (scope.view === "settlements") renderSettlements(main);
     else if (scope.view === "reconcile") renderReconcile(main);
@@ -147,6 +149,138 @@ const App = (function () {
           `손익 <b>${sv - pv >= 0 ? "+" : ""}₩${won(sv - pv)}</b> · 마진율 ${sv ? Math.round((sv - pv) / sv * 100) : 0}%`,
           `<button class="btn primary" data-go="report">📄 보고서 보기</button>`)}
       </div>`;
+
+    wire(main);
+  }
+
+  /* ===================== 자금현황 ===================== */
+  function renderCashFlow(main) {
+    const { store, year, month } = scope;
+    const txns = S.filterBy(S.data.transactions, { store, year, month });
+    const inTxns  = txns.filter((t) => t.type === "in");
+    const outTxns = txns.filter((t) => t.type === "out");
+    const inSum   = S.sum(inTxns,  "amount");
+    const outSum  = S.sum(outTxns, "amount");
+    const net     = inSum - outSum;
+
+    // 일별 집계
+    const byDay = {};
+    txns.forEach((t) => {
+      const d = String(t.day || 0).padStart(2, "0");
+      const key = `${t.month || "?"}.${d}`;
+      if (!byDay[key]) byDay[key] = { in: 0, out: 0 };
+      byDay[key][t.type === "in" ? "in" : "out"] += S.num(t.amount);
+    });
+    const days = Object.keys(byDay).sort();
+
+    // 카테고리별 지출
+    const byCat = {};
+    outTxns.forEach((t) => {
+      const c = t.category || "기타";
+      byCat[c] = (byCat[c] || 0) + S.num(t.amount);
+    });
+    const catEntries = Object.entries(byCat).sort((a, b) => b[1] - a[1]).slice(0, 8);
+
+    // 거래처별 입금 top5
+    const byCp = {};
+    inTxns.forEach((t) => {
+      const c = t.counterparty || t.desc || "기타";
+      byCp[c] = (byCp[c] || 0) + S.num(t.amount);
+    });
+    const cpEntries = Object.entries(byCp).sort((a, b) => b[1] - a[1]).slice(0, 5);
+
+    const PASTEL = ["#8fb3e0","#9fd6ae","#f5d08a","#f2a9a9","#c2b0e8","#93cdd9","#f3aecf","#c2dd95"];
+    const recent = [...txns].sort((a, b) => (S.num(b.month)*100 + S.num(b.day)) - (S.num(a.month)*100 + S.num(a.day))).slice(0, 20);
+
+    main.innerHTML = `
+      <div class="page-head">
+        <div><h2>자금현황</h2><div class="muted">${esc(scopeLabel())}</div></div>
+        <button class="btn primary" data-act="import-bank">🏦 통장내역 올리기</button>
+      </div>
+      ${help("cashflow")}
+
+      <div class="kpibar">
+        <div class="kb g"><div class="l">입금 합계</div><div class="v">₩${won(inSum)}</div><div class="kb-sub">${inTxns.length}건</div></div>
+        <div class="kb r"><div class="l">출금 합계</div><div class="v">₩${won(outSum)}</div><div class="kb-sub">${outTxns.length}건</div></div>
+        <div class="kb ${net >= 0 ? "g" : "r"}"><div class="l">순증감</div><div class="v">${net >= 0 ? "+" : ""}₩${won(net)}</div></div>
+        <div class="kb b"><div class="l">거래 건수</div><div class="v">${txns.length}건</div></div>
+      </div>
+
+      ${txns.length === 0 ? `<div class="card"><div class="empty">통장 거래내역이 없어요. 위 버튼으로 기업은행 거래내역 엑셀을 올려주세요.</div></div>` : `
+      <div class="cf-charts">
+        <div class="card cf-bar-card">
+          <div class="cf-card-title">일별 입출금</div>
+          <canvas id="cf-bar" height="180"></canvas>
+        </div>
+        <div class="cf-side">
+          <div class="card cf-donut-card">
+            <div class="cf-card-title">지출 카테고리</div>
+            ${catEntries.length ? `<canvas id="cf-donut" height="200"></canvas>` : `<div class="empty">카테고리 데이터 없음</div>`}
+          </div>
+        </div>
+      </div>
+
+      <div class="cf-bottom">
+        <div class="card cf-incoming">
+          <div class="cf-card-title">주요 입금처 TOP5</div>
+          ${cpEntries.length ? `<table class="grid"><thead><tr><th>거래처</th><th class="num">합계</th></tr></thead><tbody>
+            ${cpEntries.map(([k, v]) => `<tr><td>${esc(k)}</td><td class="num">₩${won(v)}</td></tr>`).join("")}
+          </tbody></table>` : `<div class="empty">데이터 없음</div>`}
+        </div>
+        <div class="card cf-recent">
+          <div class="cf-card-title">최근 거래</div>
+          <div class="table-wrap scroll">
+            <table class="grid">
+              <thead><tr><th>일자</th><th>구분</th><th>분류</th><th>내용</th><th class="num">금액</th></tr></thead>
+              <tbody>
+                ${recent.map((t) => `<tr>
+                  <td>${t.month || ""}.${String(t.day || "").padStart(2,"0")}</td>
+                  <td><span class="tag ${t.type}">${t.type === "in" ? "입금" : "출금"}</span></td>
+                  <td>${esc(t.category || "")}</td>
+                  <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis">${esc(t.desc || "")}</td>
+                  <td class="num">${won(t.amount)}</td>
+                </tr>`).join("")}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      `}
+    `;
+
+    if (!txns.length) { wire(main); return; }
+
+    // 일별 입출금 막대 차트
+    new Chart(document.getElementById("cf-bar"), {
+      type: "bar",
+      data: {
+        labels: days,
+        datasets: [
+          { label: "입금", data: days.map((d) => byDay[d].in),  backgroundColor: "#9fd6ae" },
+          { label: "출금", data: days.map((d) => byDay[d].out), backgroundColor: "#f2a9a9" },
+        ],
+      },
+      options: {
+        responsive: true,
+        plugins: { legend: { position: "top", labels: { boxWidth: 12, font: { size: 12 } } } },
+        scales: { x: { ticks: { font: { size: 11 } } }, y: { beginAtZero: true, ticks: { callback: (v) => "₩" + (v / 10000).toFixed(0) + "만" } } },
+      },
+    });
+
+    // 카테고리 도넛
+    if (catEntries.length) {
+      new Chart(document.getElementById("cf-donut"), {
+        type: "doughnut",
+        data: {
+          labels: catEntries.map(([k]) => k),
+          datasets: [{ data: catEntries.map(([, v]) => v), backgroundColor: PASTEL, borderWidth: 1 }],
+        },
+        options: {
+          responsive: true,
+          plugins: { legend: { position: "bottom", labels: { boxWidth: 12, font: { size: 11 } } } },
+        },
+      });
+    }
 
     wire(main);
   }
