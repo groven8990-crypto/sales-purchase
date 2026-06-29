@@ -57,10 +57,25 @@ const GDrive = (function () {
     if (!r.ok) throw new Error("드라이브 API 오류 (" + r.status + ")");
     return r.json();
   }
+  async function apiOne(fileId) {
+    try {
+      const r = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?fields=id,name`, { headers: { Authorization: "Bearer " + accessToken } });
+      return r.ok ? r.json() : null;
+    } catch (e) { return null; }
+  }
   async function findFolders(hint) {
     const q = `mimeType='application/vnd.google-apps.folder' and name contains '${hint.replace(/'/g, "\\'")}' and trashed=false`;
-    const j = await api("q=" + encodeURIComponent(q) + "&fields=files(id,name)&pageSize=30&orderBy=name");
-    return j.files || [];
+    const j = await api("q=" + encodeURIComponent(q) + "&fields=files(id,name,parents)&pageSize=40&orderBy=name");
+    const folders = j.files || [];
+    // 상위 폴더명 가져오기 (같은 이름 폴더 구분용)
+    const parentIds = [...new Set(folders.flatMap((f) => f.parents || []))];
+    const pmap = {};
+    await Promise.all(parentIds.map(async (pid) => { const pf = await apiOne(pid); if (pf) pmap[pid] = pf.name; }));
+    folders.forEach((f) => {
+      const pid = (f.parents || [])[0];
+      f.driveParentName = pid ? (pmap[pid] || "") : "";
+    });
+    return folders;
   }
   async function listChildren(folderId, pageToken) {
     const q = `'${folderId}' in parents and trashed=false`;
@@ -165,7 +180,12 @@ const GDrive = (function () {
       if (!fols.length) { setStatus(`<div class="err">'${spec.folderHint}' 이름의 폴더를 못 찾았어요. 폴더 이름을 확인해 주세요.</div>`); return; }
       setStatus(`<div class="ok">✅ 연결됨. 가져올 폴더를 고르세요.</div>`);
       qq("#gd-folders").innerHTML = `<div class="form-row"><label>폴더 선택</label>
-        <div>${fols.map((f, i) => `<label style="display:block;padding:3px 0"><input type="radio" name="gd-fol" value="${i}" ${i === 0 ? "checked" : ""}> ${E(f.name)}</label>`).join("")}</div></div>
+        <div>${fols.map((f, i) => `<label style="display:flex;align-items:center;gap:6px;padding:5px 0;cursor:pointer">
+          <input type="radio" name="gd-fol" value="${i}" ${i === 0 ? "checked" : ""} style="flex-shrink:0">
+          <span>
+            ${f.driveParentName ? `<span style="font-size:11px;color:var(--muted);background:#f1f3f5;border-radius:4px;padding:1px 6px;margin-right:4px">${E(f.driveParentName)}</span>` : ""}${E(f.name)}
+          </span>
+        </label>`).join("")}</div></div>
         <button class="btn primary" id="gd-import">⬇️ 이 폴더에서 ${spec.label} 가져오기</button>`;
       qq("#gd-import").onclick = () => {
         const sel = M().querySelector("input[name=gd-fol]:checked");
