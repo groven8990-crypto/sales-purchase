@@ -140,6 +140,7 @@ const App = (function () {
         ${step(2, purch.length > 0, "매입 마감", "발주서 기준 · 매입처별",
           `매입 합계 <b>₩${won(pv)}</b> · ${purch.length}건 · 매입처 ${vendors.size}곳`,
           `<button class="btn" data-go="purchases">매입 보기</button>
+           <button class="btn ghost" data-act="import-hometax">🏛️ 홈택스 계산서</button>
            <button class="btn ghost" data-act="import-po">🧾 발주서 올리기</button>`)}
         ${step(3, txns.length > 0, "통장 정산", "기업은행 입금·출금 대사",
           `입금 <b class="pos">₩${won(inSum)}</b> · 출금 <b class="neg">₩${won(outSum)}</b> · ${txns.length}건`,
@@ -318,7 +319,8 @@ const App = (function () {
     const importBtn = kind === "transactions"
       ? `<button class="btn primary" data-act="import-bank">🏦 통장내역 올리기</button>`
       : kind === "purchases"
-      ? `<button class="btn primary" data-act="import-po">🧾 발주서 올리기</button>`
+      ? `<button class="btn primary" data-act="import-hometax">🏛️ 홈택스 계산서</button>
+         <button class="btn" data-act="import-po">🧾 발주서 올리기</button>`
       : `<button class="btn" data-act="import-existing">📂 엑셀 불러오기</button>`;
 
     const sText = (r) => [r.evidence, r.vendor, r.desc, r.category, r.channel, r.content, r.counterparty, r.note, r.paid]
@@ -1885,6 +1887,7 @@ const App = (function () {
     $$("[data-act]", main).forEach((b) => b.addEventListener("click", () => {
       if (b.dataset.act === "import-existing") Modals.importExisting();
       else if (b.dataset.act === "import-bank") Modals.importBank();
+      else if (b.dataset.act === "import-hometax") Modals.importHometax();
       else if (b.dataset.act === "import-po") Modals.importPO();
       else if (b.dataset.act === "import-paste") Modals.importPaste();
       else if (b.dataset.act === "import-evidence") Modals.importEvidence();
