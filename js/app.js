@@ -1313,16 +1313,16 @@ const App = (function () {
       M = S.data.manualReport[ym] = conv;
     }
     if (!M) M = S.data.manualReport[ym] = {};
-    // 첫 진입 or 채널/매입처가 비어있는데 실제 데이터가 있으면 자동 채움
-    let filled = false;
+    // 열 때마다 실제 데이터로 자동 채움 (channels·vendors·sales·purchase는 항상 덮어쓰기)
+    // 수기로 직접 입력한 platform(수수료/광고비 세부)·memo는 유지
     ["groven", "yb"].forEach((st) => {
-      const hasReal = S.filterBy(S.data.sales, { store: st, year: yr, month: mo }).length > 0
-        || S.filterBy(S.data.purchases, { store: st, year: yr, month: mo }).length > 0;
-      const isEmpty = !M[st] || ((!M[st].channels || !M[st].channels.length) && (!M[st].vendors || !M[st].vendors.length));
-      if (isEmpty && hasReal) { M[st] = autoFillStoreReport(st, yr, mo); filled = true; }
-      else if (!M[st]) { M[st] = autoFillStoreReport(st, yr, mo); filled = true; }
+      const prev = M[st] || {};
+      const fresh = autoFillStoreReport(st, yr, mo);
+      fresh.platform = prev.platform || [];
+      fresh.memo = prev.memo || "";
+      M[st] = fresh;
     });
-    if (filled) S.save();
+    S.save(true); // silent — 스크롤 튐 없이 저장
 
     if (scope.store === "groven" || scope.store === "yb") renderManualStore(main, M, scope.store, ym, yr, mo);
     else renderManualCombined(main, M, ym, yr, mo);
