@@ -330,7 +330,9 @@ const App = (function () {
       <div class="page-head">
         <div><h2>${TITLES[kind]} <span class="muted" id="tb-cnt">(${rows.length}건 · 합계 ₩${won(total)})</span></h2>
           <div class="muted">${esc(scopeLabel())} · 금액 큰 순</div></div>
-        <div class="row-actions">${importBtn}</div>
+        <div class="row-actions">${importBtn}
+          ${rows.length ? `<button class="btn danger" id="tb-clear-all">🗑️ 전체삭제</button>` : ""}
+        </div>
       </div>
       ${help(kind)}
       <div class="card" style="padding:10px 14px"><input id="tb-search" placeholder="🔍 검색 (업체명·내용·증빙·분류…)" style="width:100%;border:1px solid var(--line);border-radius:9px;padding:9px 12px;font-size:13.5px"></div>
@@ -360,6 +362,16 @@ const App = (function () {
     $$("[data-del]", main).forEach((b) => b.addEventListener("click", () => {
       if (confirm("이 행을 삭제할까요?")) S.remove(kind, b.dataset.del);
     }));
+    const clearBtn = $("#tb-clear-all", main);
+    if (clearBtn) clearBtn.addEventListener("click", () => {
+      const label = TITLES[kind];
+      const scopeStr = (scope.store ? (scope.store === "yb" ? "YB" : "그로븐") : "전체") +
+        (scope.year ? " " + scope.year + "년" : "") + (scope.month ? " " + scope.month + "월" : "");
+      if (!confirm(`${scopeStr} ${label} ${rows.length}건을 모두 삭제할까요?\n(되돌릴 수 없어요)`)) return;
+      const ids = new Set(rows.map((r) => r.id));
+      S.data[kind] = (S.data[kind] || []).filter((r) => !ids.has(r.id));
+      S.save(); renderTable(main, kind);
+    });
   }
 
   /* ===================== 인쇄용 마감 보고서 (시안1) ===================== */
