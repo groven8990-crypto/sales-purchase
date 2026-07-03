@@ -938,8 +938,9 @@ const Modals = (function () {
   /* ===== 홈택스 전자(세금)계산서 매입 등록 ===== */
   function importHometax() {
     open("🏛️ 홈택스 계산서 매입 등록",
-      `<p>홈택스 → 전자계산서 목록조회 → 엑셀 내려받기 파일을 올리세요.<br>
-       <span class="muted" style="font-size:12px">공급자 상호·공급가액·작성일자를 자동으로 읽어 매입에 등록해요. 사업장이 여럿이면 각각 올리세요.</span></p>
+      `<p>홈택스 → 전자계산서 목록조회 → 엑셀 내려받기 파일을 올리세요.</p>
+       <div class="form-row"><label>사업장 <span class="muted" style="font-weight:400;font-size:12px">— 어느 사업장 매입인지 선택하세요</span></label>
+         ${storeSelect("ht-store")}</div>
        <div class="form-row"><label>파일</label><input type="file" id="ht-file" accept=".xls,.xlsx,.csv"></div>
        <div id="ht-prev" class="preview"></div>`,
       `<button class="btn" id="ht-cancel">취소</button><button class="btn primary" id="ht-apply" disabled>매입에 추가</button>`);
@@ -1000,31 +1001,30 @@ const Modals = (function () {
 
         if (!parsed.length) { q("#ht-prev").innerHTML = `<div class="err">❌ 읽을 수 있는 계산서 행이 없어요.</div>`; return; }
 
-        // 사업장 미감지 건수 표시
-        const noStore = parsed.filter((p) => !p.store).length;
-        const storeWarn = noStore ? `<br><span style="color:#b45309">⚠️ ${noStore}건은 사업장을 자동으로 못 찾았어요 — 등록 후 ✎수정으로 지정해주세요.</span>` : "";
         const byVendor = {};
         parsed.forEach((p) => { byVendor[p.vendor] = (byVendor[p.vendor] || 0) + p.supply; });
         const vendorList = Object.entries(byVendor).sort((a,b)=>b[1]-a[1]).slice(0,8)
           .map(([v,s])=>`<b>${v}</b> ₩${s.toLocaleString()}`).join(" · ");
-        q("#ht-prev").innerHTML = `<div class="ok">✅ ${parsed.length}건 인식 (${Object.keys(byVendor).length}개 거래처)<br>${vendorList}${storeWarn}</div>`;
+        q("#ht-prev").innerHTML = `<div class="ok">✅ ${parsed.length}건 인식 (${Object.keys(byVendor).length}개 거래처)<br>${vendorList}</div>`;
         q("#ht-apply").disabled = false;
       } catch (err) { q("#ht-prev").innerHTML = `<div class="err">❌ ${E(err.message)}</div>`; }
     };
 
     q("#ht-apply").onclick = () => {
       if (!parsed.length) return;
+      const chosenStore = q("#ht-store").value; // 사용자가 선택한 사업장으로 강제 적용
       if (!S.data.purchases) S.data.purchases = [];
       // 승인번호 있으면 승인번호 기준(가장 확실), 없으면 거래처+날짜+금액 기준
       const existingHtIds = new Set(S.data.purchases.filter((p) => p.htId).map((p) => p.htId));
-      const sigFallback = (p) => `${p.vendor}|${p.year}|${p.month}|${p.day}|${p.supply}`;
+      const sigFallback = (p) => `${p.store}|${p.vendor}|${p.year}|${p.month}|${p.day}|${p.supply}`;
       const existingSigs = new Set(S.data.purchases.filter((p) => !p.htId).map(sigFallback));
       let added = 0, skipped = 0;
       parsed.forEach((p) => {
-        if (p.htId && existingHtIds.has(p.htId)) { skipped++; return; }
-        if (!p.htId && existingSigs.has(sigFallback(p))) { skipped++; return; }
-        if (p.htId) existingHtIds.add(p.htId); else existingSigs.add(sigFallback(p));
-        S.data.purchases.push(Object.assign({ id: S.uid() }, p));
+        const row = Object.assign({}, p, { store: chosenStore }); // 선택 사업장 덮어쓰기
+        if (row.htId && existingHtIds.has(row.htId)) { skipped++; return; }
+        if (!row.htId && existingSigs.has(sigFallback(row))) { skipped++; return; }
+        if (row.htId) existingHtIds.add(row.htId); else existingSigs.add(sigFallback(row));
+        S.data.purchases.push(Object.assign({ id: S.uid() }, row));
         added++;
       });
       S.save(); close(); App.go("purchases");
