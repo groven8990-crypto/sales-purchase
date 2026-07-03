@@ -1313,9 +1313,15 @@ const App = (function () {
       M = S.data.manualReport[ym] = conv;
     }
     if (!M) M = S.data.manualReport[ym] = {};
-    // 첫 진입 시 실제 데이터로 자동 채움 (이후엔 수정값 유지)
+    // 첫 진입 or 채널/매입처가 비어있는데 실제 데이터가 있으면 자동 채움
     let filled = false;
-    ["groven", "yb"].forEach((st) => { if (!M[st]) { M[st] = autoFillStoreReport(st, yr, mo); filled = true; } });
+    ["groven", "yb"].forEach((st) => {
+      const hasReal = S.filterBy(S.data.sales, { store: st, year: yr, month: mo }).length > 0
+        || S.filterBy(S.data.purchases, { store: st, year: yr, month: mo }).length > 0;
+      const isEmpty = !M[st] || ((!M[st].channels || !M[st].channels.length) && (!M[st].vendors || !M[st].vendors.length));
+      if (isEmpty && hasReal) { M[st] = autoFillStoreReport(st, yr, mo); filled = true; }
+      else if (!M[st]) { M[st] = autoFillStoreReport(st, yr, mo); filled = true; }
+    });
     if (filled) S.save();
 
     if (scope.store === "groven" || scope.store === "yb") renderManualStore(main, M, scope.store, ym, yr, mo);
@@ -1660,7 +1666,10 @@ const App = (function () {
       <div class="page-head no-print">
         <div><h2>📝 마감보고서(수기) · 통합 <span class="muted">${yr}년 ${mo}월</span></h2>
           <div class="muted">그로븐 · YB 수기 보고서를 자동 합산한 결과예요. (수정은 위 <b>그로븐 / 옐로우브릿지</b> 탭에서)</div></div>
-        <div class="row-actions"><button class="btn" id="mr-png">📸 PNG 저장</button><button class="btn primary" id="mr-print">🖨️ 인쇄</button></div>
+        <div class="row-actions">
+          <button class="btn" id="mr-auto-all">📥 자동값 다시 불러오기</button>
+          <button class="btn" id="mr-png">📸 PNG 저장</button>
+          <button class="btn primary" id="mr-print">🖨️ 인쇄</button></div>
       </div>
       ${help("manual")}
       <div class="sheet">
@@ -1698,6 +1707,15 @@ const App = (function () {
       </div>`;
     $("#mr-print", main).addEventListener("click", () => window.print());
     $("#mr-png", main).addEventListener("click", () => exportSheetPng(main, `통합_${yr}-${mo}`));
+    $("#mr-auto-all", main).addEventListener("click", () => {
+      if (!confirm(`그로븐·YB 수기 보고서를 현재 데이터 자동값으로 다시 채울까요?\n지금 입력한 값은 덮어써져요. (플랫폼 세부내역은 유지됩니다)`)) return;
+      ["groven", "yb"].forEach((st) => {
+        const keepPf = (M[st] || {}).platform;
+        M[st] = autoFillStoreReport(st, yr, mo);
+        M[st].platform = keepPf || [];
+      });
+      S.save(); renderManualReport(main);
+    });
     requestAnimationFrame(() => {
       salesTrendChart("mr-trend", trendSales(""));
       const chGroups = chMerged.filter((c) => S.num(c.supply) > 0)
@@ -1779,8 +1797,23 @@ const App = (function () {
           </tbody>
         </table>
 
-        <h4 class="doc-sec">Ⅱ. 채널별 매출</h4>${grp(byChannel, "채널", tSv ? S.sum(sales, "supply") : 0)}
-        <h4 class="doc-sec">Ⅲ. 공급처별 매입</h4>${grp(byVendor, "공급처", S.sum(purch, "supply"), (k) => S.data.vendorItems[k] || "")}
+        <h4 class="doc-sec">Ⅱ. 채널별 매출</h4>
+        ${store ? grp(byChannel, "채널", S.sum(sales, "supply"))
+          : ["groven", "yb"].map((st) => {
+              const sl = S.filterBy(S.data.sales, { store: st, year, month });
+              const g = S.groupSum(sl, "channel", "supply");
+              const stNm = st === "groven" ? "그로븐 (면세)" : "옐로우브릿지 (과세)";
+              return `<div style="margin-bottom:6px"><b style="font-size:12.5px;color:var(--muted)">${stNm}</b></div>${grp(g, "채널", S.sum(sl, "supply"))}`;
+            }).join("<div style='height:10px'></div>")}
+
+        <h4 class="doc-sec">Ⅲ. 공급처별 매입</h4>
+        ${store ? grp(byVendor, "공급처", S.sum(purch, "supply"), (k) => S.data.vendorItems[k] || "")
+          : ["groven", "yb"].map((st) => {
+              const pl = S.filterBy(S.data.purchases, { store: st, year, month });
+              const g = S.groupSum(pl, "vendor", "supply");
+              const stNm = st === "groven" ? "그로븐 (면세)" : "옐로우브릿지 (과세)";
+              return `<div style="margin-bottom:6px"><b style="font-size:12.5px;color:var(--muted)">${stNm}</b></div>${grp(g, "공급처", S.sum(pl, "supply"), (k) => S.data.vendorItems[k] || "")}`;
+            }).join("<div style='height:10px'></div>")}
 
         <h4 class="doc-sec">Ⅳ. 추이 및 구성</h4>
         <div class="doc-charts">
