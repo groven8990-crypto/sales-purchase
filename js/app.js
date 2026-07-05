@@ -1346,16 +1346,15 @@ const App = (function () {
       const prev = M[st] || {};
       const fresh = autoFillStoreReport(st, yr, mo);
       if (prev.vendors && prev.vendors.length > 0) {
-        // 별칭이 생긴 공급처(이티엔→도매꾹 등)의 canonical 타겟명 수집
-        const aliasTargets = new Set(
-          prev.vendors.filter((v) => S.canonVendor(v.name) !== v.name).map((v) => S.canonVendor(v.name))
-        );
-        // prev에서 별칭 없는 공급처만 유지 (수기 편집 보존, 삭제 유지)
+        // 별칭 적용된 공급처(이티엔 등) 제거, canonical 이름(도매꾹 등)만 유지
         const validPrev = prev.vendors.filter((v) => S.canonVendor(v.name) === v.name);
         const prevNames = new Set(validPrev.map((v) => v.name));
-        // fresh에서 별칭 타겟(도매꾹 등)만 추가 — 나머지 신규 공급처는 자동 추가 안 함
-        const aliasAdds = fresh.vendors.filter((v) => aliasTargets.has(v.name) && !prevNames.has(v.name));
-        fresh.vendors = [...validPrev, ...aliasAdds];
+        const deleted = new Set(prev.deletedVendors || []);
+        // fresh에서 canonical 이름 공급처 중 prev에 없고 삭제 안 된 것만 추가
+        const addFromFresh = fresh.vendors.filter((v) =>
+          S.canonVendor(v.name) === v.name && !prevNames.has(v.name) && !deleted.has(v.name)
+        );
+        fresh.vendors = [...validPrev, ...addFromFresh];
       }
       fresh.channels = (prev.channels && prev.channels.length > 0) ? prev.channels : fresh.channels;
       fresh.platform = (prev.platform && prev.platform.length > 0) ? prev.platform : fresh.platform;
