@@ -1095,9 +1095,17 @@ const App = (function () {
       type: ((p.category || "") + " " + (p.desc || "")).match(/광고|[Aa][Dd]|상품전시/) ? "광고비" : "수수료",
       amount: S.num(p.supply),
     }));
+    // 발주건수 집계 — 발주서를 올렸으면 발주건수 우선, 없으면 홈택스 계산서 건수 폴백
+    const ordRows = S.filterBy(S.data.orders || [], { store: st, year: yr, month: mo });
+    const ordByVendor = {};
+    ordRows.forEach((o) => {
+      const k = S.canonVendor(o.vendor || "");
+      ordByVendor[k] = (ordByVendor[k] || 0) + 1;
+    });
     r.vendors = S.groupSum(vendorPl, "vendor", "supply").map((g) => {
       const note = vi[g.key] || vendorPl.filter((p) => S.canonVendor(p.vendor) === g.key).map((p) => vi[p.vendor]).find(Boolean) || "";
-      return { name: g.key, note, count: g.count, supply: g.sum };
+      const count = ordByVendor[g.key] !== undefined ? ordByVendor[g.key] : g.count;
+      return { name: g.key, note, count, supply: g.sum };
     });
     // 고정비/정기결제 자동 반영 — 실제 매입 자료가 이미 있는 공급처는 무시(중복 방지)
     (S.data.fixedCosts || []).filter((fc) => (fc.store || "") === st).forEach((fc) => {
