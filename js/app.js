@@ -1092,7 +1092,7 @@ const App = (function () {
     r.platform = platformPl.map((p) => ({
       supplier: S.canonVendor(p.vendor),
       item: p.desc || "",
-      type: ((p.category || "") + " " + (p.desc || "")).match(/광고|[Aa][Dd]/) ? "광고비" : "수수료",
+      type: ((p.category || "") + " " + (p.desc || "")).match(/광고|[Aa][Dd]|상품전시/) ? "광고비" : "수수료",
       amount: S.num(p.supply),
     }));
     r.vendors = S.groupSum(vendorPl, "vendor", "supply").map((g) => {
@@ -1422,7 +1422,7 @@ const App = (function () {
     // 광고·AD 포함 내용은 무조건 광고비로 재분류 (기존 저장값 보정 포함)
     let _pfFixed = false;
     R.platform.forEach((r) => {
-      if ((r.item || "").match(/광고|[Aa][Dd]/) && r.type !== "광고비") { r.type = "광고비"; _pfFixed = true; }
+      if ((r.item || "").match(/광고|[Aa][Dd]|상품전시/) && r.type !== "광고비") { r.type = "광고비"; _pfFixed = true; }
     });
     if (_pfFixed) S.save(true);
 
@@ -1825,7 +1825,7 @@ const App = (function () {
       // 플랫폼 항목 (광고/AD 자동 분류)
       const platItems = platPl.map((p) => ({
         supplier: S.canonVendor(p.vendor), item: p.desc || "",
-        type: ((p.category || "") + " " + (p.desc || "")).match(/광고|[Aa][Dd]/) ? "광고비" : "수수료",
+        type: ((p.category || "") + " " + (p.desc || "")).match(/광고|[Aa][Dd]|상품전시/) ? "광고비" : "수수료",
         amount: S.num(p.supply),
       }));
       const pfFee = platItems.filter((r) => r.type !== "광고비").reduce((a, r) => a + r.amount, 0);
