@@ -340,6 +340,29 @@ const SPC = (function () {
         const ids = new Set((data.cs || []).map((c) => c.id));
         inc.cs.forEach((c) => { if (!c.id || !ids.has(c.id)) { const nc = Object.assign({ id: c.id || uid() }, c); data.cs.push(nc); ids.add(nc.id); } });
       }
+      // 공급처 별칭: 현재 설정 우선, 백업에만 있는 항목 추가
+      if (inc.vendorAlias && typeof inc.vendorAlias === "object") {
+        data.vendorAlias = Object.assign({}, inc.vendorAlias, data.vendorAlias);
+      }
+      // 고정비: id 기준 중복 제외
+      if (Array.isArray(inc.fixedCosts)) {
+        const ids = new Set((data.fixedCosts || []).map((c) => c.id));
+        inc.fixedCosts.forEach((c) => { if (!ids.has(c.id)) { data.fixedCosts.push(Object.assign({ id: c.id || uid() }, c)); ids.add(c.id); } });
+      }
+      // 수기 마감보고서: 현재에 없는 월만 추가, 있는 월은 현재 우선
+      if (inc.manualReport && typeof inc.manualReport === "object") {
+        if (!data.manualReport) data.manualReport = {};
+        Object.entries(inc.manualReport).forEach(([ym, mData]) => {
+          if (!data.manualReport[ym]) {
+            data.manualReport[ym] = mData;
+          } else {
+            // 같은 월: 현재에 없는 사업장만 추가
+            ["groven", "yb"].forEach((st) => {
+              if (!data.manualReport[ym][st] && mData[st]) data.manualReport[ym][st] = mData[st];
+            });
+          }
+        });
+      }
       save();
     },
   };
