@@ -1030,8 +1030,8 @@ const Modals = (function () {
 
   /* ===== 홈택스 전자(세금)계산서 매입 등록 ===== */
   function importHometax() {
-    open("🏛️ 홈택스 계산서 매입 등록",
-      `<p>홈택스 → 전자계산서 목록조회 → 엑셀 내려받기 파일을 올리세요.</p>
+    open("🏛️ 홈택스 매입 등록 (계산서·현금영수증)",
+      `<p>홈택스 → 전자계산서 목록조회 또는 <b>현금영수증 매입내역</b> 엑셀을 올리세요. 두 형식 모두 자동으로 인식합니다.</p>
        <div class="form-row"><label>사업장 <span class="muted" style="font-weight:400;font-size:12px">— 어느 사업장 매입인지 선택하세요</span></label>
          ${storeSelect("ht-store")}</div>
        <div class="form-row"><label>파일</label><input type="file" id="ht-file" accept=".xls,.xlsx,.csv"></div>
@@ -1049,50 +1049,80 @@ const Modals = (function () {
         const ws = wb.Sheets[wb.SheetNames[0]];
         const rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: "" });
 
-        // 헤더 행을 찾는다: "작성일자"가 포함된 첫 행
+        const cleanVendor = (s) => String(s || "").replace(/주식회사|㈜|\(주\)|\(유\)|농업회사법인|영농조합법인|유한회사|협동조합/g, "").replace(/^\s+|\s+$/g, "");
+
+        // 헤더 행 자동 감지: 전자계산서("작성일자") 또는 현금영수증("매입일시") 모두 지원
         let hdrIdx = rows.findIndex((r) => r.some((c) => String(c).replace(/\s/g,"") === "작성일자"));
-        if (hdrIdx < 0) { q("#ht-prev").innerHTML = `<div class="err">❌ '작성일자' 열을 찾지 못했어요. 홈택스 계산서 목록 엑셀인지 확인해주세요.</div>`; return; }
+        const isCashReceipt = hdrIdx < 0;
+        if (isCashReceipt) hdrIdx = rows.findIndex((r) => r.some((c) => String(c).replace(/\s/g,"") === "매입일시"));
+        if (hdrIdx < 0) { q("#ht-prev").innerHTML = `<div class="err">❌ 헤더 행을 찾지 못했어요. 홈택스 전자계산서 또는 현금영수증 목록 엑셀인지 확인해주세요.</div>`; return; }
 
         const hdr = rows[hdrIdx].map((c) => String(c).replace(/\s/g,""));
         const ci = (name) => hdr.findIndex((h) => h === name || h.includes(name));
-        const iDate = ci("작성일자");
-        const iApprv = ci("승인번호");
-        const iVendor = ci("상호");          // 공급자 상호 (첫 번째 '상호')
-        const iRecv = hdr.indexOf("상호", iVendor + 1); // 공급받는자 상호 (두 번째 '상호')
-        const iSupply = ci("공급가액");
-        const iTotal = ci("합계금액");
-        const iKind = ci("전자세금계산서분류");
-        const iItem = ci("품목명");
-
-        const cleanVendor = (s) => String(s || "").replace(/주식회사|㈜|\(주\)|\(유\)|농업회사법인|영농조합법인|유한회사|협동조합/g, "").replace(/^\s+|\s+$/g, "");
-        const detectStore = (recv) => {
-          const r = String(recv || "").replace(/\s/g,"");
-          if (r.includes("그로븐") || r.includes("그르븐") || r.toLowerCase().includes("groven")) return "groven";
-          if (r.includes("옐로우브릿지") || r.includes("YB") || r.includes("yb")) return "yb";
-          return "";
-        };
 
         parsed = [];
-        for (let i = hdrIdx + 1; i < rows.length; i++) {
-          const r = rows[i];
-          const dateStr = String(r[iDate] || "").trim();
-          if (!dateStr || !dateStr.match(/\d{4}/)) continue; // 빈 행 스킵
-          const dm = dateStr.match(/(\d{4})[-./](\d{1,2})[-./](\d{1,2})/);
-          if (!dm) continue;
-          const year = dm[1], month = String(+dm[2]), day = String(+dm[3]);
-          const vendor = cleanVendor(iVendor >= 0 ? r[iVendor] : "");
-          const supply = Math.round(parseFloat(String(r[iSupply] || "0").replace(/,/g,"")) || 0);
-          const total  = Math.round(parseFloat(String(r[iTotal]  || "0").replace(/,/g,"")) || 0);
-          const vat    = total - supply;
-          const store  = iRecv >= 0 ? detectStore(r[iRecv]) : "";
-          const evidence = String(r[iKind] || "계산서").trim() || "계산서";
-          const desc   = String(r[iItem] || "").trim();
-          const htId   = iApprv >= 0 ? String(r[iApprv] || "").trim() : "";
-          if (!vendor || supply <= 0) continue;
-          parsed.push({ store, year, month, day, vendor, supply, vat: vat > 0 ? vat : 0, total: total || supply, evidence, category: "상품매입", desc, htId });
+
+        if (isCashReceipt) {
+          // ── 현금영수증 형식 ──
+          // 열: 매입일시, 사용자명, 가맹점사업자번호, 가맹점명, 업종코드, 업종, 업태, 공급가액, 부가세, 봉사료, 매입금액, 승인번호, 발급수단, 거래구분, 공제여부
+          const iDate   = ci("매입일시");
+          const iVendor = ci("가맹점명");
+          const iSupply = ci("공급가액");
+          const iVat    = ci("부가세");
+          const iTotal  = ci("매입금액");
+          const iApprv  = ci("승인번호");
+          for (let i = hdrIdx + 1; i < rows.length; i++) {
+            const r = rows[i];
+            const dateStr = String(r[iDate] || "").trim();
+            if (!dateStr || !dateStr.match(/\d{4}/)) continue;
+            const dm = dateStr.match(/(\d{4})[-./](\d{1,2})[-./](\d{1,2})/);
+            if (!dm) continue;
+            const year = dm[1], month = String(+dm[2]), day = String(+dm[3]);
+            const vendor  = cleanVendor(iVendor >= 0 ? r[iVendor] : "");
+            const supply  = Math.round(parseFloat(String(r[iSupply] || "0").replace(/,/g,"")) || 0);
+            const vat     = iVat >= 0 ? Math.round(parseFloat(String(r[iVat] || "0").replace(/,/g,"")) || 0) : 0;
+            const total   = Math.round(parseFloat(String(r[iTotal]  || "0").replace(/,/g,"")) || 0) || supply;
+            const htId    = iApprv >= 0 ? String(r[iApprv] || "").trim() : "";
+            if (!vendor || supply <= 0) continue;
+            parsed.push({ store: "", year, month, day, vendor, supply, vat, total, evidence: "현금영수증", category: "상품매입", desc: "", htId });
+          }
+        } else {
+          // ── 전자(세금)계산서 형식 ──
+          const iDate   = ci("작성일자");
+          const iApprv  = ci("승인번호");
+          const iVendor = ci("상호");
+          const iRecv   = hdr.indexOf("상호", iVendor + 1);
+          const iSupply = ci("공급가액");
+          const iTotal  = ci("합계금액");
+          const iKind   = ci("전자세금계산서분류");
+          const iItem   = ci("품목명");
+          const detectStore = (recv) => {
+            const r2 = String(recv || "").replace(/\s/g,"");
+            if (r2.includes("그로븐") || r2.includes("그르븐") || r2.toLowerCase().includes("groven")) return "groven";
+            if (r2.includes("옐로우브릿지") || r2.includes("YB") || r2.includes("yb")) return "yb";
+            return "";
+          };
+          for (let i = hdrIdx + 1; i < rows.length; i++) {
+            const r = rows[i];
+            const dateStr = String(r[iDate] || "").trim();
+            if (!dateStr || !dateStr.match(/\d{4}/)) continue;
+            const dm = dateStr.match(/(\d{4})[-./](\d{1,2})[-./](\d{1,2})/);
+            if (!dm) continue;
+            const year = dm[1], month = String(+dm[2]), day = String(+dm[3]);
+            const vendor   = cleanVendor(iVendor >= 0 ? r[iVendor] : "");
+            const supply   = Math.round(parseFloat(String(r[iSupply] || "0").replace(/,/g,"")) || 0);
+            const total    = Math.round(parseFloat(String(r[iTotal]  || "0").replace(/,/g,"")) || 0);
+            const vat      = total - supply;
+            const store    = iRecv >= 0 ? detectStore(r[iRecv]) : "";
+            const evidence = String(r[iKind] || "계산서").trim() || "계산서";
+            const desc     = String(r[iItem] || "").trim();
+            const htId     = iApprv >= 0 ? String(r[iApprv] || "").trim() : "";
+            if (!vendor || supply <= 0) continue;
+            parsed.push({ store, year, month, day, vendor, supply, vat: vat > 0 ? vat : 0, total: total || supply, evidence, category: "상품매입", desc, htId });
+          }
         }
 
-        if (!parsed.length) { q("#ht-prev").innerHTML = `<div class="err">❌ 읽을 수 있는 계산서 행이 없어요.</div>`; return; }
+        if (!parsed.length) { q("#ht-prev").innerHTML = `<div class="err">❌ 읽을 수 있는 행이 없어요.</div>`; return; }
 
         const byVendor = {};
         parsed.forEach((p) => { byVendor[p.vendor] = (byVendor[p.vendor] || 0) + p.supply; });
