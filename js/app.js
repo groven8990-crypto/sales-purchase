@@ -1354,13 +1354,21 @@ const App = (function () {
       const prev = M[st] || {};
       const fresh = autoFillStoreReport(st, yr, mo);
       if (prev.vendors && prev.vendors.length > 0) {
-        // 별칭 적용된 공급처(이티엔 등) 제거, canonical 이름(도매꾹 등)만 유지
-        const validPrev = prev.vendors.filter((v) => S.canonVendor(v.name) === v.name);
+        // 사용자가 직접 설정한 별칭(vendorAlias)만 제거. built-in VENDOR_MATCH 정규화는 유지
+        const ua = S.data.vendorAlias || {};
+        const isUserAliased = (name) => {
+          const n = String(name || "").trim();
+          const s = n.replace(/주식회사|㈜|\(주\)|\(유\)|농업회사법인|영농조합법인|유한회사|협동조합/g, "").replace(/[\s\(\)（）]/g, "").trim();
+          return (ua[n] != null && ua[n] !== n) || (ua[s] != null && ua[s] !== s);
+        };
+        const validPrev = prev.vendors.filter((v) => !isUserAliased(v.name));
         const prevNames = new Set(validPrev.map((v) => v.name));
+        // canonical 이름으로도 중복 체크 (예: prev에 "늘푸른우리", fresh에 "늘푸른" → 둘 다 추가 방지)
+        const prevCanons = new Set(validPrev.map((v) => S.canonVendor(v.name)));
         const deleted = new Set(prev.deletedVendors || []);
         // fresh에서 canonical 이름 공급처 중 prev에 없고 삭제 안 된 것만 추가
         const addFromFresh = fresh.vendors.filter((v) =>
-          S.canonVendor(v.name) === v.name && !prevNames.has(v.name) && !deleted.has(v.name)
+          S.canonVendor(v.name) === v.name && !prevNames.has(v.name) && !prevCanons.has(v.name) && !deleted.has(v.name)
         );
         fresh.vendors = [...validPrev, ...addFromFresh];
       }
@@ -1644,7 +1652,7 @@ const App = (function () {
     });
     main.querySelectorAll("[data-add]").forEach((b) => b.addEventListener("click", () => {
       const sec = b.dataset.add;
-      R[sec].push(sec === "vendors" ? { name: "", note: "", count: 0, supply: 0 } : { name: "", count: 0, supply: 0 });
+      R[sec].push(sec === "vendors" ? { name: "", note: "상품매입", count: 0, supply: 0 } : { name: "", count: 0, supply: 0 });
       reSave(true);
     }));
     main.querySelectorAll("[data-addpf]").forEach((b) => b.addEventListener("click", () => {
