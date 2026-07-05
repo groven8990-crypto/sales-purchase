@@ -1547,7 +1547,11 @@ const App = (function () {
         </div>
       </div>`;
 
-    const reSave = (rerender) => { S.save(); if (rerender) renderManualReport(main); };
+    // fillReport 재실행 없이 현재 M 상태만 다시 그림 (삭제·추가 후 자동채움으로 덮어쓰기 방지)
+    const reSave = (rerender) => {
+      S.save();
+      if (rerender) renderManualStore(main, M, store, ym, yr, mo);
+    };
     // 합계·손익만 제자리에서 갱신 (전체 다시 그리지 않음 → 포커스/스크롤 유지)
     const recalc = () => {
       const chTotal = R.channels.reduce((a, r) => a + S.num(r.supply), 0);
