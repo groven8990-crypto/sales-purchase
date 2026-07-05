@@ -1789,14 +1789,47 @@ const App = (function () {
 
   function renderReport(main) {
     const { store, year, month } = scope;
-    const sales = S.filterBy(S.data.sales, { store, year, month });
-    const purch = S.filterBy(S.data.purchases, { store, year, month });
     const txns = S.filterBy(S.data.transactions, { store, year, month });
-    const byChannel = S.groupSum(sales, "channel", "supply");
-    const byVendor = S.groupSum(purch, "vendor", "supply");
     const inSum = S.sum(txns.filter((t) => t.type === "in"), "amount");
     const outSum = S.sum(txns.filter((t) => t.type === "out"), "amount");
     const inCnt = txns.filter((t) => t.type === "in").length;
+
+    const PLAT_SET = new Set(["쿠팡", "지마켓", "G마켓", "옥션", "네이버", "십일번가", "카카오", "당근", "위메프", "티몬"]);
+    const isPlat = (v) => PLAT_SET.has(S.canonVendor(v));
+
+    // 사업장별 데이터 계산
+    const storeData = (st) => {
+      const sl = S.filterBy(S.data.sales, { store: st, year, month });
+      const pl = S.filterBy(S.data.purchases, { store: st, year, month });
+      const salev = S.sum(sl, "supply");
+      const channels = S.groupSum(sl, "channel", "supply");
+      // 플랫폼 분리
+      const platPl = pl.filter((p) => isPlat(p.vendor));
+      const vendorPl = pl.filter((p) => !isPlat(p.vendor));
+      // 공급처 그룹 (고정비 포함)
+      const vRows = S.groupSum(vendorPl, "vendor", "supply");
+      (S.data.fixedCosts || []).filter((fc) => (fc.store || "") === st).forEach((fc) => {
+        const cn = S.canonVendor(fc.vendor);
+        if (!vRows.find((r) => r.key === cn))
+          vRows.push({ key: cn, count: S.num(fc.count), sum: S.num(fc.amount), ratio: 0 });
+      });
+      const vTotal = vRows.reduce((a, r) => a + r.sum, 0) || 1;
+      vRows.forEach((r) => { r.ratio = r.sum / vTotal; });
+      vRows.sort((a, b) => b.sum - a.sum);
+      // 플랫폼 항목 (광고/AD 자동 분류)
+      const platItems = platPl.map((p) => ({
+        supplier: S.canonVendor(p.vendor), item: p.desc || "",
+        type: ((p.category || "") + " " + (p.desc || "")).match(/광고|[Aa][Dd]/) ? "광고비" : "수수료",
+        amount: S.num(p.supply),
+      }));
+      const pfFee = platItems.filter((r) => r.type !== "광고비").reduce((a, r) => a + r.amount, 0);
+      const pfAd = platItems.filter((r) => r.type === "광고비").reduce((a, r) => a + r.amount, 0);
+      return { sl, pl, salev, channels, vRows, platItems, pfFee, pfAd, nm: S.STORES[st].name, tax: S.STORES[st].taxType };
+    };
+
+    const stores = store ? [store] : ["groven", "yb"];
+    const sdMap = {}; stores.forEach((st) => { sdMap[st] = storeData(st); });
+
     const summary = ["groven", "yb"].map((st) => {
       const sl = S.filterBy(S.data.sales, { store: st, year, month });
       const pl = S.filterBy(S.data.purchases, { store: st, year, month });
@@ -1805,32 +1838,85 @@ const App = (function () {
     });
     const tSv = summary.reduce((a, r) => a + r.v, 0), tPv = summary.reduce((a, r) => a + r.p, 0);
 
-    // 실제 매입 groupSum에 고정비(실제 자료 없는 항목만) 추가
-    const withFixed = (pl, st) => {
-      const rows = S.groupSum(pl, "vendor", "supply");
-      (S.data.fixedCosts || []).filter((fc) => (fc.store || "") === (st || "")).forEach((fc) => {
-        const cn = S.canonVendor(fc.vendor);
-        if (!rows.find((r) => r.key === cn))
-          rows.push({ key: cn, count: S.num(fc.count), sum: S.num(fc.amount), ratio: 0 });
-      });
-      const total = rows.reduce((a, r) => a + r.sum, 0) || 1;
-      rows.forEach((r) => { r.ratio = r.sum / total; });
-      rows.sort((a, b) => b.sum - a.sum);
-      return rows;
+    const vi = S.data.vendorItems || {};
+    const chRow = (g, i, chT) => `<tr><td class="c">${i + 1}</td><td class="name">${esc(g.key)}</td>
+      <td class="n">${won(g.count)}</td><td class="n">${won(g.sum)}</td><td class="n">${chT ? (g.sum / chT * 100).toFixed(1) : "0.0"}%</td></tr>`;
+    const vnRow = (g, i, grpT) => `<tr><td class="c">${i + 1}</td><td class="name">${esc(g.key)}</td>
+      <td class="name">${esc(vi[g.key] || "")}</td><td class="n">${won(g.count)}</td>
+      <td class="n">${won(g.sum)}</td><td class="n">${grpT ? (g.sum / grpT * 100).toFixed(1) : "0.0"}%</td></tr>`;
+    const pfRow = (r, i, grpT) => `<tr><td class="c">${i + 1}</td><td class="name">${esc(r.supplier)}</td>
+      <td class="name">${esc(r.item)}</td><td class="n">${won(r.amount)}</td>
+      <td class="n">${grpT ? (r.amount / grpT * 100).toFixed(1) : "0.0"}%</td></tr>`;
+
+    const chSection = (sd, stLabel) => {
+      const chT = sd.channels.reduce((a, r) => a + r.sum, 0);
+      const sorted = [...sd.channels].sort((a, b) => b.sum - a.sum);
+      return (stLabel ? `<div style="margin-bottom:4px"><b style="font-size:12.5px;color:var(--muted)">${stLabel}</b></div>` : "")
+        + `<table class="doc-table"><thead><tr><th class="c" style="width:40px">순번</th><th>채널</th><th class="n" style="width:64px">건수</th><th class="n" style="width:118px">공급가</th><th class="n" style="width:58px">비중</th></tr></thead>
+        <tbody>${sorted.length ? sorted.map((g, i) => chRow(g, i, chT)).join("") : `<tr><td colspan="5" class="empty">자료 없음</td></tr>`}
+        <tr class="sum"><td colspan="3">합계</td><td class="n">${won(chT)}</td><td class="n">100%</td></tr></tbody></table>`;
     };
 
-    const grp = (rows, label, sumTotal, itemsOf) => {
-      const hi = !!itemsOf;
-      return `
-      <table class="doc-table"><thead><tr><th class="c" style="width:48px">순번</th><th>${label}</th>${hi ? `<th style="width:128px">내용</th>` : ""}<th class="n" style="width:54px">건수</th><th class="n" style="width:118px">공급가</th><th class="n" style="width:58px">비중</th></tr></thead>
-      <tbody>${rows.length ? rows.map((g, i) => `<tr><td class="c">${i + 1}</td><td class="name">${esc(g.key)}</td>${hi ? `<td class="name">${esc(itemsOf(g.key))}</td>` : ""}
-        <td class="n">${won(g.count)}</td><td class="n">${won(g.sum)}</td><td class="n">${(g.ratio * 100).toFixed(1)}%</td></tr>`).join("")
-        : `<tr><td colspan="${hi ? 6 : 5}" class="empty">자료 없음</td></tr>`}
-        <tr class="sum"><td colspan="${hi ? 3 : 2}">합계</td><td class="n">${won(rows.reduce((a, g) => a + g.count, 0))}</td>
-        <td class="n">${won(sumTotal)}</td><td class="n">100%</td></tr></tbody></table>`;
+    const vnSection = (sd, stLabel) => {
+      const isProd = (r) => /상품매입/.test(vi[r.key] || "");
+      const prod = sd.vRows.filter(isProd), etc = sd.vRows.filter((r) => !isProd(r));
+      const prodT = prod.reduce((a, r) => a + r.sum, 0), etcT = etc.reduce((a, r) => a + r.sum, 0);
+      const vnT = sd.vRows.reduce((a, r) => a + r.sum, 0) + sd.pfFee + sd.pfAd;
+      const pfFeeRow = sd.pfFee > 0 ? `<tr style="background:#f0f6ff"><td class="c">-</td><td class="name">플랫폼 판매수수료</td><td class="name">Ⅲ-1 합계</td><td class="n">-</td><td class="n">${won(sd.pfFee)}</td><td class="n">${etcT + sd.pfFee + sd.pfAd ? (sd.pfFee / (etcT + sd.pfFee + sd.pfAd) * 100).toFixed(1) : "0.0"}%</td></tr>` : "";
+      const pfAdRow = sd.pfAd > 0 ? `<tr style="background:#f0f6ff"><td class="c">-</td><td class="name">플랫폼 광고비</td><td class="name">Ⅲ-1 합계</td><td class="n">-</td><td class="n">${won(sd.pfAd)}</td><td class="n">${etcT + sd.pfFee + sd.pfAd ? (sd.pfAd / (etcT + sd.pfFee + sd.pfAd) * 100).toFixed(1) : "0.0"}%</td></tr>` : "";
+      const prodBody = prod.length ? prod.map((g, i) => vnRow(g, i, prodT)).join("") : `<tr><td colspan="6" class="empty">없음</td></tr>`;
+      const etcBody = pfFeeRow + pfAdRow + (etc.length ? etc.map((g, i) => vnRow(g, i + (sd.pfFee > 0 ? 1 : 0) + (sd.pfAd > 0 ? 1 : 0), etcT + sd.pfFee + sd.pfAd)).join("") : (!pfFeeRow && !pfAdRow ? `<tr><td colspan="6" class="empty">없음</td></tr>` : ""));
+      return (stLabel ? `<div style="margin-bottom:4px"><b style="font-size:12.5px;color:var(--muted)">${stLabel}</b></div>` : "")
+        + `<table class="doc-table"><thead><tr><th class="c" style="width:40px">순번</th><th style="width:132px">공급처</th><th>내용</th><th class="n" style="width:64px">건수</th><th class="n" style="width:118px">공급가</th><th class="n" style="width:58px">비중</th></tr></thead>
+        <tbody>
+          <tr style="background:#eef4ff"><td colspan="6" style="font-weight:700;color:var(--navy);padding:5px 9px">▸ 상품매입</td></tr>
+          ${prodBody}
+          <tr class="sum"><td colspan="4">상품매입 소계</td><td class="n">${won(prodT)}</td><td class="n">100%</td></tr>
+          <tr style="background:#eef4ff"><td colspan="6" style="font-weight:700;color:var(--navy);padding:5px 9px">▸ 수수료·광고비·기타</td></tr>
+          ${etcBody}
+          <tr class="sum"><td colspan="4">기타 소계</td><td class="n">${won(etcT + sd.pfFee + sd.pfAd)}</td><td class="n">100%</td></tr>
+          <tr class="sum"><td colspan="4">합계</td><td class="n">${won(vnT)}</td><td class="n"></td></tr>
+        </tbody></table>`;
+    };
+
+    const pfChartData = {}; // chartId → [{key,sum}] — requestAnimationFrame 때 그림
+    const pfSection = (sd, stLabel) => {
+      if (!sd.platItems.length) return "";
+      const feeRows = sd.platItems.filter((r) => r.type !== "광고비").sort((a, b) => b.amount - a.amount);
+      const adRows = sd.platItems.filter((r) => r.type === "광고비").sort((a, b) => b.amount - a.amount);
+      const supGrp = (rows, label, grpT) => `<tr style="background:#eef4ff"><td colspan="5" style="font-weight:700;color:var(--navy);padding:5px 9px">${label}</td></tr>`
+        + (rows.length ? rows.map((r, i) => pfRow(r, i + 1, grpT)).join("") : `<tr><td colspan="5" class="empty">없음</td></tr>`)
+        + `<tr class="sum"><td colspan="3">소계</td><td class="n">${won(grpT)}</td><td class="n">100%</td></tr>`;
+      const pfChMap = {};
+      sd.platItems.forEach((r) => { pfChMap[r.supplier] = (pfChMap[r.supplier] || 0) + r.amount; });
+      const pfChData = Object.entries(pfChMap).map(([k, v]) => ({ key: k, sum: v, count: 0 })).filter((g) => g.sum > 0).sort((a, b) => b.sum - a.sum);
+      const chartId = `rp-pf-${stLabel ? stLabel.replace(/[\s()]/g, "") : "all"}`;
+      pfChartData[chartId] = pfChData; // innerHTML 이후 requestAnimationFrame에서 그림
+      return (stLabel ? `<div style="margin-bottom:4px"><b style="font-size:12.5px;color:var(--muted)">${stLabel}</b></div>` : "")
+        + `<div class="mr-chart-row" style="display:flex;gap:14px;align-items:flex-start">
+          <div style="flex:1;min-width:0">
+            <table class="doc-table"><thead><tr><th class="c" style="width:40px">순번</th><th>플랫폼</th><th>내용</th><th class="n" style="width:118px">금액</th><th class="n" style="width:58px">비중</th></tr></thead>
+              <tbody>${supGrp(feeRows, "▸ 플랫폼 수수료", sd.pfFee)}${supGrp(adRows, "▸ 플랫폼 광고비", sd.pfAd)}</tbody></table>
+          </div>
+          <div style="width:220px;flex-shrink:0">
+            <div style="position:relative;border:1px solid #d4dae4;border-radius:6px;padding:8px;height:220px"><canvas id="${chartId}"></canvas></div>
+            <div class="muted" style="font-size:10px;text-align:center;margin-top:4px">플랫폼별 수수료·광고비</div>
+          </div>
+        </div>`;
     };
 
     const ttl = (scope.year || "____") + "년 " + (scope.month || "__") + "월";
+    const storeLabel = (st) => st === "groven" ? "그로븐 (면세)" : "YB (과세)";
+
+    // 통합 채널별 차트용 데이터
+    const allCh = stores.reduce((acc, st) => {
+      sdMap[st].channels.forEach((g) => {
+        const ex = acc.find((a) => a.key === g.key);
+        if (ex) { ex.sum += g.sum; ex.count += g.count; } else acc.push({ ...g });
+      });
+      return acc;
+    }, []).sort((a, b) => b.sum - a.sum);
+
     main.innerHTML = `
       <div class="page-head no-print">
         <div><h2>마감 보고서 <span class="muted">${esc(scopeLabel())}</span></h2></div>
@@ -1848,7 +1934,7 @@ const App = (function () {
         <div class="doc-meta">
           <div class="meta">
             <div><b>대상월</b> ${ttl}</div>
-            <div><b>사업장</b> ${scope.store ? S.STORES[scope.store].name + " (" + S.STORES[scope.store].taxType + ")" : "그로븐(면세) · 옐로우브릿지(과세)"}</div>
+            <div><b>사업장</b> ${store ? S.STORES[store].name + " (" + S.STORES[store].taxType + ")" : "그로븐(면세) · 옐로우브릿지(과세)"}</div>
             <div><b>작성일</b> ${new Date().toLocaleDateString("ko-KR")}</div>
           </div>
           <div class="approval">
@@ -1874,30 +1960,27 @@ const App = (function () {
         </table>
 
         <h4 class="doc-sec">Ⅱ. 채널별 매출</h4>
-        ${store ? grp(byChannel, "채널", S.sum(sales, "supply"))
-          : ["groven", "yb"].map((st) => {
-              const sl = S.filterBy(S.data.sales, { store: st, year, month });
-              const g = S.groupSum(sl, "channel", "supply");
-              const stNm = st === "groven" ? "그로븐 (면세)" : "옐로우브릿지 (과세)";
-              return `<div style="margin-bottom:6px"><b style="font-size:12.5px;color:var(--muted)">${stNm}</b></div>${grp(g, "채널", S.sum(sl, "supply"))}`;
-            }).join("<div style='height:10px'></div>")}
+        ${stores.map((st) => chSection(sdMap[st], stores.length > 1 ? storeLabel(st) : "")).join("<div style='height:10px'></div>")}
 
-        <h4 class="doc-sec">Ⅲ. 공급처별 매입</h4>
-        ${store ? grp(withFixed(purch, store), "공급처", withFixed(purch, store).reduce((a,r)=>a+r.sum,0), (k) => S.data.vendorItems[k] || "")
-          : ["groven", "yb"].map((st) => {
-              const pl = S.filterBy(S.data.purchases, { store: st, year, month });
-              const g = withFixed(pl, st);
-              const stNm = st === "groven" ? "그로븐 (면세)" : "옐로우브릿지 (과세)";
-              return `<div style="margin-bottom:6px"><b style="font-size:12.5px;color:var(--muted)">${stNm}</b></div>${grp(g, "공급처", g.reduce((a,r)=>a+r.sum,0), (k) => S.data.vendorItems[k] || "")}`;
-            }).join("<div style='height:10px'></div>")}
-
-        <h4 class="doc-sec">Ⅳ. 추이 및 구성</h4>
-        <div class="doc-charts">
-          <div class="cbox"><canvas id="rp-trend"></canvas></div>
-          <div class="cbox"><canvas id="rp-ch"></canvas></div>
+        <h4 class="doc-sec">Ⅱ-1. 채널별 매출 추이·구성</h4>
+        <div class="mr-chart-row" style="display:flex;gap:14px;align-items:flex-start">
+          <div style="flex:1;min-width:0">
+            <div style="position:relative;border:1px solid #d4dae4;border-radius:6px;padding:8px;height:240px"><canvas id="rp-trend"></canvas></div>
+            <div class="muted" style="font-size:10px;text-align:center;margin-top:4px">월별 매출 추이</div>
+          </div>
+          <div style="width:240px;flex-shrink:0">
+            <div style="position:relative;border:1px solid #d4dae4;border-radius:6px;padding:8px;height:240px"><canvas id="rp-ch"></canvas></div>
+            <div class="muted" style="font-size:10px;text-align:center;margin-top:4px">채널별 매출 비중</div>
+          </div>
         </div>
 
-        <h4 class="doc-sec">Ⅴ. 입출금 정산 (기업은행)</h4>
+        <h4 class="doc-sec">Ⅲ. 공급처별 매입</h4>
+        ${stores.map((st) => vnSection(sdMap[st], stores.length > 1 ? storeLabel(st) : "")).join("<div style='height:10px'></div>")}
+
+        <h4 class="doc-sec">Ⅲ-1. 플랫폼 수수료·광고비 세부</h4>
+        ${stores.map((st) => pfSection(sdMap[st], stores.length > 1 ? storeLabel(st) : "")).join("<div style='height:10px'></div>") || `<div class="empty" style="padding:12px">플랫폼 매입 자료 없음</div>`}
+
+        <h4 class="doc-sec">Ⅳ. 입출금 정산 (기업은행)</h4>
         <table class="doc-table">
           <thead><tr><th>구분</th><th class="n">건수</th><th class="n">금액</th><th>비고</th></tr></thead>
           <tbody>
@@ -1911,10 +1994,14 @@ const App = (function () {
       </div>`;
 
     $("#dl-xlsx").addEventListener("click", () => Report.download({ year, month }));
-    // 차트 (구성 차트는 데이터 있는 쪽: 매출 채널 없으면 매입처)
-    const monthly = S.monthlySummary(store);
-    Dashboard.renderTrend("rp-trend", monthly);
-    Dashboard.renderGroup("rp-ch", byChannel.length ? byChannel : byVendor, "doughnut");
+    requestAnimationFrame(() => {
+      const monthly = S.monthlySummary(store);
+      Dashboard.renderTrend("rp-trend", monthly);
+      Dashboard.renderGroup("rp-ch", allCh, "doughnut");
+      Object.entries(pfChartData).forEach(([id, data]) => {
+        if (document.getElementById(id)) Dashboard.renderGroup(id, data, "doughnut");
+      });
+    });
   }
 
   /* ===================== 데이터 · 설정 ===================== */
