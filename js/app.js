@@ -1088,11 +1088,10 @@ const App = (function () {
       const note = vi[g.key] || pl.filter((p) => S.canonVendor(p.vendor) === g.key).map((p) => vi[p.vendor]).find(Boolean) || "";
       return { name: g.key, note, count: g.count, supply: g.sum };
     });
-    // 고정비/정기결제 자동 반영 (매월 동일) — 같은 공급처가 매입에도 있으면 합산
+    // 고정비/정기결제 자동 반영 — 실제 매입 자료가 이미 있는 공급처는 무시(중복 방지)
     (S.data.fixedCosts || []).filter((fc) => (fc.store || "") === st).forEach((fc) => {
-      const ex = r.vendors.find((v) => v.name === fc.vendor && (v.note || "") === (fc.note || ""));
-      if (ex) { ex.supply += S.num(fc.amount); ex.count += S.num(fc.count); }
-      else r.vendors.push({ name: fc.vendor, note: fc.note || "", count: S.num(fc.count), supply: S.num(fc.amount) });
+      const ex = r.vendors.find((v) => v.name === fc.vendor);
+      if (!ex) r.vendors.push({ name: fc.vendor, note: fc.note || "", count: S.num(fc.count), supply: S.num(fc.amount) });
     });
     r.purchase = r.vendors.reduce((a, v) => a + S.num(v.supply), 0);
     const tx = S.filterBy(S.data.transactions, { store: st, year: yr, month: mo });
@@ -1761,6 +1760,20 @@ const App = (function () {
     });
     const tSv = summary.reduce((a, r) => a + r.v, 0), tPv = summary.reduce((a, r) => a + r.p, 0);
 
+    // 실제 매입 groupSum에 고정비(실제 자료 없는 항목만) 추가
+    const withFixed = (pl, st) => {
+      const rows = S.groupSum(pl, "vendor", "supply");
+      (S.data.fixedCosts || []).filter((fc) => (fc.store || "") === (st || "")).forEach((fc) => {
+        const cn = S.canonVendor(fc.vendor);
+        if (!rows.find((r) => r.key === cn))
+          rows.push({ key: cn, count: S.num(fc.count), sum: S.num(fc.amount), ratio: 0 });
+      });
+      const total = rows.reduce((a, r) => a + r.sum, 0) || 1;
+      rows.forEach((r) => { r.ratio = r.sum / total; });
+      rows.sort((a, b) => b.sum - a.sum);
+      return rows;
+    };
+
     const grp = (rows, label, sumTotal, itemsOf) => {
       const hi = !!itemsOf;
       return `
@@ -1825,12 +1838,12 @@ const App = (function () {
             }).join("<div style='height:10px'></div>")}
 
         <h4 class="doc-sec">Ⅲ. 공급처별 매입</h4>
-        ${store ? grp(byVendor, "공급처", S.sum(purch, "supply"), (k) => S.data.vendorItems[k] || "")
+        ${store ? grp(withFixed(purch, store), "공급처", withFixed(purch, store).reduce((a,r)=>a+r.sum,0), (k) => S.data.vendorItems[k] || "")
           : ["groven", "yb"].map((st) => {
               const pl = S.filterBy(S.data.purchases, { store: st, year, month });
-              const g = S.groupSum(pl, "vendor", "supply");
+              const g = withFixed(pl, st);
               const stNm = st === "groven" ? "그로븐 (면세)" : "옐로우브릿지 (과세)";
-              return `<div style="margin-bottom:6px"><b style="font-size:12.5px;color:var(--muted)">${stNm}</b></div>${grp(g, "공급처", S.sum(pl, "supply"), (k) => S.data.vendorItems[k] || "")}`;
+              return `<div style="margin-bottom:6px"><b style="font-size:12.5px;color:var(--muted)">${stNm}</b></div>${grp(g, "공급처", g.reduce((a,r)=>a+r.sum,0), (k) => S.data.vendorItems[k] || "")}`;
             }).join("<div style='height:10px'></div>")}
 
         <h4 class="doc-sec">Ⅳ. 추이 및 구성</h4>
