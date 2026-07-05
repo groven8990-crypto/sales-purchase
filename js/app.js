@@ -1082,7 +1082,12 @@ const App = (function () {
     r.sales = S.sum(sl, "supply");
     r.purchase = S.sum(pl, "supply");
     r.channels = S.groupSum(sl, "channel", "supply").map((g) => ({ name: g.key, count: g.count, supply: g.sum }));
-    r.vendors = S.groupSum(pl, "vendor", "supply").map((g) => ({ name: g.key, note: (S.data.vendorItems && S.data.vendorItems[g.key]) || "", count: g.count, supply: g.sum }));
+    const vi = S.data.vendorItems || {};
+    r.vendors = S.groupSum(pl, "vendor", "supply").map((g) => {
+      // 정규화 이름으로 먼저 조회, 없으면 원본 매입 행의 vendor명으로 폴백
+      const note = vi[g.key] || pl.filter((p) => S.canonVendor(p.vendor) === g.key).map((p) => vi[p.vendor]).find(Boolean) || "";
+      return { name: g.key, note, count: g.count, supply: g.sum };
+    });
     // 고정비/정기결제 자동 반영 (매월 동일) — 같은 공급처가 매입에도 있으면 합산
     (S.data.fixedCosts || []).filter((fc) => (fc.store || "") === st).forEach((fc) => {
       const ex = r.vendors.find((v) => v.name === fc.vendor && (v.note || "") === (fc.note || ""));
@@ -1870,8 +1875,8 @@ const App = (function () {
       <div class="card"><h3>공급처 내용 (취급품목)</h3>
         <p class="hint">공급처마다 내용(취급품목 등)을 적어두면 보고서 '공급처별 매입'의 내용 칸에 표시됩니다.</p>
         <div class="table-wrap scroll"><table class="grid"><thead><tr><th style="width:160px">공급처</th><th>내용</th></tr></thead>
-        <tbody>${[...new Set(S.data.purchases.map((p) => p.vendor).filter(Boolean))].sort().map((v) =>
-          `<tr><td>${esc(v)}</td><td><input class="vi-input" data-v="${esc(v)}" value="${esc(S.data.vendorItems[v] || "")}" placeholder="예: 간고등어, 굴비" style="width:100%;border:1px solid var(--line);border-radius:7px;padding:6px 9px;font-size:13px"></td></tr>`).join("") ||
+        <tbody>${[...new Set(S.data.purchases.map((p) => p.vendor).filter(Boolean).map((v) => S.canonVendor(v)))].sort().map((cv) =>
+          `<tr><td>${esc(cv)}</td><td><input class="vi-input" data-v="${esc(cv)}" value="${esc(S.data.vendorItems[cv] || "")}" placeholder="예: 간고등어 상품매입" style="width:100%;border:1px solid var(--line);border-radius:7px;padding:6px 9px;font-size:13px"></td></tr>`).join("") ||
           `<tr><td colspan="2" class="empty">매입 자료를 먼저 넣어주세요</td></tr>`}</tbody></table></div></div>
       <div class="card"><h3>🔁 고정비 · 정기결제 (매월 자동 반영)</h3>
         <p class="hint">임대료·구독·통신·주결제 업체 등 <b>매월 똑같이 나가는 항목</b>을 등록하면, 마감보고서 '자동값 불러오기' 때 자동으로 들어갑니다. 내용에 <b>'상품매입'</b>을 넣으면 상품매입 그룹, 아니면 기타(수수료·비용) 그룹으로 분류돼요.</p>
