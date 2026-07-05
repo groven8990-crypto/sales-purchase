@@ -1142,6 +1142,19 @@ const App = (function () {
     const hist = store ? SALES_HISTORY[store] : combined;
     const base = {};
     S.monthlySummary(store).forEach((r) => { base[r.y + "-" + r.m] = { y: r.y, m: r.m, sales: r.sales, purchase: r.purchase }; });
+    // 수기보고서 데이터 보완 — 실제 업로드 데이터가 없는 월은 수기보고서 합계로 채움
+    const manRep = S.data.manualReport || {};
+    const storeList = store ? [store] : ["groven", "yb"];
+    Object.entries(manRep).forEach(([ym, mData]) => {
+      const [y, m] = ym.split("-").map(Number);
+      if (!y || !m) return;
+      let sales = 0, purchase = 0;
+      storeList.forEach((st) => { if (mData[st]) { sales += S.num(mData[st].sales); purchase += S.num(mData[st].purchase); } });
+      if (sales > 0) {
+        if (!base[ym]) base[ym] = { y, m, sales, purchase };
+        else if (base[ym].sales === 0) { base[ym].sales = sales; base[ym].purchase = purchase; }
+      }
+    });
     Object.entries(hist || {}).forEach(([ym, amt]) => {
       const [y, m] = ym.split("-").map(Number);
       if (!base[ym]) base[ym] = { y, m, sales: 0, purchase: 0 };
