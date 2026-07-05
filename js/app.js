@@ -1367,6 +1367,7 @@ const App = (function () {
       fresh.channels = (prev.channels && prev.channels.length > 0) ? prev.channels : fresh.channels;
       fresh.platform = (prev.platform && prev.platform.length > 0) ? prev.platform : fresh.platform;
       fresh.memo = prev.memo || "";
+      fresh.deletedVendors = prev.deletedVendors || [];
       M[st] = fresh;
     });
     S.save(true); // silent — 스크롤 튐 없이 저장
