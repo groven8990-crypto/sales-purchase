@@ -1092,7 +1092,7 @@ const App = (function () {
     r.platform = platformPl.map((p) => ({
       supplier: S.canonVendor(p.vendor),
       item: p.desc || "",
-      type: (p.category || "").includes("광고") ? "광고비" : "수수료",
+      type: ((p.category || "") + " " + (p.desc || "")).match(/광고|[Aa][Dd]/) ? "광고비" : "수수료",
       amount: S.num(p.supply),
     }));
     r.vendors = S.groupSum(vendorPl, "vendor", "supply").map((g) => {
