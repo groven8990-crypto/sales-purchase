@@ -84,7 +84,7 @@ const App = (function () {
     else if (scope.view === "deposits") renderDeposits(main);
     else if (scope.view === "adspend") renderAdSpend(main);
     else if (scope.view === "cs") renderCS(main);
-    else if (scope.view === "report") renderReport(main);
+    else if (scope.view === "report") { scope.view = "manual"; renderManualReport(main); }
     else if (scope.view === "manual") renderManualReport(main);
     else if (scope.view === "data") renderData(main);
   }
@@ -115,7 +115,7 @@ const App = (function () {
     main.innerHTML = `
       <div class="page-head">
         <div><h2>마감 진행</h2><div class="muted">${esc(scopeLabel())}</div></div>
-        <button class="btn primary" data-go="report">📄 마감 보고서 보기</button>
+        <button class="btn primary" data-go="manual">📄 마감 보고서 보기</button>
       </div>
       ${help("home")}
       ${empty ? `<div class="hello card">
@@ -149,7 +149,7 @@ const App = (function () {
            <button class="btn ghost" data-act="import-bank">🏦 통장내역 올리기</button>`)}
         ${step(4, sales.length + purch.length > 0, "손익 · 보고", "마감 보고서 작성·결재",
           `손익 <b>${sv - pv >= 0 ? "+" : ""}₩${won(sv - pv)}</b> · 마진율 ${sv ? Math.round((sv - pv) / sv * 100) : 0}%`,
-          `<button class="btn primary" data-go="report">📄 보고서 보기</button>`)}
+          `<button class="btn primary" data-go="manual">📄 보고서 보기</button>`)}
       </div>`;
 
     wire(main);
@@ -1512,7 +1512,7 @@ const App = (function () {
 
     main.innerHTML = `
       <div class="page-head no-print">
-        <div><h2>📝 마감보고서(수기) · ${fullNm} <span class="muted">${yr}년 ${mo}월</span></h2>
+        <div><h2>📄 마감 보고서 · ${fullNm} <span class="muted">${yr}년 ${mo}월</span></h2>
           <div class="muted">처음 열면 실제 데이터로 자동 채워져요. 자유롭게 수정하세요. (자동 저장 · 통합 탭에서 합산본 확인)</div></div>
         <div class="row-actions">
           <button class="btn" id="mr-auto">📥 자동값 다시 불러오기</button>
@@ -1565,8 +1565,18 @@ const App = (function () {
           </div>
         </div>
 
+        <h4 class="doc-sec">Ⅳ. 입출금 정산 (기업은행)</h4>
+        <table class="doc-table">
+          <thead><tr><th>구분</th><th class="n">건수</th><th class="n">금액</th><th>비고</th></tr></thead>
+          <tbody>
+            <tr><td>입금 (매출 정산)</td><td class="n">${S.num(R.bank.inCnt)}</td><td class="n pos">${won(S.num(R.bank.inSum))}</td><td>채널 정산 입금</td></tr>
+            <tr><td>출금 (매입·비용)</td><td class="n">${S.num(R.bank.outCnt)}</td><td class="n neg">${won(S.num(R.bank.outSum))}</td><td>상품매입·고정비 등</td></tr>
+            <tr class="sum"><td>순증감</td><td class="n">${S.num(R.bank.inCnt) + S.num(R.bank.outCnt)}</td><td class="n" id="mr-bankNet">${won(S.num(R.bank.inSum) - S.num(R.bank.outSum))}</td><td></td></tr>
+          </tbody>
+        </table>
+
         <div id="mr-memo-wrap"${String(R.memo || "").trim() ? "" : ` class="no-print"`}>
-        <h4 class="doc-sec">Ⅳ. 비고</h4>
+        <h4 class="doc-sec">Ⅴ. 비고</h4>
         <textarea class="mr-in" data-sec="memo" data-i="0" data-f="memo" rows="3" style="width:100%" placeholder="특이사항(없으면 인쇄·이미지에서 자동 생략)">${esc(R.memo || "")}</textarea>
         </div>
       </div>`;
@@ -1747,8 +1757,8 @@ const App = (function () {
 
     main.innerHTML = `
       <div class="page-head no-print">
-        <div><h2>📝 마감보고서(수기) · 통합 <span class="muted">${yr}년 ${mo}월</span></h2>
-          <div class="muted">그로븐 · YB 수기 보고서를 자동 합산한 결과예요. (수정은 위 <b>그로븐 / 옐로우브릿지</b> 탭에서)</div></div>
+        <div><h2>📄 마감 보고서 · 통합 <span class="muted">${yr}년 ${mo}월</span></h2>
+          <div class="muted">그로븐 · YB 자료를 자동 합산한 결과예요. (수정은 위 <b>그로븐 / 옐로우브릿지</b> 탭에서)</div></div>
         <div class="row-actions">
           <button class="btn" id="mr-auto-all">📥 자동값 다시 불러오기</button>
           <button class="btn" id="mr-png">📸 PNG 저장</button>
@@ -1786,7 +1796,17 @@ const App = (function () {
         <table class="doc-table"><thead><tr><th class="c" style="width:40px">순번</th><th style="width:132px">공급처</th><th>내용</th><th class="n" style="width:64px">건수</th><th class="n" style="width:110px">공급가</th><th class="n" style="width:56px">비중</th></tr></thead>
           <tbody>${vnBody}<tr class="sum"><td colspan="4">합계</td><td class="n">${won(vnT)}</td><td class="n"></td></tr></tbody></table>
         ${pfSection}
-        ${memo ? `<h4 class="doc-sec">Ⅳ. 비고</h4><div style="white-space:pre-wrap;font-size:12px;padding:4px 2px">${esc(memo)}</div>` : ""}
+
+        <h4 class="doc-sec">Ⅳ. 입출금 정산 (기업은행)</h4>
+        <table class="doc-table">
+          <thead><tr><th>구분</th><th class="n">건수</th><th class="n">금액</th><th>비고</th></tr></thead>
+          <tbody>
+            <tr><td>입금 (매출 정산)</td><td class="n">${bk.inCnt}</td><td class="n pos">${won(bk.inSum)}</td><td>채널 정산 입금</td></tr>
+            <tr><td>출금 (매입·비용)</td><td class="n">${bk.outCnt}</td><td class="n neg">${won(bk.outSum)}</td><td>상품매입·고정비 등</td></tr>
+            <tr class="sum"><td>순증감</td><td class="n">${bk.inCnt + bk.outCnt}</td><td class="n ${bk.inSum - bk.outSum >= 0 ? "pos" : "neg"}">${bk.inSum - bk.outSum >= 0 ? "+" : ""}${won(bk.inSum - bk.outSum)}</td><td></td></tr>
+          </tbody>
+        </table>
+        ${memo ? `<h4 class="doc-sec">Ⅴ. 비고</h4><div style="white-space:pre-wrap;font-size:12px;padding:4px 2px">${esc(memo)}</div>` : ""}
       </div>`;
     $("#mr-print", main).addEventListener("click", () => window.print());
     $("#mr-png", main).addEventListener("click", () => exportSheetPng(main, `통합_${yr}-${mo}`));
