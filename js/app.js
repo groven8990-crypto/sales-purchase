@@ -1930,7 +1930,7 @@ const App = (function () {
     });
     $$(".vi-input", main).forEach((el) => el.addEventListener("change", () => {
       S.data.vendorItems[el.dataset.v] = el.value.trim();
-      S.save();
+      S.save(true);
     }));
     $("#clr-pur").addEventListener("click", () => {
       if (confirm("매입 자료만 모두 비울까요? (매출·통장은 그대로 유지됩니다)")) { S.clearKind("purchases"); go("purchases"); }
