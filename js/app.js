@@ -136,6 +136,7 @@ const App = (function () {
         ${step(1, sales.length > 0, "매출 마감", "채널별 정산 집계",
           `매출 합계 <b>₩${won(sv)}</b> · ${sales.length}건 · ${channels.size}개 채널`,
           `<button class="btn" data-go="sales">매출 보기</button>
+           <button class="btn ghost" data-act="import-hometax-sales">🏛️ 홈택스 계산서</button>
            <button class="btn ghost" data-act="import-existing">엑셀 불러오기</button>`)}
         ${step(2, purch.length > 0, "매입 마감", "발주서 기준 · 매입처별",
           `매입 합계 <b>₩${won(pv)}</b> · ${purch.length}건 · 매입처 ${vendors.size}곳`,
@@ -321,6 +322,9 @@ const App = (function () {
       : kind === "purchases"
       ? `<button class="btn primary" data-act="import-hometax">🏛️ 홈택스 계산서</button>
          <button class="btn" data-act="import-po">🧾 발주서 올리기</button>`
+      : kind === "sales"
+      ? `<button class="btn primary" data-act="import-hometax-sales">🏛️ 홈택스 계산서</button>
+         <button class="btn" data-act="import-existing">📂 엑셀 불러오기</button>`
       : `<button class="btn" data-act="import-existing">📂 엑셀 불러오기</button>`;
 
     const sText = (r) => [r.evidence, r.vendor, r.desc, r.category, r.channel, r.content, r.counterparty, r.note, r.paid]
@@ -1940,6 +1944,7 @@ const App = (function () {
       else if (b.dataset.act === "import-deposit-file") Modals.importDeposits();
       else if (b.dataset.act === "import-deposit-paste") Modals.importDepositPaste();
       else if (b.dataset.act === "import-settlement") Modals.importSettlement();
+      else if (b.dataset.act === "import-hometax-sales") Modals.importHometaxSales();
     }));
     $$("[data-go]", main).forEach((b) => b.addEventListener("click", () => go(b.dataset.go)));
   }

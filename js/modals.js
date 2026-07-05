@@ -935,6 +935,99 @@ const Modals = (function () {
     return { added: fresh.length, skipped, first: fresh[0] };
   }
 
+  /* ===== 홈택스 전자(세금)계산서 매출 등록 ===== */
+  function importHometaxSales() {
+    open("🏛️ 홈택스 계산서 매출 등록",
+      `<p>홈택스 → 전자계산서 목록조회 → <b>발행분</b> 엑셀 내려받기 파일을 올리세요.</p>
+       <div class="form-row"><label>사업장 <span class="muted" style="font-weight:400;font-size:12px">— 어느 사업장 매출인지 선택하세요</span></label>
+         ${storeSelect("hts-store")}</div>
+       <div class="form-row"><label>파일</label><input type="file" id="hts-file" accept=".xls,.xlsx,.csv"></div>
+       <div id="hts-prev" class="preview"></div>`,
+      `<button class="btn" id="hts-cancel">취소</button><button class="btn primary" id="hts-apply" disabled>매출에 추가</button>`);
+
+    let parsed = [];
+
+    q("#hts-cancel").onclick = close;
+    q("#hts-file").onchange = async (e) => {
+      const f = e.target.files[0]; if (!f) return;
+      try {
+        const buf = await f.arrayBuffer();
+        const wb = XLSX.read(buf, { type: "array", cellDates: true, cellNF: false });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: "" });
+
+        let hdrIdx = rows.findIndex((r) => r.some((c) => String(c).replace(/\s/g,"") === "작성일자"));
+        if (hdrIdx < 0) { q("#hts-prev").innerHTML = `<div class="err">❌ '작성일자' 열을 찾지 못했어요. 홈택스 계산서 목록 엑셀인지 확인해주세요.</div>`; return; }
+
+        const hdr = rows[hdrIdx].map((c) => String(c).replace(/\s/g,""));
+        const ci  = (name) => hdr.findIndex((h) => h === name || h.includes(name));
+        const iDate     = ci("작성일자");
+        const iApprv    = ci("승인번호");
+        const iSupplier = ci("상호");                                  // 공급자(우리 회사) — 첫 번째 '상호'
+        const iCustomer = hdr.indexOf("상호", iSupplier + 1);         // 공급받는자(거래처) — 두 번째 '상호'
+        const iSupply   = ci("공급가액");
+        const iVat      = ci("세액");
+        const iTotal    = ci("합계금액");
+        const iKind     = ci("전자세금계산서분류");
+        const iItem     = ci("품목명");
+
+        const cleanName = (s) => String(s || "").replace(/주식회사|㈜|\(주\)|\(유\)|농업회사법인|영농조합법인|유한회사|협동조합/g, "").replace(/^\s+|\s+$/g, "");
+
+        parsed = [];
+        for (let i = hdrIdx + 1; i < rows.length; i++) {
+          const r = rows[i];
+          const dateStr = String(r[iDate] || "").trim();
+          if (!dateStr || !dateStr.match(/\d{4}/)) continue;
+          const dm = dateStr.match(/(\d{4})[-./](\d{1,2})[-./](\d{1,2})/);
+          if (!dm) continue;
+          const year = dm[1], month = String(+dm[2]);
+          const supply = Math.round(parseFloat(String(r[iSupply] || "0").replace(/,/g,"")) || 0);
+          const total  = Math.round(parseFloat(String(r[iTotal]  || "0").replace(/,/g,"")) || 0);
+          const vat    = iVat >= 0
+            ? Math.round(parseFloat(String(r[iVat] || "0").replace(/,/g,"")) || 0)
+            : Math.max(0, total - supply);
+          const kindStr = String(r[iKind] || "").trim();
+          const taxClass = kindStr.includes("세금") ? "과세" : "면세";
+          const channel  = cleanName(iCustomer >= 0 ? r[iCustomer] : "") || "홈택스";
+          const desc     = String(r[iItem] || "").trim();
+          const htId     = iApprv >= 0 ? String(r[iApprv] || "").trim() : "";
+          if (supply <= 0) continue;
+          parsed.push({ year, month, channel, taxClass, desc, supply, vat, total: total || supply, orders: 0, settled: "", htId });
+        }
+
+        if (!parsed.length) { q("#hts-prev").innerHTML = `<div class="err">❌ 읽을 수 있는 계산서 행이 없어요.</div>`; return; }
+
+        const byChannel = {};
+        parsed.forEach((p) => { byChannel[p.channel] = (byChannel[p.channel] || 0) + p.supply; });
+        const channelList = Object.entries(byChannel).sort((a,b)=>b[1]-a[1]).slice(0,8)
+          .map(([v,s]) => `<b>${E(v)}</b> ₩${s.toLocaleString()}`).join(" · ");
+        q("#hts-prev").innerHTML = `<div class="ok">✅ ${parsed.length}건 인식 (${Object.keys(byChannel).length}개 거래처)<br>${channelList}</div>`;
+        q("#hts-apply").disabled = false;
+      } catch (err) { q("#hts-prev").innerHTML = `<div class="err">❌ ${E(err.message)}</div>`; }
+    };
+
+    q("#hts-apply").onclick = () => {
+      if (!parsed.length) return;
+      const chosenStore = q("#hts-store").value;
+      if (!S.data.sales) S.data.sales = [];
+      const existingHtIds = new Set(S.data.sales.filter((s) => s.htId).map((s) => s.htId));
+      const sigFallback = (p) => `${p.store}|${p.channel}|${p.year}|${p.month}|${p.supply}`;
+      const existingSigs = new Set(S.data.sales.filter((s) => !s.htId).map(sigFallback));
+      let added = 0, skipped = 0;
+      parsed.forEach((p) => {
+        const row = Object.assign({}, p, { store: chosenStore });
+        if (row.htId && existingHtIds.has(row.htId)) { skipped++; return; }
+        if (!row.htId && existingSigs.has(sigFallback(row))) { skipped++; return; }
+        if (row.htId) existingHtIds.add(row.htId); else existingSigs.add(sigFallback(row));
+        S.data.sales.push(Object.assign({ id: S.uid() }, row));
+        added++;
+      });
+      S.save(); close(); App.go("sales");
+      if (skipped) alert(`${added}건 추가, 중복 ${skipped}건은 건너뛰었어요.`);
+      else alert(`${added}건을 매출에 등록했어요.`);
+    };
+  }
+
   /* ===== 홈택스 전자(세금)계산서 매입 등록 ===== */
   function importHometax() {
     open("🏛️ 홈택스 계산서 매입 등록",
@@ -1033,6 +1126,6 @@ const Modals = (function () {
     };
   }
 
-  return { importExisting, importBank, importPO, importPaste, importEvidence, importOrders, importDeposits, importDepositPaste, importSettlement, importHometax, editRow, open, close,
+  return { importExisting, importBank, importPO, importPaste, importEvidence, importOrders, importDeposits, importDepositPaste, importSettlement, importHometax, importHometaxSales, editRow, open, close,
     fileVendor, storeFromName, buildOrders, addOrdersDedup, buildTracking, applyTracking, settlementSheetPick, buildSettlements, addSettlementsDedup };
 })();
