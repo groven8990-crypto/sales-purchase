@@ -1132,8 +1132,8 @@ const App = (function () {
 
   // 과거 월별 매출 이력 (업로드 마감엑셀 '매출' 탭 기준, 공급가)
   const SALES_HISTORY = {
-    groven: { "2025-12": 400280, "2026-1": 3023550, "2026-2": 4186620, "2026-3": 4654764, "2026-4": 16660140 },
-    yb: { "2026-3": 439681, "2026-4": 10800136 },
+    groven: { "2025-12": 400280, "2026-1": 3023550, "2026-2": 4186620, "2026-3": 4654764, "2026-4": 16660140, "2026-5": 25031560 },
+    yb: { "2026-3": 439681, "2026-4": 10800136, "2026-5": 7956250 },
   };
   // 실제 데이터 월별집계에 과거 매출 이력을 얹어 추이용 데이터 생성
   function trendSales(store) {
@@ -1361,6 +1361,63 @@ const App = (function () {
       M = S.data.manualReport[ym] = conv;
     }
     if (!M) M = S.data.manualReport[ym] = {};
+
+    // 2026-5 수기보고서 1회 초기화 (기존 작성 보고서 복원)
+    if (yr === 2026 && mo === 5 && !M._may26Seeded) {
+      if (!M.groven) M.groven = {};
+      if (!M.yb) M.yb = {};
+      if (!M.groven.channels || !M.groven.channels.length) M.groven.channels = [
+        { name: "디네트", count: 857, supply: 14114860 },
+        { name: "쿠팡", count: 340, supply: 7979630 },
+        { name: "구름포과에기", count: 1, supply: 1036000 },
+        { name: "G마켓", count: 39, supply: 820560 },
+        { name: "옥션", count: 32, supply: 600180 },
+        { name: "11번가", count: 8, supply: 284930 },
+        { name: "네이버", count: 3, supply: 117350 },
+        { name: "특딜", count: 3, supply: 78050 },
+      ];
+      if (!M.groven.vendors || !M.groven.vendors.length) M.groven.vendors = [
+        { name: "일비", note: "박대 외 상품매입", count: 930, supply: 13956300 },
+        { name: "푸드엔드베스트", note: "간고등어 상품매입", count: 40, supply: 4685900 },
+        { name: "최고집", note: "농축수산물 상품매입", count: 10, supply: 196600 },
+        { name: "늘푸른", note: "농축수산물 상품매입", count: 8, supply: 111500 },
+        { name: "일해수산", note: "상품매입", count: 3, supply: 87000 },
+        { name: "생선상록", note: "굴비 외 상품매입", count: 3, supply: 48500 },
+        { name: "해담별", note: "농축수산물 상품매입", count: 3, supply: 44800 },
+        { name: "비설리", note: "실비김치 상품매입", count: 1, supply: 17470 },
+        { name: "대우엔지니어링", note: "공장임대료", count: 1, supply: 1000000 },
+        { name: "클로드", note: "AI 이용료", count: 1, supply: 152710 },
+        { name: "젠스파크", note: "AI 이용료", count: 1, supply: 38372 },
+        { name: "쿠팡생물구입", note: "양파,간마늘,간고등어 생물구입", count: 4, supply: 22870 },
+        { name: "샵마인", note: "주문수집프로그램(3/6)", count: 1, supply: 19000 },
+        { name: "SK세본모바일", note: "업무 휴대폰 통신비", count: 1, supply: 7700 },
+      ];
+      M.groven.memo = M.groven.memo || "수수료·광고비·기타 상품매입 7번 샵마인 주문수집프로그램 3/5 결제. 6개월 이용권 3개월차 (5월분)";
+      if (!M.yb.channels || !M.yb.channels.length) M.yb.channels = [
+        { name: "쿠팡", count: 199, supply: 5173890 },
+        { name: "11번가", count: 44, supply: 1488410 },
+        { name: "옥션", count: 79, supply: 1248830 },
+        { name: "특딜", count: 2, supply: 45120 },
+      ];
+      if (!M.yb.vendors || !M.yb.vendors.length) M.yb.vendors = [
+        { name: "푸드엔드베스트", note: "간고등어 상품매입", count: 29, supply: 3074250 },
+        { name: "최고집", note: "농축수산물 상품매입", count: 85, supply: 1159900 },
+        { name: "도매꾹", note: "잡화 상품매입", count: 83, supply: 529311 },
+        { name: "늘푸른", note: "농축수산물 상품매입", count: 26, supply: 372382 },
+        { name: "일비", note: "박대 외 상품매입", count: 17, supply: 221200 },
+        { name: "해담별", note: "농축수산물 상품매입", count: 5, supply: 187182 },
+        { name: "한마당식품", note: "밀키트 상품매입", count: 7, supply: 116889 },
+        { name: "남부파머스", note: "농축수산물 상품매입", count: 1, supply: 93500 },
+        { name: "생선상록", note: "굴비 외 상품매입", count: 5, supply: 84000 },
+        { name: "거풍푸드", note: "김치 상품매입", count: 7, supply: 71500 },
+        { name: "공덕농협", note: "떡곡떡 외 상품매입", count: 3, supply: 50455 },
+        { name: "플레이오토", note: "상품등록 프로그램 이용료", count: 1, supply: 87300 },
+        { name: "소운날집", note: "떡 생물구입", count: 1, supply: 40910 },
+      ];
+      M._may26Seeded = true;
+      S.save(true);
+    }
+
     // 처음 열 때만 자동 채움. 이미 데이터가 있으면 수기 편집 내용 유지
     // (📥 자동값 다시 불러오기 버튼으로만 덮어씌우기 가능)
     ["groven", "yb"].forEach((st) => {
