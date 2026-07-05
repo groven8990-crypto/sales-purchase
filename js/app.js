@@ -1340,12 +1340,13 @@ const App = (function () {
       M = S.data.manualReport[ym] = conv;
     }
     if (!M) M = S.data.manualReport[ym] = {};
-    // 열 때마다 실제 데이터로 자동 채움 (channels·vendors·sales·purchase는 항상 덮어쓰기)
-    // 수기로 직접 입력한 platform(수수료/광고비 세부)·memo는 유지
+    // 처음 열 때만 자동 채움. 이미 데이터가 있으면 수기 편집 내용 유지
+    // (📥 자동값 다시 불러오기 버튼으로만 덮어씌우기 가능)
     ["groven", "yb"].forEach((st) => {
       const prev = M[st] || {};
       const fresh = autoFillStoreReport(st, yr, mo);
-      // 이미 수기로 입력한 플랫폼 세부가 있으면 유지, 없으면 자동채움 값 사용
+      fresh.vendors  = (prev.vendors  && prev.vendors.length  > 0) ? prev.vendors  : fresh.vendors;
+      fresh.channels = (prev.channels && prev.channels.length > 0) ? prev.channels : fresh.channels;
       fresh.platform = (prev.platform && prev.platform.length > 0) ? prev.platform : fresh.platform;
       fresh.memo = prev.memo || "";
       M[st] = fresh;
@@ -1417,6 +1418,13 @@ const App = (function () {
       <td class="n">${numIn("channels", i, "supply", r.supply)}</td>
       <td class="n mr-chpct" data-pi="${i}">${chT ? (S.num(r.supply) / chT * 100).toFixed(1) : "0.0"}%</td>
       <td class="c no-print"><button class="icon-btn" data-rm="channels" data-i="${i}">✕</button></td></tr>`).join("");
+
+    // 광고·AD 포함 내용은 무조건 광고비로 재분류 (기존 저장값 보정 포함)
+    let _pfFixed = false;
+    R.platform.forEach((r) => {
+      if ((r.item || "").match(/광고|[Aa][Dd]/) && r.type !== "광고비") { r.type = "광고비"; _pfFixed = true; }
+    });
+    if (_pfFixed) S.save(true);
 
     // 플랫폼 수수료·광고비 집계 (Ⅲ-1 세부 → Ⅲ. 공급처별 매입 자동 반영)
     const pfIdx = R.platform.map((r, i) => ({ r, i }));
@@ -1615,10 +1623,10 @@ const App = (function () {
     $("#mr-png", main).addEventListener("click", () => exportSheetPng(main, `${fullNm}_${yr}-${mo}`));
     $("#mr-auto", main).addEventListener("click", () => {
       if (!confirm(`${fullNm}의 수기 보고서를 현재 데이터 자동값으로 다시 채울까요? 지금 입력한 값은 덮어써져요. (플랫폼 세부내역은 유지됩니다)`)) return;
-      const keepPf = R.platform;
+      const keepPf = R.platform, keepMemo = R.memo;
       M[store] = autoFillStoreReport(store, yr, mo);
-      // 이미 수기로 입력한 세부가 있으면 유지, 없으면 자동채움 사용
       M[store].platform = (keepPf && keepPf.length > 0) ? keepPf : M[store].platform;
+      M[store].memo = keepMemo || "";
       reSave(true);
     });
     // 채널별 매출 추이·구성 + 플랫폼 비중 차트
