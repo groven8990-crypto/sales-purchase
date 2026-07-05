@@ -2049,14 +2049,12 @@ const App = (function () {
               <button class="btn ghost" id="va-chk-none" style="font-size:12px;white-space:nowrap">해제</button>
             </div>
             <div id="va-list" style="max-height:280px;overflow-y:auto;border:1px solid var(--line);border-radius:8px;padding:4px">
-              ${[...new Set(S.data.purchases.map((p) => p.vendor).filter(Boolean))].sort().map((v) => {
-                const alias = (S.data.vendorAlias || {})[v];
-                return `<label style="display:flex;align-items:center;gap:8px;padding:5px 8px;border-radius:6px;cursor:pointer;font-size:13px" class="va-row">
+              ${[...new Set(S.data.purchases.map((p) => p.vendor).filter(Boolean))].sort()
+                .filter((v) => !(S.data.vendorAlias || {})[v])
+                .map((v) => `<label style="display:flex;align-items:center;gap:8px;padding:5px 8px;border-radius:6px;cursor:pointer;font-size:13px" class="va-row">
                   <input type="checkbox" class="va-chk" value="${esc(v)}" style="width:15px;height:15px;cursor:pointer">
                   <span style="flex:1">${esc(v)}</span>
-                  ${alias ? `<span style="font-size:11px;color:var(--muted);background:var(--bg2);border-radius:4px;padding:1px 6px">→ ${esc(alias)}</span>` : ""}
-                </label>`;
-              }).join("") || `<div class="empty" style="padding:12px">매입 자료를 먼저 넣어주세요</div>`}
+                </label>`).join("") || `<div class="empty" style="padding:12px">모든 공급처에 별칭이 설정됐거나 매입 자료가 없어요</div>`}
             </div>
             <div style="margin-top:8px;display:flex;gap:8px;align-items:center">
               <span id="va-sel-count" style="font-size:12px;color:var(--muted);min-width:56px">0개 선택</span>
