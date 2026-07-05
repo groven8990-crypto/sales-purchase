@@ -240,8 +240,8 @@ const SPC = (function () {
     // 부분일치 (정식명 안에 대표 키워드가 들어있으면)
     for (const kw in VENDOR_MATCH) { if (s.indexOf(kw) !== -1) return VENDOR_MATCH[kw]; }
     if (VENDOR_KEEP.indexOf(s) !== -1) return s;
-    // 주 거래처가 아니면(=도매꾹에서 현금영수증으로 산 것) 도매꾹으로 묶음
-    return "도매꾹 이머니 충전";
+    // 미등록 공급처는 원래 이름 그대로 표시 (도매꾹 현금영수증은 임포트 시 직접 라벨링)
+    return n;
   }
 
   // 특정 필드(채널/업체 등)로 묶어 건수·금액 합계 → 금액 큰 순 정렬
