@@ -2039,6 +2039,25 @@ const App = (function () {
         <tbody>${[...new Set(S.data.purchases.map((p) => p.vendor).filter(Boolean).map((v) => S.canonVendor(v)))].sort().map((cv) =>
           `<tr><td>${esc(cv)}</td><td><input class="vi-input" data-v="${esc(cv)}" value="${esc(S.data.vendorItems[cv] || "")}" placeholder="예: 간고등어 상품매입" style="width:100%;border:1px solid var(--line);border-radius:7px;padding:6px 9px;font-size:13px"></td></tr>`).join("") ||
           `<tr><td colspan="2" class="empty">매입 자료를 먼저 넣어주세요</td></tr>`}</tbody></table></div></div>
+      <div class="card"><h3>🔀 공급처 별칭 (이름 통합)</h3>
+        <p class="hint">현금영수증·계산서에서 올라온 개별 업체명을 하나의 이름으로 묶어요. 예: 이티엔, 하얀나라, 다유미 → <b>도매꾹</b>. 설정하면 보고서 전체에 즉시 반영됩니다.</p>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin-bottom:12px">
+          <span style="flex:1;min-width:140px"><label style="display:block;font-size:12px;color:var(--muted);margin-bottom:3px">원래 공급처명 (홈택스 이름)</label>
+            <input id="va-from" list="va-from-list" placeholder="예: 이티엔" style="width:100%;border:1px solid var(--line);border-radius:8px;padding:7px 9px">
+            <datalist id="va-from-list">${[...new Set(S.data.purchases.map((p) => p.vendor).filter(Boolean))].sort().map((v) => `<option value="${esc(v)}">`).join("")}</datalist>
+          </span>
+          <span style="width:24px;text-align:center;padding-top:20px;color:var(--muted);font-size:18px">→</span>
+          <span style="flex:1;min-width:120px"><label style="display:block;font-size:12px;color:var(--muted);margin-bottom:3px">표시 이름 (묶을 이름)</label>
+            <input id="va-to" list="va-to-list" placeholder="예: 도매꾹" style="width:100%;border:1px solid var(--line);border-radius:8px;padding:7px 9px">
+            <datalist id="va-to-list">${[...new Set(Object.values(S.data.vendorAlias || {}))].sort().map((v) => `<option value="${esc(v)}">`).join("")}</datalist>
+          </span>
+          <button class="btn primary" id="va-add">➕ 추가</button>
+        </div>
+        <div class="table-wrap"><table class="grid"><thead><tr><th style="width:200px">원래 이름</th><th>표시 이름</th><th style="width:40px"></th></tr></thead>
+          <tbody>${Object.entries(S.data.vendorAlias || {}).sort((a, b) => a[1].localeCompare(b[1])).map(([from, to]) =>
+            `<tr><td>${esc(from)}</td><td style="font-weight:600">${esc(to)}</td>
+            <td><button class="icon-btn" data-del-alias="${esc(from)}" title="삭제">✕</button></td></tr>`).join("") ||
+            `<tr><td colspan="3" class="empty">별칭 없음. 위에서 추가하세요.</td></tr>`}</tbody></table></div></div>
       <div class="card"><h3>🔁 고정비 · 정기결제 (매월 자동 반영)</h3>
         <p class="hint">임대료·구독·통신·주결제 업체 등 <b>매월 똑같이 나가는 항목</b>을 등록하면, 마감보고서 '자동값 불러오기' 때 자동으로 들어갑니다. 내용에 <b>'상품매입'</b>을 넣으면 상품매입 그룹, 아니면 기타(수수료·비용) 그룹으로 분류돼요.</p>
         <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin-bottom:12px">
@@ -2078,6 +2097,31 @@ const App = (function () {
     $$("[data-editfc]", main).forEach((b) => b.addEventListener("click", () => Modals.editRow("fixedCosts", b.dataset.editfc)));
     $$("[data-delfc]", main).forEach((b) => b.addEventListener("click", () => {
       if (confirm("이 고정비를 삭제할까요?")) { S.remove("fixedCosts", b.dataset.delfc); renderData(main); }
+    }));
+    // 공급처 별칭 추가/삭제
+    if ($("#va-add", main)) {
+      $("#va-add", main).addEventListener("click", () => {
+        const from = $("#va-from", main).value.trim();
+        const to = $("#va-to", main).value.trim();
+        if (!from || !to) { alert("원래 이름과 표시 이름을 모두 입력하세요."); return; }
+        if (from === to) { alert("원래 이름과 표시 이름이 같으면 의미가 없어요."); return; }
+        if (!S.data.vendorAlias) S.data.vendorAlias = {};
+        S.data.vendorAlias[from] = to;
+        S.save(true);
+        renderData(main);
+      });
+      // Enter 키로도 추가
+      ["#va-from", "#va-to"].forEach((sel) => {
+        const el = $(sel, main); if (!el) return;
+        el.addEventListener("keydown", (e) => { if (e.key === "Enter") $("#va-add", main).click(); });
+      });
+    }
+    $$("[data-del-alias]", main).forEach((b) => b.addEventListener("click", () => {
+      if (confirm(`"${b.dataset.delAlias}" 별칭을 삭제할까요?`)) {
+        if (S.data.vendorAlias) delete S.data.vendorAlias[b.dataset.delAlias];
+        S.save(true);
+        renderData(main);
+      }
     }));
     $("#ex-json").addEventListener("click", () => {
       const blob = new Blob([S.exportJSON()], { type: "application/json" });
