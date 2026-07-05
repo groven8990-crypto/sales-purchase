@@ -1346,9 +1346,11 @@ const App = (function () {
       const prev = M[st] || {};
       const fresh = autoFillStoreReport(st, yr, mo);
       if (prev.vendors && prev.vendors.length > 0) {
-        const prevNames = new Set(prev.vendors.map((v) => v.name));
+        // 별칭이 생긴 공급처는 prev에서 제외 → fresh의 통합값으로 대체
+        const validPrev = prev.vendors.filter((v) => S.canonVendor(v.name) === v.name);
+        const prevNames = new Set(validPrev.map((v) => v.name));
         const newVendors = fresh.vendors.filter((v) => !prevNames.has(v.name));
-        fresh.vendors = [...prev.vendors, ...newVendors];
+        fresh.vendors = [...validPrev, ...newVendors];
       }
       fresh.channels = (prev.channels && prev.channels.length > 0) ? prev.channels : fresh.channels;
       fresh.platform = (prev.platform && prev.platform.length > 0) ? prev.platform : fresh.platform;
