@@ -1555,9 +1555,9 @@ const App = (function () {
         </div>
       </div>`;
 
-    // fillReport 재실행 없이 현재 M 상태만 다시 그림 (삭제·추가 후 자동채움으로 덮어쓰기 방지)
+    // silent save — spc:changed 이벤트 없이 저장 (render()→fillReport 재실행 차단)
     const reSave = (rerender) => {
-      S.save();
+      S.save(true);
       if (rerender) renderManualStore(main, M, store, ym, yr, mo);
     };
     // 합계·손익만 제자리에서 갱신 (전체 다시 그리지 않음 → 포커스/스크롤 유지)
