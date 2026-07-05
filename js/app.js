@@ -1346,14 +1346,9 @@ const App = (function () {
       const prev = M[st] || {};
       const fresh = autoFillStoreReport(st, yr, mo);
       if (prev.vendors && prev.vendors.length > 0) {
-        // 별칭이 생긴 공급처는 prev에서 제외 → fresh의 통합값으로 대체
-        const validPrev = prev.vendors.filter((v) => S.canonVendor(v.name) === v.name);
-        const prevNames = new Set(validPrev.map((v) => v.name));
-        // 수기보고서에서 X로 삭제한 공급처는 다시 추가 안 함
-        const deleted = new Set(prev.deletedVendors || []);
-        const newVendors = fresh.vendors.filter((v) => !prevNames.has(v.name) && !deleted.has(v.name));
-        fresh.vendors = [...validPrev, ...newVendors];
-        fresh.deletedVendors = [...deleted];
+        // 수기보고서는 편집 내용 보존: 별칭 적용된 공급처만 제거, 나머지는 prev 그대로
+        // 새 매입이 생겨도 자동 추가 안 함 — "자동값 다시 불러오기" 버튼으로만 갱신
+        fresh.vendors = prev.vendors.filter((v) => S.canonVendor(v.name) === v.name);
       }
       fresh.channels = (prev.channels && prev.channels.length > 0) ? prev.channels : fresh.channels;
       fresh.platform = (prev.platform && prev.platform.length > 0) ? prev.platform : fresh.platform;
