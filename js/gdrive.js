@@ -9,7 +9,7 @@ const GDrive = (function () {
     ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
   const SCOPE = "https://www.googleapis.com/auth/drive.readonly";
   // 웹 OAuth 클라이언트 ID는 공개 값(브라우저 노출)이라 기본값으로 넣어둠. 접근은 본인 로그인 + 등록 도메인에서만.
-  const DEFAULT_CLIENT_ID = "215210820068-un89iorav0ih78q2dl5lvdl65oveedph.apps.googleusercontent.com";
+  const DEFAULT_CLIENT_ID = "516999314293-jscsqopvnpd3b0r04chq97q9ola787id.apps.googleusercontent.com";
   const CFG_KEY = "spc_gdrive";
   const cfg = () => { try { return JSON.parse(localStorage.getItem(CFG_KEY)) || {}; } catch (e) { return {}; } };
   const saveCfg = (c) => localStorage.setItem(CFG_KEY, JSON.stringify(c));
@@ -270,5 +270,128 @@ const GDrive = (function () {
     setTimeout(() => { Modals.close(); App.go(spec.view); }, 1400);
   }
 
-  return { run: openFor };
+  /* ===== 데이터 전체 동기화 (Drive 저장/불러오기) ===== */
+  const SYNC_FILE = "spc_data_v2_backup.json";
+  const SYNC_KEY  = "spc_gdrive_sync";
+  let syncToken   = "";
+
+  function getSyncToken(clientId) {
+    return new Promise((res, rej) => {
+      const tc = google.accounts.oauth2.initTokenClient({
+        client_id: clientId,
+        scope: "https://www.googleapis.com/auth/drive.file",
+        callback: (r) => {
+          if (r && r.access_token) { syncToken = r.access_token; res(); }
+          else rej(new Error("로그인이 취소됐거나 권한을 받지 못했어요."));
+        },
+        error_callback: (e) => rej(new Error("로그인 오류: " + (e && e.type ? e.type : "unknown"))),
+      });
+      tc.requestAccessToken({ prompt: syncToken ? "" : "select_account" });
+    });
+  }
+
+  async function findSyncFileId() {
+    const q = encodeURIComponent("name='" + SYNC_FILE + "' and trashed=false");
+    const r = await fetch("https://www.googleapis.com/drive/v3/files?q=" + q + "&fields=files(id,modifiedTime)", {
+      headers: { Authorization: "Bearer " + syncToken },
+    });
+    if (r.status === 401) { syncToken = ""; throw new Error("인증이 만료됐어요. 다시 로그인하세요."); }
+    if (!r.ok) throw new Error("Drive API 오류 (" + r.status + ")");
+    const j = await r.json();
+    return j.files && j.files.length ? j.files[0].id : null;
+  }
+
+  async function uploadSyncData() {
+    const data = localStorage.getItem("spc_data_v2") || "{}";
+    const blob = new Blob([data], { type: "application/json" });
+    const fid = await findSyncFileId();
+    let r;
+    if (fid) {
+      r = await fetch("https://www.googleapis.com/upload/drive/v3/files/" + fid + "?uploadType=media", {
+        method: "PATCH",
+        headers: { Authorization: "Bearer " + syncToken, "Content-Type": "application/json" },
+        body: blob,
+      });
+    } else {
+      const meta = JSON.stringify({ name: SYNC_FILE });
+      const form = new FormData();
+      form.append("metadata", new Blob([meta], { type: "application/json" }));
+      form.append("file", blob);
+      r = await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id", {
+        method: "POST",
+        headers: { Authorization: "Bearer " + syncToken },
+        body: form,
+      });
+    }
+    if (!r.ok) throw new Error("업로드 실패 (" + r.status + ")");
+    localStorage.setItem(SYNC_KEY, JSON.stringify({ time: new Date().toISOString(), dir: "up" }));
+  }
+
+  async function downloadSyncData() {
+    const fid = await findSyncFileId();
+    if (!fid) throw new Error("드라이브에 저장된 데이터가 없어요. 먼저 다른 기기에서 '저장'을 눌러주세요.");
+    const r = await fetch("https://www.googleapis.com/drive/v3/files/" + fid + "?alt=media", {
+      headers: { Authorization: "Bearer " + syncToken },
+    });
+    if (!r.ok) throw new Error("다운로드 실패 (" + r.status + ")");
+    return r.text();
+  }
+
+  function openSync() {
+    const c = cfg();
+    const clientId = c.clientId || DEFAULT_CLIENT_ID;
+    const lastSync = (function () { try { return JSON.parse(localStorage.getItem(SYNC_KEY) || "null"); } catch (e) { return null; } }());
+
+    Modals.open("☁️ Google Drive 동기화",
+      `<p>데이터를 Google Drive에 저장해 <b>회사·집 어디서든</b> 같은 자료로 작업하세요.<br>
+       <span class="muted" style="font-size:12px">파일명: ${SYNC_FILE} (내 드라이브에 저장됨)</span></p>
+       ${lastSync ? `<div class="ok" style="margin-bottom:8px">마지막 ${lastSync.dir === "up" ? "⬆️ 저장" : "⬇️ 불러오기"}: ${new Date(lastSync.time).toLocaleString("ko-KR")}</div>` : ""}
+       <div class="form-row"><label>OAuth 클라이언트 ID</label>
+         <input id="sy-cid" value="${E(clientId)}" style="width:100%"></div>
+       <div id="sy-status" class="preview"></div>
+       <p class="hint" style="margin-top:8px">⬆️ <b>저장</b>: 이 기기 데이터 → Drive / ⬇️ <b>불러오기</b>: Drive 데이터 → 이 기기 (현재 자료 덮어씀)</p>`,
+      `<button class="btn" id="sy-cancel">닫기</button>
+       <button class="btn" id="sy-dl">⬇️ Drive에서 불러오기</button>
+       <button class="btn primary" id="sy-ul">⬆️ Drive에 저장</button>`);
+
+    const host = document.querySelector(".modal-host");
+    const qs = (s) => host.querySelector(s);
+    const st = (h) => { const el = qs("#sy-status"); if (el) el.innerHTML = h; };
+
+    async function ensure() {
+      const cid = (qs("#sy-cid").value || "").trim();
+      if (!cid) throw new Error("클라이언트 ID를 입력해주세요.");
+      const c2 = cfg(); c2.clientId = cid; saveCfg(c2);
+      st(`<div class="muted">구글 로그인 창을 확인하세요…</div>`);
+      await loadGIS();
+      await getSyncToken(cid);
+    }
+
+    qs("#sy-cancel").onclick = Modals.close;
+
+    qs("#sy-ul").onclick = async () => {
+      try {
+        await ensure();
+        st(`<div class="muted">Drive에 저장 중…</div>`);
+        await uploadSyncData();
+        st(`<div class="ok">✅ Drive에 저장했어요. 다른 기기에서 '불러오기'로 가져오세요.</div>`);
+      } catch (e) { st(`<div class="err">❌ ${E(e.message)}</div>`); }
+    };
+
+    qs("#sy-dl").onclick = async () => {
+      if (!confirm("⚠️ Drive 데이터로 현재 자료 전체를 덮어씁니다. 계속할까요?\n(덮어쓰기 전 '저장'을 먼저 눌러두면 더 안전해요)")) return;
+      try {
+        await ensure();
+        st(`<div class="muted">Drive에서 불러오는 중…</div>`);
+        const text = await downloadSyncData();
+        JSON.parse(text);
+        localStorage.setItem("spc_data_v2", text);
+        localStorage.setItem(SYNC_KEY, JSON.stringify({ time: new Date().toISOString(), dir: "down" }));
+        st(`<div class="ok">✅ 불러왔어요! 새로고침합니다…</div>`);
+        setTimeout(() => { Modals.close(); location.reload(); }, 1200);
+      } catch (e) { st(`<div class="err">❌ ${E(e.message)}</div>`); }
+    };
+  }
+
+  return { run: openFor, openSync };
 })();
