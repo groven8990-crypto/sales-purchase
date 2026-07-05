@@ -1349,8 +1349,11 @@ const App = (function () {
         // 별칭이 생긴 공급처는 prev에서 제외 → fresh의 통합값으로 대체
         const validPrev = prev.vendors.filter((v) => S.canonVendor(v.name) === v.name);
         const prevNames = new Set(validPrev.map((v) => v.name));
-        const newVendors = fresh.vendors.filter((v) => !prevNames.has(v.name));
+        // 수기보고서에서 X로 삭제한 공급처는 다시 추가 안 함
+        const deleted = new Set(prev.deletedVendors || []);
+        const newVendors = fresh.vendors.filter((v) => !prevNames.has(v.name) && !deleted.has(v.name));
         fresh.vendors = [...validPrev, ...newVendors];
+        fresh.deletedVendors = [...deleted];
       }
       fresh.channels = (prev.channels && prev.channels.length > 0) ? prev.channels : fresh.channels;
       fresh.platform = (prev.platform && prev.platform.length > 0) ? prev.platform : fresh.platform;
@@ -1629,7 +1632,12 @@ const App = (function () {
       reSave(true);
     }));
     main.querySelectorAll("[data-rm]").forEach((b) => b.addEventListener("click", () => {
-      R[b.dataset.rm].splice(+b.dataset.i, 1); reSave(true);
+      const sect = b.dataset.rm, idx = +b.dataset.i;
+      if (sect === "vendors" && R.vendors[idx] && R.vendors[idx].name) {
+        if (!R.deletedVendors) R.deletedVendors = [];
+        R.deletedVendors.push(R.vendors[idx].name);
+      }
+      R[sect].splice(idx, 1); reSave(true);
     }));
     $("#mr-print", main).addEventListener("click", () => window.print());
     $("#mr-png", main).addEventListener("click", () => exportSheetPng(main, `${fullNm}_${yr}-${mo}`));
