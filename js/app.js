@@ -1015,9 +1015,17 @@ const App = (function () {
     }).catch((e) => { alert("이미지 저장 실패: " + e); host.remove(); });
   }
 
-  // Ⅶ. 예치금 현황 (사업장·거래처별 충전/사용/잔액)
-  function depositSection(store) {
-    const all = (S.data.deposits || []).filter((d) => !store || (d.store || "") === store);
+  // Ⅶ. 예치금 현황 (사업장·거래처별 당월 충전/사용)
+  function depositSection(store, year, month) {
+    const all = (S.data.deposits || []).filter((d) => {
+      if (store && (d.store || "") !== store) return false;
+      // 연·월 필터: date가 있는 경우만 적용
+      if (year && month && d.date) {
+        const dm = String(d.date).match(/(\d{4})-?(\d{1,2})/);
+        if (dm && (+dm[1] !== +year || +dm[2] !== +month)) return false;
+      }
+      return true;
+    });
     if (!all.length) return "";
     const stNm = (s) => s === "yb" ? "YB" : (s === "groven" ? "그로븐" : "공통");
     const keys = [...new Set(all.map((d) => (d.store || "") + "|" + d.vendor))];
@@ -1026,13 +1034,14 @@ const App = (function () {
       const list = all.filter((d) => (d.store || "") === st && d.vendor === v);
       const chg = list.filter((d) => d.kind === "충전").reduce((a, d) => a + S.num(d.amount), 0);
       const use = list.filter((d) => d.kind === "사용").reduce((a, d) => a + S.num(d.amount), 0);
-      return { st, v, chg, use, bal: depBalance(list) };
-    }).sort((a, b) => b.bal - a.bal);
+      return { st, v, chg, use };
+    }).filter((r) => r.chg || r.use).sort((a, b) => b.use - a.use);
+    if (!rows.length) return "";
     const body = rows.map((r) => `<tr><td class="c">${stNm(r.st)}</td><td class="name">${esc(r.v)}</td>
-      <td class="n">${won(r.chg)}</td><td class="n">${won(r.use)}</td><td class="n" style="font-weight:700">${won(r.bal)}</td></tr>`).join("");
-    return `<h4 class="doc-sec">Ⅶ. 예치금 현황</h4>
+      <td class="n">${won(r.chg)}</td><td class="n">${won(r.use)}</td></tr>`).join("");
+    return `<h4 class="doc-sec">Ⅶ. 예치금 사용 현황 <span style="font-size:11px;font-weight:400;color:var(--muted)">(${month}월 당월)</span></h4>
       <table class="doc-table">
-        <thead><tr><th class="c" style="width:54px">사업장</th><th>거래처</th><th class="n" style="width:120px">충전</th><th class="n" style="width:120px">사용</th><th class="n" style="width:120px">잔액</th></tr></thead>
+        <thead><tr><th class="c" style="width:54px">사업장</th><th>거래처</th><th class="n" style="width:120px">충전</th><th class="n" style="width:120px">사용</th></tr></thead>
         <tbody>${body}</tbody></table>`;
   }
 
@@ -1835,7 +1844,7 @@ const App = (function () {
           </tbody>
         </table>
         ${evidenceSection(store, year, month)}
-        ${depositSection(store)}
+        ${depositSection(store, year, month)}
       </div>`;
 
     $("#dl-xlsx").addEventListener("click", () => Report.download({ year, month }));
