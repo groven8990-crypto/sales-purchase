@@ -1407,7 +1407,15 @@ const App = (function () {
       <td class="n mr-chpct" data-pi="${i}">${chT ? (S.num(r.supply) / chT * 100).toFixed(1) : "0.0"}%</td>
       <td class="c no-print"><button class="icon-btn" data-rm="channels" data-i="${i}">✕</button></td></tr>`).join("");
 
-    const vnT = R.vendors.reduce((a, r) => a + S.num(r.supply), 0);
+    // 플랫폼 수수료·광고비 집계 (Ⅲ-1 세부 → Ⅲ. 공급처별 매입 자동 반영)
+    const pfIdx = R.platform.map((r, i) => ({ r, i }));
+    const byAmt = (a, b) => S.num(b.r.amount) - S.num(a.r.amount);
+    const feeRows = pfIdx.filter((x) => x.r.type !== "광고비").sort(byAmt);
+    const adRows = pfIdx.filter((x) => x.r.type === "광고비").sort(byAmt);
+    const pfFee = feeRows.reduce((a, x) => a + S.num(x.r.amount), 0);
+    const pfAd = adRows.reduce((a, x) => a + S.num(x.r.amount), 0);
+
+    const vnT = R.vendors.reduce((a, r) => a + S.num(r.supply), 0) + pfFee + pfAd;
     // 공급처 매입을 '상품매입'(내용에 상품매입 포함)과 '그 외'로 나눠 그룹·소계·그룹내 비중
     const vnIdx = R.vendors.map((r, i) => ({ r, i }));
     const isProd = (x) => /상품매입/.test(x.r.note || "");
@@ -1415,7 +1423,7 @@ const App = (function () {
     const prodRows = vnIdx.filter(isProd).sort(byVS);
     const etcRows = vnIdx.filter((x) => !isProd(x)).sort(byVS);
     const prodT = prodRows.reduce((a, x) => a + S.num(x.r.supply), 0);
-    const etcT = etcRows.reduce((a, x) => a + S.num(x.r.supply), 0);
+    const etcT = etcRows.reduce((a, x) => a + S.num(x.r.supply), 0) + pfFee + pfAd;
     const vnRow = (x, n, grpT, grp) => `<tr><td class="c">${n}</td>
       <td>${txtIn("vendors", x.i, "name", x.r.name, "공급처")}</td>
       <td>${txtIn("vendors", x.i, "note", x.r.note, "내용")}</td>
@@ -1425,23 +1433,31 @@ const App = (function () {
       <td class="c no-print"><button class="icon-btn" data-rm="vendors" data-i="${x.i}">✕</button></td></tr>`;
     const vnGroup = (rows, label, grpT, grp) => `<tr style="background:#eef4ff"><td colspan="7" style="font-weight:700;color:var(--navy);padding:5px 9px">${label}</td></tr>`
       + (rows.length ? rows.map((x, n) => vnRow(x, n + 1, grpT, grp)).join("") : `<tr><td colspan="7" class="empty">없음</td></tr>`);
+    // 플랫폼 집계 자동 행 (Ⅲ-1에서 계산, 읽기 전용)
+    const pfSupLabel = [...new Set(feeRows.map((x) => x.r.supplier).filter(Boolean))].slice(0, 2).join(", ") + (feeRows.length > 2 ? " 외" : "");
+    const pfAdLabel = [...new Set(adRows.map((x) => x.r.supplier).filter(Boolean))].slice(0, 2).join(", ") + (adRows.length > 2 ? " 외" : "");
+    const pfAutoRow = (idPfx, name, note, count, supply, grpT) => `<tr style="background:#f0f6ff">
+      <td class="c" style="color:var(--muted)">-</td>
+      <td style="font-weight:600;color:var(--navy)">${esc(name)}</td>
+      <td style="color:var(--muted);font-size:12px">${esc(note)}</td>
+      <td class="n">${won(count)}</td>
+      <td class="n" id="${idPfx}-amount">${won(supply)}</td>
+      <td class="n" id="${idPfx}-pct">${grpT ? (supply / grpT * 100).toFixed(1) : "0.0"}%</td>
+      <td class="c no-print"><span style="font-size:10px;color:var(--muted)">자동</span></td></tr>`;
+    const pfAutoOffset = (pfFee > 0 ? 1 : 0) + (pfAd > 0 ? 1 : 0);
+    const etcBodyContent = (pfFee > 0 ? pfAutoRow("mr-pf-fee", "플랫폼 판매수수료", pfSupLabel || "Ⅲ-1 합계", feeRows.length, pfFee, etcT) : "")
+      + (pfAd > 0 ? pfAutoRow("mr-pf-ad", "플랫폼 광고비", pfAdLabel || "Ⅲ-1 합계", adRows.length, pfAd, etcT) : "")
+      + (etcRows.length ? etcRows.map((x, n) => vnRow(x, pfAutoOffset + n + 1, etcT, "etc")).join("") : (!pfAutoOffset ? `<tr><td colspan="7" class="empty">없음</td></tr>` : ""));
     const vnBody = vnGroup(prodRows, "▸ 상품매입", prodT, "prod")
       + `<tr class="sum"><td colspan="4">상품매입 소계</td><td class="n" id="mr-prodT">${won(prodT)}</td><td class="n">100%</td><td class="no-print"></td></tr>`
-      + vnGroup(etcRows, "▸ 수수료·광고비·기타", etcT, "etc")
+      + `<tr style="background:#eef4ff"><td colspan="7" style="font-weight:700;color:var(--navy);padding:5px 9px">▸ 수수료·광고비·기타</td></tr>`
+      + etcBodyContent
       + `<tr class="sum"><td colspan="4">기타 소계</td><td class="n" id="mr-etcT">${won(etcT)}</td><td class="n">100%</td><td class="no-print"></td></tr>`;
 
     // 손익 요약 매출·매입은 채널별·매입처별 합계에서 자동 집계
     R.sales = chT; R.purchase = vnT;
     const profit = chT - vnT;
     const rate = chT ? Math.round((chT - vnT) / chT * 100) : 0;
-
-    // 구분 컬럼 없이, 수수료/광고비 그룹으로 나눠서 표시 (6열: 순번·플랫폼·내용·금액·비중·삭제)
-    const pfIdx = R.platform.map((r, i) => ({ r, i }));
-    const byAmt = (a, b) => S.num(b.r.amount) - S.num(a.r.amount);
-    const feeRows = pfIdx.filter((x) => x.r.type !== "광고비").sort(byAmt);
-    const adRows = pfIdx.filter((x) => x.r.type === "광고비").sort(byAmt);
-    const pfFee = feeRows.reduce((a, x) => a + S.num(x.r.amount), 0);
-    const pfAd = adRows.reduce((a, x) => a + S.num(x.r.amount), 0);
     const pfRowHtml = (r, i, n, grpT, grp) => `<tr><td class="c">${n}</td>
       <td>${txtIn("platform", i, "supplier", r.supplier, "플랫폼")}</td>
       <td>${txtIn("platform", i, "item", r.item, "내용")}</td>
@@ -1524,8 +1540,10 @@ const App = (function () {
     // 합계·손익만 제자리에서 갱신 (전체 다시 그리지 않음 → 포커스/스크롤 유지)
     const recalc = () => {
       const chTotal = R.channels.reduce((a, r) => a + S.num(r.supply), 0);
-      const vnTotal = R.vendors.reduce((a, r) => a + S.num(r.supply), 0);
-      R.sales = chTotal; R.purchase = vnTotal; // 손익요약 매출·매입 자동 반영
+      const pfFeeT = R.platform.filter((r) => r.type !== "광고비").reduce((a, r) => a + S.num(r.amount), 0);
+      const pfAdT = R.platform.filter((r) => r.type === "광고비").reduce((a, r) => a + S.num(r.amount), 0);
+      const vnTotal = R.vendors.reduce((a, r) => a + S.num(r.supply), 0) + pfFeeT + pfAdT;
+      R.sales = chTotal; R.purchase = vnTotal;
       const pf = chTotal - vnTotal;
       const rt = chTotal ? Math.round((chTotal - vnTotal) / chTotal * 100) : 0;
       const se = $("#mr-saleSum", main); if (se) se.textContent = won(chTotal);
@@ -1540,11 +1558,14 @@ const App = (function () {
       const ete = $("#mr-etcT", main); if (ete) ete.textContent = won(etcTot);
       $$(".mr-chpct", main).forEach((el) => { const r = R.channels[+el.dataset.pi]; if (r) el.textContent = (chTotal ? (S.num(r.supply) / chTotal * 100).toFixed(1) : "0.0") + "%"; });
       $$(".mr-vnpct", main).forEach((el) => { const r = R.vendors[+el.dataset.pi]; if (!r) return; const base = el.dataset.grp === "etc" ? etcTot : prodTot; el.textContent = (base ? (S.num(r.supply) / base * 100).toFixed(1) : "0.0") + "%"; });
+      // 플랫폼 자동 행 업데이트
+      const feeAmtEl = $("#mr-pf-fee-amount", main); if (feeAmtEl) feeAmtEl.textContent = won(pfFeeT);
+      const feePctEl = $("#mr-pf-fee-pct", main); if (feePctEl) feePctEl.textContent = (etcTot ? (pfFeeT / etcTot * 100).toFixed(1) : "0.0") + "%";
+      const adAmtEl = $("#mr-pf-ad-amount", main); if (adAmtEl) adAmtEl.textContent = won(pfAdT);
+      const adPctEl = $("#mr-pf-ad-pct", main); if (adPctEl) adPctEl.textContent = (etcTot ? (pfAdT / etcTot * 100).toFixed(1) : "0.0") + "%";
       const mw = $("#mr-memo-wrap", main); if (mw) mw.classList.toggle("no-print", !String(R.memo || "").trim());
       const net = S.num(R.bank.inSum) - S.num(R.bank.outSum);
       const be = $("#mr-bankNet", main); if (be) { be.textContent = won(net); be.className = "n " + (net >= 0 ? "pos" : "neg"); }
-      const pfFeeT = R.platform.filter((r) => r.type !== "광고비").reduce((a, r) => a + S.num(r.amount), 0);
-      const pfAdT = R.platform.filter((r) => r.type === "광고비").reduce((a, r) => a + S.num(r.amount), 0);
       const fe = $("#mr-pfFee", main); if (fe) fe.textContent = won(pfFeeT);
       const ae = $("#mr-pfAd", main); if (ae) ae.textContent = won(pfAdT);
       $$(".mr-pfpct", main).forEach((el) => { const r = R.platform[+el.dataset.pi]; if (!r) return; const base = el.dataset.grp === "ad" ? pfAdT : pfFeeT; el.textContent = (base ? (S.num(r.amount) / base * 100).toFixed(1) : "0.0") + "%"; });
