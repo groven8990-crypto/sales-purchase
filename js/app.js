@@ -1083,7 +1083,7 @@ const App = (function () {
     const sl = S.filterBy(S.data.sales, { store: st, year: yr, month: mo });
     const pl = S.filterBy(S.data.purchases, { store: st, year: yr, month: mo });
     r.sales = S.sum(sl, "supply");
-    r.purchase = S.sum(sl, "supply");
+    r.purchase = S.sum(pl, "supply");
     r.channels = S.groupSum(sl, "channel", "supply").map((g) => ({ name: g.key, count: g.count, supply: g.sum }));
     const vi = S.data.vendorItems || {};
     // 플랫폼 공급처(쿠팡·지마켓 등)는 Ⅲ-1 세부로 자동 분리, 나머지는 Ⅲ 공급처 목록으로
@@ -1345,7 +1345,11 @@ const App = (function () {
     ["groven", "yb"].forEach((st) => {
       const prev = M[st] || {};
       const fresh = autoFillStoreReport(st, yr, mo);
-      fresh.vendors  = (prev.vendors  && prev.vendors.length  > 0) ? prev.vendors  : fresh.vendors;
+      if (prev.vendors && prev.vendors.length > 0) {
+        const prevNames = new Set(prev.vendors.map((v) => v.name));
+        const newVendors = fresh.vendors.filter((v) => !prevNames.has(v.name));
+        fresh.vendors = [...prev.vendors, ...newVendors];
+      }
       fresh.channels = (prev.channels && prev.channels.length > 0) ? prev.channels : fresh.channels;
       fresh.platform = (prev.platform && prev.platform.length > 0) ? prev.platform : fresh.platform;
       fresh.memo = prev.memo || "";
