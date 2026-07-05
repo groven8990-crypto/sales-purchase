@@ -1075,17 +1075,28 @@ const App = (function () {
     return { sales: 0, purchase: 0, channels: [], vendors: [], bank: { inCnt: 0, inSum: 0, outCnt: 0, outSum: 0 }, memo: "" };
   }
   // 실제 데이터(매출·매입·통장)에서 한 사업장 보고서를 자동 생성
+  // 플랫폼 수수료/광고비로 자동 분류할 공급처명 목록
+  const PLATFORM_VENDORS = new Set(["쿠팡", "지마켓", "G마켓", "옥션", "네이버", "십일번가", "카카오", "당근", "위메프", "티몬"]);
+
   function autoFillStoreReport(st, yr, mo) {
     const r = blankStoreReport();
     const sl = S.filterBy(S.data.sales, { store: st, year: yr, month: mo });
     const pl = S.filterBy(S.data.purchases, { store: st, year: yr, month: mo });
     r.sales = S.sum(sl, "supply");
-    r.purchase = S.sum(pl, "supply");
+    r.purchase = S.sum(sl, "supply");
     r.channels = S.groupSum(sl, "channel", "supply").map((g) => ({ name: g.key, count: g.count, supply: g.sum }));
     const vi = S.data.vendorItems || {};
-    r.vendors = S.groupSum(pl, "vendor", "supply").map((g) => {
-      // 정규화 이름으로 먼저 조회, 없으면 원본 매입 행의 vendor명으로 폴백
-      const note = vi[g.key] || pl.filter((p) => S.canonVendor(p.vendor) === g.key).map((p) => vi[p.vendor]).find(Boolean) || "";
+    // 플랫폼 공급처(쿠팡·지마켓 등)는 Ⅲ-1 세부로 자동 분리, 나머지는 Ⅲ 공급처 목록으로
+    const platformPl = pl.filter((p) => PLATFORM_VENDORS.has(S.canonVendor(p.vendor)));
+    const vendorPl = pl.filter((p) => !PLATFORM_VENDORS.has(S.canonVendor(p.vendor)));
+    r.platform = platformPl.map((p) => ({
+      supplier: S.canonVendor(p.vendor),
+      item: p.desc || "",
+      type: (p.category || "").includes("광고") ? "광고비" : "수수료",
+      amount: S.num(p.supply),
+    }));
+    r.vendors = S.groupSum(vendorPl, "vendor", "supply").map((g) => {
+      const note = vi[g.key] || vendorPl.filter((p) => S.canonVendor(p.vendor) === g.key).map((p) => vi[p.vendor]).find(Boolean) || "";
       return { name: g.key, note, count: g.count, supply: g.sum };
     });
     // 고정비/정기결제 자동 반영 — 실제 매입 자료가 이미 있는 공급처는 무시(중복 방지)
@@ -1093,7 +1104,6 @@ const App = (function () {
       const ex = r.vendors.find((v) => v.name === fc.vendor);
       if (!ex) r.vendors.push({ name: fc.vendor, note: fc.note || "", count: S.num(fc.count), supply: S.num(fc.amount) });
     });
-    r.purchase = r.vendors.reduce((a, v) => a + S.num(v.supply), 0);
     const tx = S.filterBy(S.data.transactions, { store: st, year: yr, month: mo });
     const ins = tx.filter((t) => t.type === "in"), outs = tx.filter((t) => t.type === "out");
     r.bank = { inCnt: ins.length, inSum: S.sum(ins, "amount"), outCnt: outs.length, outSum: S.sum(outs, "amount") };
@@ -1335,7 +1345,8 @@ const App = (function () {
     ["groven", "yb"].forEach((st) => {
       const prev = M[st] || {};
       const fresh = autoFillStoreReport(st, yr, mo);
-      fresh.platform = prev.platform || [];
+      // 이미 수기로 입력한 플랫폼 세부가 있으면 유지, 없으면 자동채움 값 사용
+      fresh.platform = (prev.platform && prev.platform.length > 0) ? prev.platform : fresh.platform;
       fresh.memo = prev.memo || "";
       M[st] = fresh;
     });
@@ -1602,7 +1613,8 @@ const App = (function () {
       if (!confirm(`${fullNm}의 수기 보고서를 현재 데이터 자동값으로 다시 채울까요? 지금 입력한 값은 덮어써져요. (플랫폼 세부내역은 유지됩니다)`)) return;
       const keepPf = R.platform;
       M[store] = autoFillStoreReport(store, yr, mo);
-      M[store].platform = keepPf || [];
+      // 이미 수기로 입력한 세부가 있으면 유지, 없으면 자동채움 사용
+      M[store].platform = (keepPf && keepPf.length > 0) ? keepPf : M[store].platform;
       reSave(true);
     });
     // 채널별 매출 추이·구성 + 플랫폼 비중 차트
