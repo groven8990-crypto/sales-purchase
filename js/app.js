@@ -1453,19 +1453,25 @@ const App = (function () {
     const vnGroup = (rows, label, grpT, grp) => `<tr style="background:#eef4ff"><td colspan="7" style="font-weight:700;color:var(--navy);padding:5px 9px">${label}</td></tr>`
       + (rows.length ? rows.map((x, n) => vnRow(x, n + 1, grpT, grp)).join("") : `<tr><td colspan="7" class="empty">없음</td></tr>`);
     // 플랫폼 집계 자동 행 (Ⅲ-1에서 계산, 읽기 전용)
-    const pfSupLabel = [...new Set(feeRows.map((x) => x.r.supplier).filter(Boolean))].slice(0, 2).join(", ") + (feeRows.length > 2 ? " 외" : "");
-    const pfAdLabel = [...new Set(adRows.map((x) => x.r.supplier).filter(Boolean))].slice(0, 2).join(", ") + (adRows.length > 2 ? " 외" : "");
-    const pfAutoRow = (idPfx, name, note, count, supply, grpT) => `<tr style="background:#f0f6ff">
-      <td class="c" style="color:var(--muted)">-</td>
-      <td style="font-weight:600;color:var(--navy)">${esc(name)}</td>
-      <td style="color:var(--muted);font-size:12px">${esc(note)}</td>
-      <td class="n">${won(count)}</td>
+    // feeRows·adRows에서 공급처명 추출 (최대 2개 + "외")
+    const supLabel = (rows) => {
+      const sups = [...new Set(rows.map((x) => x.r.supplier).filter(Boolean))];
+      return sups.slice(0, 2).join(", ") + (sups.length > 2 ? " 외" : "");
+    };
+    const pfSupLabel = supLabel(feeRows) || "플랫폼";
+    const pfAdLabel  = supLabel(adRows)  || "플랫폼";
+    // n: 기타 섹션 안의 순번, supplier: 공급처 열, typeLabel: 내용 열
+    const pfAutoRow = (idPfx, n, supplier, typeLabel, count, supply, grpT) => `<tr style="background:#f0f6ff">
+      <td class="c">${n}</td>
+      <td style="font-weight:600;color:var(--navy)">${esc(supplier)}</td>
+      <td style="font-size:12px">${esc(typeLabel)}</td>
+      <td class="n">${count > 0 ? count : ""}</td>
       <td class="n" id="${idPfx}-amount">${won(supply)}</td>
       <td class="n" id="${idPfx}-pct">${grpT ? (supply / grpT * 100).toFixed(1) : "0.0"}%</td>
       <td class="c no-print"><span style="font-size:10px;color:var(--muted)">자동</span></td></tr>`;
     const pfAutoOffset = (pfFee > 0 ? 1 : 0) + (pfAd > 0 ? 1 : 0);
-    const etcBodyContent = (pfFee > 0 ? pfAutoRow("mr-pf-fee", "플랫폼 판매수수료", pfSupLabel || "Ⅲ-1 합계", feeRows.length, pfFee, etcT) : "")
-      + (pfAd > 0 ? pfAutoRow("mr-pf-ad", "플랫폼 광고비", pfAdLabel || "Ⅲ-1 합계", adRows.length, pfAd, etcT) : "")
+    const etcBodyContent = (pfFee > 0 ? pfAutoRow("mr-pf-fee", 1, pfSupLabel, "수수료 합계", feeRows.length, pfFee, etcT) : "")
+      + (pfAd > 0 ? pfAutoRow("mr-pf-ad", pfFee > 0 ? 2 : 1, pfAdLabel, "광고비 합계", adRows.length, pfAd, etcT) : "")
       + (etcRows.length ? etcRows.map((x, n) => vnRow(x, pfAutoOffset + n + 1, etcT, "etc")).join("") : (!pfAutoOffset ? `<tr><td colspan="7" class="empty">없음</td></tr>` : ""));
     const vnBody = vnGroup(prodRows, "▸ 상품매입", prodT, "prod")
       + `<tr class="sum"><td colspan="4">상품매입 소계</td><td class="n" id="mr-prodT">${won(prodT)}</td><td class="n">100%</td><td class="no-print"></td></tr>`
@@ -1862,10 +1868,16 @@ const App = (function () {
       const prod = sd.vRows.filter(isProd), etc = sd.vRows.filter((r) => !isProd(r));
       const prodT = prod.reduce((a, r) => a + r.sum, 0), etcT = etc.reduce((a, r) => a + r.sum, 0);
       const vnT = sd.vRows.reduce((a, r) => a + r.sum, 0) + sd.pfFee + sd.pfAd;
-      const pfFeeRow = sd.pfFee > 0 ? `<tr style="background:#f0f6ff"><td class="c">-</td><td class="name">플랫폼 판매수수료</td><td class="name">Ⅲ-1 합계</td><td class="n">-</td><td class="n">${won(sd.pfFee)}</td><td class="n">${etcT + sd.pfFee + sd.pfAd ? (sd.pfFee / (etcT + sd.pfFee + sd.pfAd) * 100).toFixed(1) : "0.0"}%</td></tr>` : "";
-      const pfAdRow = sd.pfAd > 0 ? `<tr style="background:#f0f6ff"><td class="c">-</td><td class="name">플랫폼 광고비</td><td class="name">Ⅲ-1 합계</td><td class="n">-</td><td class="n">${won(sd.pfAd)}</td><td class="n">${etcT + sd.pfFee + sd.pfAd ? (sd.pfAd / (etcT + sd.pfFee + sd.pfAd) * 100).toFixed(1) : "0.0"}%</td></tr>` : "";
+      const feeItems = sd.platItems.filter((r) => r.type !== "광고비");
+      const adItems  = sd.platItems.filter((r) => r.type === "광고비");
+      const mkSupLabel = (items) => { const s = [...new Set(items.sort((a,b)=>b.amount-a.amount).map((r)=>r.supplier))]; return s.slice(0,2).join(", ")+(s.length>2?" 외":"") || "플랫폼"; };
+      const etcGrpT = etcT + sd.pfFee + sd.pfAd;
+      const pfRow = (n, sup, type, count, amt) => `<tr style="background:#f0f6ff"><td class="c">${n}</td><td class="name" style="font-weight:600;color:var(--navy)">${esc(sup)}</td><td class="name">${type}</td><td class="n">${count||""}</td><td class="n">${won(amt)}</td><td class="n">${etcGrpT ? (amt/etcGrpT*100).toFixed(1) : "0.0"}%</td></tr>`;
+      const pfFeeRow = sd.pfFee > 0 ? pfRow(1, mkSupLabel(feeItems), "수수료 합계", feeItems.length, sd.pfFee) : "";
+      const pfAdRow  = sd.pfAd  > 0 ? pfRow(sd.pfFee > 0 ? 2 : 1, mkSupLabel(adItems), "광고비 합계", adItems.length, sd.pfAd) : "";
+      const pfOffset = (sd.pfFee > 0 ? 1 : 0) + (sd.pfAd > 0 ? 1 : 0);
       const prodBody = prod.length ? prod.map((g, i) => vnRow(g, i, prodT)).join("") : `<tr><td colspan="6" class="empty">없음</td></tr>`;
-      const etcBody = pfFeeRow + pfAdRow + (etc.length ? etc.map((g, i) => vnRow(g, i + (sd.pfFee > 0 ? 1 : 0) + (sd.pfAd > 0 ? 1 : 0), etcT + sd.pfFee + sd.pfAd)).join("") : (!pfFeeRow && !pfAdRow ? `<tr><td colspan="6" class="empty">없음</td></tr>` : ""));
+      const etcBody = pfFeeRow + pfAdRow + (etc.length ? etc.map((g, i) => vnRow(g, pfOffset + i, etcGrpT)).join("") : (!pfFeeRow && !pfAdRow ? `<tr><td colspan="6" class="empty">없음</td></tr>` : ""));
       return (stLabel ? `<div style="margin-bottom:4px"><b style="font-size:12.5px;color:var(--muted)">${stLabel}</b></div>` : "")
         + `<table class="doc-table"><thead><tr><th class="c" style="width:40px">순번</th><th style="width:132px">공급처</th><th>내용</th><th class="n" style="width:64px">건수</th><th class="n" style="width:118px">공급가</th><th class="n" style="width:58px">비중</th></tr></thead>
         <tbody>
