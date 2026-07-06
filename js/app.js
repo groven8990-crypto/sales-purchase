@@ -2357,6 +2357,7 @@ const App = (function () {
           <label class="btn">📥 백업 불러오기(덮어쓰기)<input type="file" id="im-json" accept=".json" hidden></label>
           <label class="btn">🔗 백업 합치기(merge)<input type="file" id="im-merge" accept=".json" hidden></label>
           <button class="btn" id="dedup">🔧 중복 데이터 제거</button>
+          <button class="btn" id="dedup2">🔧🔧 채널 무관 강력 중복 제거</button>
           <label class="btn">📋 수기보고서만 가져오기<input type="file" id="im-manual" accept=".json" hidden></label>
           <button class="btn danger" id="clr-pur">🧾 매입만 비우기</button>
           <button class="btn danger" id="clr">🗑️ 전체 삭제</button>
@@ -2454,6 +2455,21 @@ const App = (function () {
       const after = { p: S.data.purchases.length, s: S.data.sales.length, t: S.data.transactions.length };
       S.save();
       alert(`중복 제거 완료!\n매입 ${before.p - after.p}건 / 매출 ${before.s - after.s}건 / 입출금 ${before.t - after.t}건 삭제`);
+      go("home");
+    });
+    $("#dedup2").addEventListener("click", () => {
+      if (!confirm("채널명이 달라도 날짜·금액이 같으면 중복으로 보고 제거합니다.\n(디네트/B2B 같이 같은 데이터가 다른 채널명으로 들어간 경우)\n\n계속할까요?")) return;
+      const dedup = (arr, sig) => { const seen = new Set(); return arr.filter((r) => { const k = sig(r); if (seen.has(k)) return false; seen.add(k); return true; }); };
+      // 1단계: 채널 포함 정확한 중복 제거
+      const sigS1 = (r) => `${r.store}|${r.year}|${r.month}|${r.day}|${r.channel}|${r.supply}`;
+      S.data.sales = dedup(S.data.sales, sigS1);
+      // 2단계: 채널 무관 — 같은 날짜·금액 레코드가 여러 채널에 퍼져있으면 하나만 남김
+      const sigS2 = (r) => `${r.store}|${r.year}|${r.month}|${r.day}|${r.supply}`;
+      const before2 = S.data.sales.length;
+      S.data.sales = dedup(S.data.sales, sigS2);
+      const removed2 = before2 - S.data.sales.length;
+      S.save();
+      alert(`강력 중복 제거 완료!\n채널 무관 중복 매출 ${removed2}건 추가 삭제됨\n\n마감보고서 → 자동값 다시 불러오기 클릭하세요.`);
       go("home");
     });
     $("#clr-pur").addEventListener("click", () => {
