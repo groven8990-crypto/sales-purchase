@@ -1130,9 +1130,9 @@ const App = (function () {
       const d = c.date || "";
       return parseInt(d.slice(0, 4)) === S.num(yr) && parseInt(d.slice(5, 7)) === S.num(mo);
     });
-    const csItMap = {};
-    csForMo.forEach((c) => { const it = (c.item || "(미상)").trim(); csItMap[it] = (csItMap[it] || 0) + 1; });
-    r.csItems = Object.entries(csItMap).sort((a, b) => b[1] - a[1]).map(([item, count]) => ({ item, count }));
+    const csItMap = {}, csRefundMap = {};
+    csForMo.forEach((c) => { const it = (c.item || "(미상)").trim(); csItMap[it] = (csItMap[it] || 0) + 1; csRefundMap[it] = (csRefundMap[it] || 0) + S.num(c.refundAmount || 0); });
+    r.csItems = Object.entries(csItMap).sort((a, b) => b[1] - a[1]).map(([item, count]) => ({ item, count, refundAmount: csRefundMap[item] || 0 }));
     return r;
   }
   // 통합용: 두 사업장 detail 합치기 (이름 기준)
@@ -1656,15 +1656,16 @@ const App = (function () {
         </div>
         <div style="flex:1;min-width:200px">
           <div style="font-size:11px;font-weight:700;color:var(--muted);margin-bottom:4px">▸ 반품 많은 품목 <button class="btn no-print" data-add="csItems" style="padding:1px 8px;font-size:11px;margin-left:6px;font-weight:600">➕ 행추가</button></div>
-          <table class="doc-table" style="width:auto;min-width:200px">
-            <thead><tr><th>품목</th><th class="n">건수</th><th class="n">비중</th><th class="c no-print"></th></tr></thead>
+          <table class="doc-table" style="width:auto;min-width:260px">
+            <thead><tr><th>품목</th><th class="n">건수</th><th class="n">비중</th><th class="n">환불금액</th><th class="c no-print"></th></tr></thead>
             <tbody>
               ${R.csItems.length ? R.csItems.map((r, i) => `<tr>
                 <td>${txtIn("csItems", i, "item", r.item, "품목명")}</td>
                 <td class="n">${numIn("csItems", i, "count", r.count)}</td>
                 <td class="n">${_csItemTotal ? (S.num(r.count) / _csItemTotal * 100).toFixed(0) : 0}%</td>
+                <td class="n">${numIn("csItems", i, "refundAmount", r.refundAmount || 0)}</td>
                 <td class="c no-print"><button class="icon-btn" data-rm="csItems" data-i="${i}">✕</button></td>
-              </tr>`).join("") : `<tr><td colspan="4" class="empty">행추가로 입력하세요</td></tr>`}
+              </tr>`).join("") : `<tr><td colspan="5" class="empty">행추가로 입력하세요</td></tr>`}
             </tbody>
           </table>
         </div>
@@ -1798,7 +1799,7 @@ const App = (function () {
     main.querySelectorAll("[data-add]").forEach((b) => b.addEventListener("click", () => {
       const sec = b.dataset.add;
       if (sec === "vendors") R[sec].push({ name: "", note: "상품매입", count: 0, supply: 0 });
-      else if (sec === "csItems") R[sec].push({ item: "", count: 0 });
+      else if (sec === "csItems") R[sec].push({ item: "", count: 0, refundAmount: 0 });
       else R[sec].push({ name: "", count: 0, supply: 0 });
       reSave(true);
     }));
@@ -1916,10 +1917,16 @@ const App = (function () {
     _csRows2.forEach((c) => { const t = _csTypes2.includes(c.type) ? c.type : "기타"; _csByType2[t].count++; _csByType2[t].refund += S.num(c.refundAmount || 0); });
     const _csTotal2 = _csRows2.length;
     const _csRefund2 = _csRows2.reduce((a, c) => a + S.num(c.refundAmount || 0), 0);
-    const _csHasRefund2 = _csRows2.some((c) => c.refundAmount > 0);
-    const _csItemCnt2 = {};
-    _csRows2.forEach((c) => { const it = (c.item || "(미상)").trim(); _csItemCnt2[it] = (_csItemCnt2[it] || 0) + 1; });
-    const _csTopItems2 = Object.entries(_csItemCnt2).sort((a, b) => b[1] - a[1]).slice(0, 5);
+    // 반품 많은 품목: 각 사업장 수기보고서의 csItems를 합산 (통합 탭에서 수기 편집 반영)
+    const _csItemsMerged = {};
+    [...(g.csItems || []), ...(y.csItems || [])].forEach((r) => {
+      const k = (r.item || "(미상)").trim();
+      if (!_csItemsMerged[k]) _csItemsMerged[k] = { item: k, count: 0, refundAmount: 0 };
+      _csItemsMerged[k].count += S.num(r.count);
+      _csItemsMerged[k].refundAmount += S.num(r.refundAmount || 0);
+    });
+    const _csTopItems2 = Object.values(_csItemsMerged).sort((a, b) => b.count - a.count);
+    const _csItemTotal2 = _csTopItems2.reduce((a, r) => a + r.count, 0);
     const _csSection2 = `<h4 class="doc-sec">Ⅴ. C/S 현황 <span class="muted" style="font-weight:400;font-size:11px">(${_csTotal2}건)</span></h4>
       <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-start">
         <div style="flex:0 0 auto;min-width:220px">
@@ -1939,13 +1946,12 @@ const App = (function () {
             </tbody>
           </table>
         </div>
-        ${_csTopItems2.length ? `<div style="flex:1;min-width:200px">
+        ${_csTopItems2.length ? `<div style="flex:1;min-width:260px">
           <div style="font-size:11px;font-weight:700;color:var(--muted);margin-bottom:4px">▸ 반품 많은 품목</div>
-          <table class="doc-table" style="width:auto;min-width:200px">
-            <thead><tr><th>품목</th><th class="n">건수</th><th class="n">비중</th></tr></thead>
-            <tbody>${_csTopItems2.map(([it, cnt]) => {
-              const tot = _csTopItems2.reduce((a, [, c]) => a + c, 0);
-              return `<tr><td>${esc(it)}</td><td class="n">${cnt}</td><td class="n">${tot ? (cnt / tot * 100).toFixed(0) : 0}%</td></tr>`;
+          <table class="doc-table" style="width:auto;min-width:260px">
+            <thead><tr><th>품목</th><th class="n">건수</th><th class="n">비중</th><th class="n">환불금액</th></tr></thead>
+            <tbody>${_csTopItems2.map((r) => {
+              return `<tr><td>${esc(r.item)}</td><td class="n">${r.count}</td><td class="n">${_csItemTotal2 ? (r.count / _csItemTotal2 * 100).toFixed(0) : 0}%</td><td class="n">${r.refundAmount > 0 ? won(r.refundAmount) : "-"}</td></tr>`;
             }).join("")}</tbody>
           </table>
         </div>` : ""}
