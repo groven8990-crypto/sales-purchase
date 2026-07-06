@@ -1460,11 +1460,11 @@ const App = (function () {
         );
         fresh.vendors = [...validPrev, ...addFromFresh];
       }
-      if (prev.channels && prev.channels.length > 0) {
-        // 기존 편집 보존 + 새로 추가된 채널 합류
-        const prevChNames = new Set(prev.channels.map((c) => c.name));
-        const newCh = fresh.channels.filter((c) => c.name && !prevChNames.has(c.name));
-        fresh.channels = [...prev.channels, ...newCh];
+      // 채널: fresh(실데이터) 항상 신선하게 갱신 + prev에만 있는 수동추가 채널 보존
+      {
+        const freshChNames = new Set(fresh.channels.map((c) => c.name).filter(Boolean));
+        const prevOnlyCh = (prev.channels || []).filter((c) => c.name && !freshChNames.has(c.name));
+        fresh.channels = [...fresh.channels, ...prevOnlyCh];
       }
       fresh.platform = (prev.platform && prev.platform.length > 0) ? prev.platform : fresh.platform;
       fresh.csItems = (prev.csItems && prev.csItems.length > 0) ? prev.csItems : fresh.csItems;
