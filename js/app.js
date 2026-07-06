@@ -888,7 +888,15 @@ const App = (function () {
       if (confirm("이 기록을 삭제할까요?")) { S.remove("deposits", b.dataset.deldep); renderDeposits(main); }
     }));
     $$("[data-depk]", main).forEach((c) => c.addEventListener("click", () => {
-      depFilter = depFilter === c.dataset.depk ? "" : c.dataset.depk;
+      const key = c.dataset.depk;
+      const wasOn = depFilter === key;
+      depFilter = wasOn ? "" : key;
+      if (!wasOn) {
+        // 카드 선택 → 아래 입력 폼 자동 연동 (사업장·거래처 동기화)
+        const sepIdx = key.indexOf("|");
+        const st = key.slice(0, sepIdx), v = key.slice(sepIdx + 1);
+        depLastInput = { ...depLastInput, store: st, vendor: v };
+      }
       renderDeposits(main);
     }));
     $("#dp-clear", main).addEventListener("click", () => {
