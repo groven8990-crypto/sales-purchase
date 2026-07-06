@@ -712,6 +712,7 @@ const App = (function () {
           <span><label style="display:block;font-size:12px;color:var(--muted);margin-bottom:3px">주문자(받는분)</label><input id="cs-recipient" placeholder="이름" style="width:90px;border:1px solid var(--line);border-radius:8px;padding:7px 9px"></span>
           <span><label style="display:block;font-size:12px;color:var(--muted);margin-bottom:3px">주문번호</label><input id="cs-order" placeholder="(선택)" style="width:120px;border:1px solid var(--line);border-radius:8px;padding:7px 9px"></span>
           <span><label style="display:block;font-size:12px;color:var(--muted);margin-bottom:3px">유형</label><select id="cs-type" style="border:1px solid var(--line);border-radius:8px;padding:7px 9px">${CS_TYPES.map((t) => `<option>${t}</option>`).join("")}</select></span>
+          <span><label style="display:block;font-size:12px;color:var(--muted);margin-bottom:3px">환불금액</label><input id="cs-refund" type="number" inputmode="numeric" placeholder="0" style="width:100px;border:1px solid var(--line);border-radius:8px;padding:7px 9px"></span>
           <span style="flex:1;min-width:140px"><label style="display:block;font-size:12px;color:var(--muted);margin-bottom:3px">상품·내용</label><input id="cs-item" placeholder="예: 간고등어 / 파손 도착" style="width:100%;border:1px solid var(--line);border-radius:8px;padding:7px 9px"></span>
           <span><label style="display:block;font-size:12px;color:var(--muted);margin-bottom:3px">상태</label><select id="cs-status" style="border:1px solid var(--line);border-radius:8px;padding:7px 9px">${CS_STAT.map((s) => `<option>${s}</option>`).join("")}</select></span>
         </div>
@@ -760,7 +761,7 @@ const App = (function () {
       if (!item) { alert("상품·내용을 입력하세요."); return; }
       S.data.cs.push({ id: S.uid(), date: $("#cs-date", main).value, store: $("#cs-store", main).value,
         channel: $("#cs-channel", main).value.trim(), recipient: $("#cs-recipient", main).value.trim(), orderNo: $("#cs-order", main).value.trim(),
-        type: $("#cs-type", main).value, item, complaint: $("#cs-complaint", main).value.trim(), status: $("#cs-status", main).value, note: $("#cs-note", main).value.trim() });
+        type: $("#cs-type", main).value, refundAmount: S.num($("#cs-refund", main).value), item, complaint: $("#cs-complaint", main).value.trim(), status: $("#cs-status", main).value, note: $("#cs-note", main).value.trim() });
       S.save(); renderCS(main);
     });
     $$("[data-editcs]", main).forEach((b) => b.addEventListener("click", () => Modals.editRow("cs", b.dataset.editcs)));
@@ -1597,6 +1598,37 @@ const App = (function () {
     R.platform.forEach((r) => { pfChMap[r.supplier || "(미입력)"] = (pfChMap[r.supplier || "(미입력)"] || 0) + S.num(r.amount); });
     const pfChart = Object.entries(pfChMap).map(([k, v]) => ({ key: k, sum: v })).filter((g) => g.sum > 0).sort((a, b) => b.sum - a.sum);
 
+    // C/S 현황 집계
+    const _csTypes = ["반품", "교환", "환불", "오배송", "파손", "기타"];
+    const _csRows = (S.data.cs || []).filter((c) => {
+      if (c.store && c.store !== store) return false;
+      const d = c.date || "";
+      return parseInt(d.slice(0, 4)) === S.num(yr) && parseInt(d.slice(5, 7)) === S.num(mo);
+    });
+    const _csByType = {};
+    _csTypes.forEach((t) => { _csByType[t] = { count: 0, refund: 0 }; });
+    _csRows.forEach((c) => { const t = _csTypes.includes(c.type) ? c.type : "기타"; _csByType[t].count++; _csByType[t].refund += S.num(c.refundAmount || 0); });
+    const _csTotal = _csRows.length;
+    const _csRefund = _csRows.reduce((a, c) => a + S.num(c.refundAmount || 0), 0);
+    const _csHasRefund = _csRows.some((c) => c.refundAmount > 0);
+    const _csItemCnt = {};
+    _csRows.forEach((c) => { const it = (c.item || "(미상)").trim(); _csItemCnt[it] = (_csItemCnt[it] || 0) + 1; });
+    const _csTopItems = Object.entries(_csItemCnt).sort((a, b) => b[1] - a[1]).slice(0, 5);
+    const _csSection = `<h4 class="doc-sec">Ⅴ. C/S 현황 <span class="muted" style="font-weight:400;font-size:11px">(${_csTotal}건)</span></h4>
+      ${_csTotal === 0 ? `<div style="color:var(--muted);font-size:12px;padding:4px 2px">이번 달 C/S 없음</div>` :
+        `<div style="display:flex;gap:14px;flex-wrap:wrap">
+          <div style="flex:0 0 auto">
+            <table class="doc-table"><thead><tr><th>유형</th><th class="n">건수</th>${_csHasRefund ? `<th class="n">환불금액</th>` : ""}</tr></thead>
+              <tbody>${_csTypes.filter((t) => _csByType[t].count > 0).map((t) => `<tr><td>${t}</td><td class="n">${_csByType[t].count}</td>${_csHasRefund ? `<td class="n">${won(_csByType[t].refund)}</td>` : ""}</tr>`).join("")}
+              <tr class="sum"><td>합계</td><td class="n">${_csTotal}건</td>${_csHasRefund ? `<td class="n neg">${won(_csRefund)}</td>` : ""}</tr></tbody></table>
+          </div>
+          ${_csTopItems.length ? `<div style="flex:1;min-width:160px">
+            <div style="font-size:11px;font-weight:700;color:var(--muted);margin-bottom:4px">▸ 반품 많은 품목</div>
+            <table class="doc-table"><thead><tr><th>품목</th><th class="n">건수</th></tr></thead>
+            <tbody>${_csTopItems.map(([it, cnt]) => `<tr><td>${esc(it)}</td><td class="n">${cnt}</td></tr>`).join("")}</tbody></table>
+          </div>` : ""}
+        </div>`}`;
+
     main.innerHTML = `
       <div class="page-head no-print">
         <div><h2>📄 마감 보고서 · ${fullNm} <span class="muted">${yr}년 ${mo}월</span></h2>
@@ -1662,8 +1694,10 @@ const App = (function () {
           </tbody>
         </table>
 
+        ${_csSection}
+
         <div id="mr-memo-wrap"${String(R.memo || "").trim() ? "" : ` class="no-print"`}>
-        <h4 class="doc-sec">Ⅴ. 비고</h4>
+        <h4 class="doc-sec">Ⅵ. 비고</h4>
         <textarea class="mr-in" data-sec="memo" data-i="0" data-f="memo" rows="3" style="width:100%" placeholder="특이사항(없으면 인쇄·이미지에서 자동 생략)">${esc(R.memo || "")}</textarea>
         </div>
       </div>`;
@@ -1828,6 +1862,36 @@ const App = (function () {
       .filter((g) => g.sum > 0).sort((a, b) => b.sum - a.sum);
     const supGrp = (rows, label, grpT) => `<tr style="background:#eef4ff"><td colspan="4" style="font-weight:700;color:var(--navy);padding:5px 9px">${label}</td></tr>`
       + (rows.length ? rows.map((g, n) => `<tr><td class="c">${n + 1}</td><td class="name">${esc(g.key)}</td><td class="n">${won(g.sum)}</td><td class="n">${grpT ? (g.sum / grpT * 100).toFixed(1) : "0.0"}%</td></tr>`).join("") : `<tr><td colspan="4" class="empty">없음</td></tr>`);
+    // C/S 현황 집계 (그로븐+YB 합산)
+    const _csTypes2 = ["반품", "교환", "환불", "오배송", "파손", "기타"];
+    const _csRows2 = (S.data.cs || []).filter((c) => {
+      const d = c.date || "";
+      return parseInt(d.slice(0, 4)) === S.num(yr) && parseInt(d.slice(5, 7)) === S.num(mo);
+    });
+    const _csByType2 = {};
+    _csTypes2.forEach((t) => { _csByType2[t] = { count: 0, refund: 0 }; });
+    _csRows2.forEach((c) => { const t = _csTypes2.includes(c.type) ? c.type : "기타"; _csByType2[t].count++; _csByType2[t].refund += S.num(c.refundAmount || 0); });
+    const _csTotal2 = _csRows2.length;
+    const _csRefund2 = _csRows2.reduce((a, c) => a + S.num(c.refundAmount || 0), 0);
+    const _csHasRefund2 = _csRows2.some((c) => c.refundAmount > 0);
+    const _csItemCnt2 = {};
+    _csRows2.forEach((c) => { const it = (c.item || "(미상)").trim(); _csItemCnt2[it] = (_csItemCnt2[it] || 0) + 1; });
+    const _csTopItems2 = Object.entries(_csItemCnt2).sort((a, b) => b[1] - a[1]).slice(0, 5);
+    const _csSection2 = `<h4 class="doc-sec">Ⅴ. C/S 현황 <span class="muted" style="font-weight:400;font-size:11px">(${_csTotal2}건)</span></h4>
+      ${_csTotal2 === 0 ? `<div style="color:var(--muted);font-size:12px;padding:4px 2px">이번 달 C/S 없음</div>` :
+        `<div style="display:flex;gap:14px;flex-wrap:wrap">
+          <div style="flex:0 0 auto">
+            <table class="doc-table"><thead><tr><th>유형</th><th class="n">건수</th>${_csHasRefund2 ? `<th class="n">환불금액</th>` : ""}</tr></thead>
+              <tbody>${_csTypes2.filter((t) => _csByType2[t].count > 0).map((t) => `<tr><td>${t}</td><td class="n">${_csByType2[t].count}</td>${_csHasRefund2 ? `<td class="n">${won(_csByType2[t].refund)}</td>` : ""}</tr>`).join("")}
+              <tr class="sum"><td>합계</td><td class="n">${_csTotal2}건</td>${_csHasRefund2 ? `<td class="n neg">${won(_csRefund2)}</td>` : ""}</tr></tbody></table>
+          </div>
+          ${_csTopItems2.length ? `<div style="flex:1;min-width:160px">
+            <div style="font-size:11px;font-weight:700;color:var(--muted);margin-bottom:4px">▸ 반품 많은 품목</div>
+            <table class="doc-table"><thead><tr><th>품목</th><th class="n">건수</th></tr></thead>
+            <tbody>${_csTopItems2.map(([it, cnt]) => `<tr><td>${esc(it)}</td><td class="n">${cnt}</td></tr>`).join("")}</tbody></table>
+          </div>` : ""}
+        </div>`}`;
+
     const pfSection = pf.length ? `
         <h4 class="doc-sec">Ⅲ-1. 플랫폼 수수료·광고비 세부</h4>
         <div class="mr-chart-row" style="display:flex;gap:14px;align-items:flex-start">
@@ -1893,7 +1957,8 @@ const App = (function () {
             <tr class="sum"><td>순증감</td><td class="n">${bk.inCnt + bk.outCnt}</td><td class="n ${bk.inSum - bk.outSum >= 0 ? "pos" : "neg"}">${bk.inSum - bk.outSum >= 0 ? "+" : ""}${won(bk.inSum - bk.outSum)}</td><td></td></tr>
           </tbody>
         </table>
-        ${memo ? `<h4 class="doc-sec">Ⅴ. 비고</h4><div style="white-space:pre-wrap;font-size:12px;padding:4px 2px">${esc(memo)}</div>` : ""}
+        ${_csSection2}
+        ${memo ? `<h4 class="doc-sec">Ⅵ. 비고</h4><div style="white-space:pre-wrap;font-size:12px;padding:4px 2px">${esc(memo)}</div>` : ""}
       </div>`;
     $("#mr-print", main).addEventListener("click", () => window.print());
     $("#mr-png", main).addEventListener("click", () => exportSheetPng(main, `통합_${yr}-${mo}`));
