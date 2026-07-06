@@ -1468,7 +1468,14 @@ const App = (function () {
         fresh.channels = [...fresh.channels, ...prevOnlyCh];
       }
       fresh.platform = (prev.platform && prev.platform.length > 0) ? prev.platform : fresh.platform;
-      fresh.csItems = (prev.csItems && prev.csItems.length > 0) ? prev.csItems : fresh.csItems;
+      // csItems: 품목·건수는 사용자 편집 보존, 환불금액은 실데이터(S.data.cs)로 항상 갱신
+      if (prev.csItems && prev.csItems.length > 0) {
+        const freshRefundMap = {};
+        (fresh.csItems || []).forEach((r) => { freshRefundMap[(r.item || "").trim()] = S.num(r.refundAmount || 0); });
+        fresh.csItems = prev.csItems.map((r) => ({
+          ...r, refundAmount: freshRefundMap[(r.item || "").trim()] || 0
+        }));
+      }
       fresh.memo = prev.memo || "";
       fresh.deletedVendors = prev.deletedVendors || [];
       M[st] = fresh;
