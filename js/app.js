@@ -2218,6 +2218,7 @@ const App = (function () {
           <button class="btn" id="ex-json">💾 전체 백업(JSON)</button>
           <label class="btn">📥 백업 불러오기(덮어쓰기)<input type="file" id="im-json" accept=".json" hidden></label>
           <label class="btn">🔗 백업 합치기(merge)<input type="file" id="im-merge" accept=".json" hidden></label>
+          <button class="btn" id="dedup">🔧 중복 데이터 제거</button>
           <button class="btn danger" id="clr-pur">🧾 매입만 비우기</button>
           <button class="btn danger" id="clr">🗑️ 전체 삭제</button>
         </div>
@@ -2291,6 +2292,20 @@ const App = (function () {
       S.data.vendorItems[el.dataset.v] = el.value.trim();
       S.save(true);
     }));
+    $("#dedup").addEventListener("click", () => {
+      const sigP = (r) => `${r.store}|${r.year}|${r.month}|${r.day}|${r.vendor}|${r.supply}|${r.desc}`;
+      const sigS = (r) => `${r.store}|${r.year}|${r.month}|${r.day}|${r.channel}|${r.supply}`;
+      const sigT = (r) => `${r.store}|${r.year}|${r.month}|${r.day}|${r.desc}|${r.amount}|${r.type}`;
+      const dedup = (arr, sig) => { const seen = new Set(); return arr.filter((r) => { const k = sig(r); if (seen.has(k)) return false; seen.add(k); return true; }); };
+      const before = { p: S.data.purchases.length, s: S.data.sales.length, t: S.data.transactions.length };
+      S.data.purchases = dedup(S.data.purchases, sigP);
+      S.data.sales = dedup(S.data.sales, sigS);
+      S.data.transactions = dedup(S.data.transactions, sigT);
+      const after = { p: S.data.purchases.length, s: S.data.sales.length, t: S.data.transactions.length };
+      S.save();
+      alert(`중복 제거 완료!\n매입 ${before.p - after.p}건 / 매출 ${before.s - after.s}건 / 입출금 ${before.t - after.t}건 삭제`);
+      go("home");
+    });
     $("#clr-pur").addEventListener("click", () => {
       if (confirm("매입 자료만 모두 비울까요? (매출·통장은 그대로 유지됩니다)")) { S.clearKind("purchases"); go("purchases"); }
     });
