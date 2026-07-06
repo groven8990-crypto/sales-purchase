@@ -77,9 +77,11 @@ const Modals = (function () {
     q("#ie-cancel").onclick = close;
     q("#ie-apply").onclick = () => {
       if (!parsed) return;
-      S.addSales(parsed.sales); S.addPurchases(parsed.purchases); S.addTransactions(parsed.transactions);
+      const rs = S.addSales(parsed.sales), rp = S.addPurchases(parsed.purchases), rt = S.addTransactions(parsed.transactions);
       parsed.vendors.forEach((v) => S.upsertVendor(v)); S.save();
+      const sk = rs.skipped + rp.skipped + rt.skipped;
       close(); App.go("dashboard");
+      if (sk > 0) alert(`✅ 불러오기 완료\n중복 ${sk}건은 건너뜀 (매출 ${rs.skipped} · 매입 ${rp.skipped} · 입출금 ${rt.skipped})`);
     };
   }
 
@@ -112,8 +114,9 @@ const Modals = (function () {
         const sel = q(`#bk-cat-${i}`); if (sel) t.category = sel.value;
         S.learnRule(t.counterparty || t.desc, t.type, t.category, t.channel);
       });
-      S.addTransactions(result.txns);
+      const rt = S.addTransactions(result.txns);
       close(); App.go("transactions");
+      if (rt.skipped > 0) alert(`✅ 입출금 추가 완료\n중복 ${rt.skipped}건은 건너뜀`);
     };
   }
 
@@ -191,8 +194,9 @@ const Modals = (function () {
         year: ym ? +ym[1] : new Date().getFullYear(), month: ym ? +ym[2] : "",
       };
       const rows = Parsers.applyPurchaseMapping(table.body, mapping, fixed);
-      S.addPurchases(rows);
+      const rp = S.addPurchases(rows);
       close(); App.go("purchases");
+      if (rp.skipped > 0) alert(`✅ 매입 추가 완료\n중복 ${rp.skipped}건은 건너뜀`);
     };
   }
 
@@ -393,8 +397,9 @@ const Modals = (function () {
         });
       });
       if (!rows.length) { q("#ps-preview").innerHTML = `<div class="err">읽을 줄이 없어요. 형식을 확인해주세요.</div>`; return; }
-      S.addPurchases(rows);
+      const rp = S.addPurchases(rows);
       close(); App.go("purchases");
+      if (rp.skipped > 0) alert(`✅ 매입 추가 완료\n중복 ${rp.skipped}건은 건너뜀`);
     };
   }
 

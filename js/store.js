@@ -159,9 +159,24 @@ const SPC = (function () {
   }
 
   /* ---- CRUD ----------------------------------------------- */
-  function addSales(rows) { rows.forEach((r) => data.sales.push(Object.assign({ id: uid() }, r))); save(); }
-  function addPurchases(rows) { rows.forEach((r) => data.purchases.push(Object.assign({ id: uid() }, r))); save(); }
-  function addTransactions(rows) { rows.forEach((r) => data.transactions.push(Object.assign({ id: uid() }, r))); save(); }
+  const _sigS = (r) => `${r.store}|${r.year}|${r.month}|${r.day}|${r.channel}|${r.supply}`;
+  const _sigP = (r) => `${r.store}|${r.year}|${r.month}|${r.day}|${r.vendor}|${r.supply}|${r.desc}`;
+  const _sigT = (r) => `${r.store}|${r.year}|${r.month}|${r.day}|${r.desc}|${r.amount}|${r.type}`;
+
+  function _addDedup(arr, rows, sig) {
+    const seen = new Set(arr.map(sig));
+    let added = 0, skipped = 0;
+    rows.forEach((r) => {
+      const k = sig(r);
+      if (seen.has(k)) { skipped++; }
+      else { seen.add(k); arr.push(Object.assign({ id: uid() }, r)); added++; }
+    });
+    return { added, skipped };
+  }
+
+  function addSales(rows) { const res = _addDedup(data.sales, rows, _sigS); save(); return res; }
+  function addPurchases(rows) { const res = _addDedup(data.purchases, rows, _sigP); save(); return res; }
+  function addTransactions(rows) { const res = _addDedup(data.transactions, rows, _sigT); save(); return res; }
   function addOrders(rows) { rows.forEach((r) => data.orders.push(Object.assign({ id: uid() }, r))); save(); }
 
   function upsertVendor(v) {
