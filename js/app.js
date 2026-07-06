@@ -2219,6 +2219,7 @@ const App = (function () {
           <label class="btn">📥 백업 불러오기(덮어쓰기)<input type="file" id="im-json" accept=".json" hidden></label>
           <label class="btn">🔗 백업 합치기(merge)<input type="file" id="im-merge" accept=".json" hidden></label>
           <button class="btn" id="dedup">🔧 중복 데이터 제거</button>
+          <label class="btn">📋 수기보고서만 가져오기<input type="file" id="im-manual" accept=".json" hidden></label>
           <button class="btn danger" id="clr-pur">🧾 매입만 비우기</button>
           <button class="btn danger" id="clr">🗑️ 전체 삭제</button>
         </div>
@@ -2287,6 +2288,17 @@ const App = (function () {
       const f = e.target.files[0]; if (!f) return;
       if (!confirm("백업 파일의 매출·매입·입출금을 현재 데이터에 합칩니다.\n(같은 자료를 두 번 합치면 중복되니 주의)\n계속할까요?")) return;
       S.importMergeJSON(await f.text()); go("home");
+    });
+    $("#im-manual").addEventListener("change", async (e) => {
+      const f = e.target.files[0]; if (!f) return;
+      try {
+        const inc = JSON.parse(await f.text());
+        if (!inc.manualReport) { alert("수기보고서 데이터가 없는 파일이에요."); return; }
+        if (!confirm("백업 파일의 수기 마감보고서를 현재 데이터에 덮어씁니다.\n(매출·매입·입출금·고정비 등 다른 데이터는 그대로 유지됩니다)\n계속할까요?")) return;
+        if (!S.data.manualReport) S.data.manualReport = {};
+        Object.assign(S.data.manualReport, inc.manualReport);
+        S.save(); go("manual");
+      } catch (err) { alert("파일을 읽을 수 없어요: " + err.message); }
     });
     $$(".vi-input", main).forEach((el) => el.addEventListener("change", () => {
       S.data.vendorItems[el.dataset.v] = el.value.trim();
