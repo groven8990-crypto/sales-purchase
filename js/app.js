@@ -1666,11 +1666,12 @@ const App = (function () {
         </div>
         ${R.csItems.length > 0 ? `<div style="flex:0 0 auto;align-self:flex-start">
           <table class="doc-table" style="width:auto;min-width:180px">
-            <thead><tr><th>품목</th><th class="n">건수</th><th class="n">비중</th></tr></thead>
-            <tbody>${R.csItems.map((r) => `<tr>
+            <thead><tr><th>품목</th><th class="n">건수</th><th class="n">비중</th><th>사유</th></tr></thead>
+            <tbody>${R.csItems.map((r, idx) => `<tr>
               <td>${esc(r.item || "")}</td>
               <td class="n">${S.num(r.count)}</td>
               <td class="n">${_csItemTotal ? (S.num(r.count) / _csItemTotal * 100).toFixed(0) : 0}%</td>
+              <td><input class="mr-in" data-sec="csItems" data-i="${idx}" data-f="reason" value="${esc(r.reason || "")}" placeholder="특이사항" style="width:140px;border:1px solid var(--line);border-radius:5px;padding:3px 6px;font-size:11px;background:transparent"></td>
             </tr>`).join("")}</tbody>
           </table>
         </div>` : ""}
@@ -1926,9 +1927,10 @@ const App = (function () {
     const _csItemsMerged = {};
     [...(g.csItems || []), ...(y.csItems || [])].forEach((r) => {
       const k = (r.item || "(미상)").trim();
-      if (!_csItemsMerged[k]) _csItemsMerged[k] = { item: k, count: 0, refundAmount: 0 };
+      if (!_csItemsMerged[k]) _csItemsMerged[k] = { item: k, count: 0, refundAmount: 0, reason: "" };
       _csItemsMerged[k].count += S.num(r.count);
       _csItemsMerged[k].refundAmount += S.num(r.refundAmount || 0);
+      if (!_csItemsMerged[k].reason && r.reason) _csItemsMerged[k].reason = r.reason;
     });
     const _csTopItems2 = Object.values(_csItemsMerged).sort((a, b) => b.count - a.count);
     const _csItemTotal2 = _csTopItems2.reduce((a, r) => a + r.count, 0);
@@ -1953,11 +1955,12 @@ const App = (function () {
         </div>
         ${_csTopItems2.length ? `<div style="flex:0 0 auto;align-self:flex-start">
           <table class="doc-table" style="width:auto;min-width:180px">
-            <thead><tr><th>품목</th><th class="n">건수</th><th class="n">비중</th></tr></thead>
+            <thead><tr><th>품목</th><th class="n">건수</th><th class="n">비중</th><th>사유</th></tr></thead>
             <tbody>${_csTopItems2.map((r) => `<tr>
               <td>${esc(r.item)}</td>
               <td class="n">${r.count}</td>
               <td class="n">${_csItemTotal2 ? (r.count / _csItemTotal2 * 100).toFixed(0) : 0}%</td>
+              <td style="font-size:11px;color:var(--muted)">${esc(r.reason || "")}</td>
             </tr>`).join("")}</tbody>
           </table>
         </div>` : ""}
