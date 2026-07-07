@@ -2003,6 +2003,7 @@ const App = (function () {
           <div class="muted">그로븐 · YB 자료를 자동 합산한 결과예요. (수정은 위 <b>그로븐 / 옐로우브릿지</b> 탭에서)</div></div>
         <div class="row-actions">
           <button class="btn" id="mr-auto-all">📥 자동값 다시 불러오기</button>
+          <button class="btn" id="mr-png">📸 PNG 저장</button>
           <button class="btn primary" id="mr-print">🖨️ 인쇄</button></div>
       </div>
       ${help("manual")}
@@ -2060,6 +2061,7 @@ const App = (function () {
       S.save(true);
     });
     $("#mr-print", main).addEventListener("click", () => window.print());
+    $("#mr-png", main).addEventListener("click", () => exportSheetPng(main, "통합"));
     $("#mr-auto-all", main).addEventListener("click", () => {
       if (!confirm(`그로븐·YB 수기 보고서를 현재 데이터 자동값으로 다시 채울까요?\n지금 입력한 값은 덮어써져요. (플랫폼 세부내역은 유지됩니다)`)) return;
       ["groven", "yb"].forEach((st) => {
