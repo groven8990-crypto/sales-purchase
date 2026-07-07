@@ -1656,7 +1656,7 @@ const App = (function () {
     const _csItemTotal = R.csItems.reduce((a, r) => a + S.num(r.count), 0);
     const _csSection = `<h4 class="doc-sec">Ⅴ. C/S 현황 <span class="muted" style="font-weight:400;font-size:11px">(${_csTotal}건)</span></h4>
       <table class="doc-table" style="width:auto;min-width:260px;margin-bottom:8px">
-        <thead><tr><th>유형</th><th class="n">건수</th><th class="n">비중</th><th class="n">환불금액</th></tr></thead>
+        <thead><tr><th style="width:80px">유형</th><th class="n">건수</th><th class="n">비중</th><th class="n">환불금액</th></tr></thead>
         <tbody>
           ${_csTypes.filter((t) => _csByType[t].count > 0).map((t) => `<tr>
             <td>${t}</td>
@@ -1940,7 +1940,7 @@ const App = (function () {
     const _csItemTotal2 = _csTopItems2.reduce((a, r) => a + r.count, 0);
     const _csSection2 = `<h4 class="doc-sec">Ⅴ. C/S 현황 <span class="muted" style="font-weight:400;font-size:11px">(${_csTotal2}건)</span></h4>
       <table class="doc-table" style="width:auto;min-width:260px;margin-bottom:8px">
-        <thead><tr><th>유형</th><th class="n">건수</th><th class="n">비중</th><th class="n">환불금액</th></tr></thead>
+        <thead><tr><th style="width:80px">유형</th><th class="n">건수</th><th class="n">비중</th><th class="n">환불금액</th></tr></thead>
         <tbody>
           ${_csTypes2.filter((t) => _csByType2[t].count > 0).map((t) => `<tr>
             <td>${t}</td>
