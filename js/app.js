@@ -1882,7 +1882,7 @@ const App = (function () {
       inCnt: S.num(g.bank.inCnt) + S.num(y.bank.inCnt), inSum: S.num(g.bank.inSum) + S.num(y.bank.inSum),
       outCnt: S.num(g.bank.outCnt) + S.num(y.bank.outCnt), outSum: S.num(g.bank.outSum) + S.num(y.bank.outSum),
     };
-    const memo = [g.memo, y.memo].filter(Boolean).join("\n");
+    const memo = M.combinedMemo != null ? M.combinedMemo : [g.memo, y.memo].filter(Boolean).join("\n");
 
     const pfRaw = [].concat(g.platform || [], y.platform || []);
     // 공급자+품목+구분이 같으면 합치기 (앞뒤·중간 공백 차이는 무시)
@@ -2029,8 +2029,17 @@ const App = (function () {
           </tbody>
         </table>
         ${_csSection2}
-        ${memo ? `<h4 class="doc-sec">Ⅵ. 비고</h4><div style="white-space:pre-wrap;font-size:12px;padding:4px 2px">${esc(memo)}</div>` : ""}
+        <div id="mr-combined-memo-wrap"${String(memo || "").trim() ? "" : ` class="no-print"`}>
+        <h4 class="doc-sec">Ⅵ. 비고</h4>
+        <textarea id="mr-combined-memo" rows="3" style="width:100%;border:1px solid var(--line);border-radius:8px;padding:7px 9px;font-size:12px;resize:vertical" placeholder="특이사항(없으면 인쇄·이미지에서 자동 생략)">${esc(memo || "")}</textarea>
+        </div>
       </div>`;
+    const cmEl = $("#mr-combined-memo", main);
+    if (cmEl) cmEl.addEventListener("input", () => {
+      M.combinedMemo = cmEl.value;
+      const mw = $("#mr-combined-memo-wrap", main); if (mw) mw.classList.toggle("no-print", !cmEl.value.trim());
+      S.save(true);
+    });
     $("#mr-print", main).addEventListener("click", () => window.print());
     $("#mr-png", main).addEventListener("click", () => exportSheetPng(main, `통합_${yr}-${mo}`));
     $("#mr-auto-all", main).addEventListener("click", () => {
