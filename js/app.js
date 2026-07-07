@@ -1345,9 +1345,9 @@ const App = (function () {
       scale: 2, backgroundColor: "#ffffff", useCORS: true,
       onclone: (doc) => {
         doc.querySelectorAll(".no-print").forEach((el) => el.remove());
-        // 표는 내용에 맞춰 자동 너비 + 셀 글자는 한 줄로(줄바꿈 방지)
+        // 표는 내용에 맞춰 자동 너비 + 숫자 셀은 nowrap, 텍스트 셀은 줄바꿈 허용
         doc.querySelectorAll(".sheet table.doc-table").forEach((t) => { t.style.tableLayout = "auto"; });
-        doc.querySelectorAll(".sheet .doc-table td, .sheet .doc-table th").forEach((c) => { c.style.whiteSpace = "nowrap"; c.style.wordBreak = "normal"; });
+        doc.querySelectorAll(".sheet .doc-table td.n, .sheet .doc-table th.n").forEach((c) => { c.style.whiteSpace = "nowrap"; });
         doc.querySelectorAll(".mr-in").forEach((el) => {
           const isNum = el.classList.contains("n");
           const isArea = el.tagName === "TEXTAREA";
@@ -1357,7 +1357,7 @@ const App = (function () {
           span.textContent = v;
           span.style.cssText = "display:block;font-size:12px;padding:2px 6px 2px 0;" +
             (isNum ? "text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums;"
-                   : isArea ? "white-space:pre-wrap;" : "white-space:nowrap;");
+                   : "white-space:pre-wrap;word-break:break-word;");
           el.parentNode.replaceChild(span, el);
         });
       },
@@ -1679,7 +1679,7 @@ const App = (function () {
               <td>${esc(r.item || "")}</td>
               <td class="n">${S.num(r.count)}</td>
               <td class="n">${_csItemTotal ? (S.num(r.count) / _csItemTotal * 100).toFixed(0) : 0}%</td>
-              <td><input class="mr-in" data-sec="csItems" data-i="${idx}" data-f="reason" value="${esc(r.reason || "")}" placeholder="특이사항" style="width:140px;border:1px solid var(--line);border-radius:5px;padding:3px 6px;font-size:11px;background:transparent"></td>
+              <td style="min-width:120px;max-width:220px"><textarea class="mr-in" data-sec="csItems" data-i="${idx}" data-f="reason" rows="2" placeholder="특이사항" style="width:100%;border:1px solid var(--line);border-radius:5px;padding:3px 6px;font-size:11px;background:transparent;resize:vertical;line-height:1.4">${esc(r.reason || "")}</textarea></td>
             </tr>`).join("")}</tbody>
           </table>
         </div>` : ""}
