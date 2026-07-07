@@ -1680,7 +1680,7 @@ const App = (function () {
               <td>${esc(r.item || "")}</td>
               <td class="n">${S.num(r.count)}</td>
               <td class="n">${_csItemTotal ? (S.num(r.count) / _csItemTotal * 100).toFixed(0) : 0}%</td>
-              <td style="min-width:120px;max-width:220px"><textarea class="mr-in" data-sec="csItems" data-i="${idx}" data-f="reason" rows="2" placeholder="특이사항" style="width:100%;border:1px solid var(--line);border-radius:5px;padding:3px 6px;font-size:11px;background:transparent;resize:vertical;line-height:1.4">${esc(r.reason || "")}</textarea></td>
+              <td style="min-width:300px"><textarea class="mr-in" data-sec="csItems" data-i="${idx}" data-f="reason" rows="2" placeholder="특이사항" style="width:100%;border:1px solid var(--line);border-radius:5px;padding:3px 6px;font-size:11px;background:transparent;resize:vertical;line-height:1.4">${esc(r.reason || "")}</textarea></td>
             </tr>`).join("")}</tbody>
           </table>
         </div>` : ""}
