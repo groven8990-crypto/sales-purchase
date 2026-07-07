@@ -1341,6 +1341,7 @@ const App = (function () {
     if (!node) return;
     if (typeof html2canvas !== "function") { alert("이미지 변환 라이브러리를 불러오지 못했어요. 인터넷 연결을 확인해주세요."); return; }
     const today = new Date().toISOString().slice(0, 10);
+    const yymmdd = today.replace(/-/g, "").slice(2); // "2026-07-07" → "260707"
     html2canvas(node, {
       scale: 2, backgroundColor: "#ffffff", useCORS: true,
       onclone: (doc) => {
@@ -1362,7 +1363,7 @@ const App = (function () {
         });
       },
     }).then((canvas) => {
-      previewCanvas(canvas, `마감보고서_${label}_${today}.png`);
+      previewCanvas(canvas, `${yymmdd}-_${label}.png`);
     }).catch((e) => alert("이미지 저장 실패: " + e));
   }
 
@@ -1830,7 +1831,7 @@ const App = (function () {
       R[sect].splice(idx, 1); reSave(true);
     }));
     $("#mr-print", main).addEventListener("click", () => window.print());
-    $("#mr-png", main).addEventListener("click", () => exportSheetPng(main, `${fullNm}_${yr}-${mo}`));
+    $("#mr-png", main).addEventListener("click", () => exportSheetPng(main, store === "yb" ? "YB" : "그로븐"));
     $("#mr-auto", main).addEventListener("click", () => {
       if (!confirm(`${fullNm}의 수기 보고서를 현재 데이터 자동값으로 다시 채울까요? 지금 입력한 값은 덮어써져요. (플랫폼 세부내역은 유지됩니다)`)) return;
       const keepPf = R.platform, keepMemo = R.memo;
@@ -2052,7 +2053,7 @@ const App = (function () {
       S.save(true);
     });
     $("#mr-print", main).addEventListener("click", () => window.print());
-    $("#mr-png", main).addEventListener("click", () => exportSheetPng(main, `통합_${yr}-${mo}`));
+    $("#mr-png", main).addEventListener("click", () => exportSheetPng(main, "통합"));
     $("#mr-auto-all", main).addEventListener("click", () => {
       if (!confirm(`그로븐·YB 수기 보고서를 현재 데이터 자동값으로 다시 채울까요?\n지금 입력한 값은 덮어써져요. (플랫폼 세부내역은 유지됩니다)`)) return;
       ["groven", "yb"].forEach((st) => {
