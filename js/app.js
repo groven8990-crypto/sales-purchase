@@ -1132,7 +1132,14 @@ const App = (function () {
       return parseInt(d.slice(0, 4)) === S.num(yr) && parseInt(d.slice(5, 7)) === S.num(mo);
     });
     const csItMap = {}, csRefundMap = {};
-    csForMo.forEach((c) => { const it = (c.item || "(미상)").trim(); csItMap[it] = (csItMap[it] || 0) + 1; csRefundMap[it] = (csRefundMap[it] || 0) + S.num(c.refundAmount || 0); });
+    // 품목명 정규화: 뒤쪽 용량/단위("1kg","500g","3개" 등) 및 괄호 수식어("(세척)한입" 등) 제거
+    const normCsItem = (s) => {
+      let r = String(s || "").trim();
+      r = r.replace(/\s+\d+(\.\d+)?\s*(kg|g|ml|mL|l|L|개|팩|봉|상자|박스|묶음)\b.*/i, "").trim();
+      r = r.replace(/\s+\(.*$/, "").trim();
+      return r || "(미상)";
+    };
+    csForMo.forEach((c) => { const it = normCsItem(c.item); csItMap[it] = (csItMap[it] || 0) + 1; csRefundMap[it] = (csRefundMap[it] || 0) + S.num(c.refundAmount || 0); });
     r.csItems = Object.entries(csItMap).sort((a, b) => b[1] - a[1]).map(([item, count]) => ({ item, count, refundAmount: csRefundMap[item] || 0 }));
     return r;
   }
