@@ -1646,8 +1646,8 @@ const App = (function () {
     if (!R.csItems) R.csItems = [];
     const _csItemTotal = R.csItems.reduce((a, r) => a + S.num(r.count), 0);
     const _csSection = `<h4 class="doc-sec">Ⅴ. C/S 현황 <span class="muted" style="font-weight:400;font-size:11px">(${_csTotal}건)</span></h4>
-      <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-start">
-        <div style="flex:0 0 auto;min-width:220px">
+      <div style="display:flex;gap:24px;flex-wrap:wrap;align-items:center">
+        <div style="flex:0 0 auto">
           <table class="doc-table" style="width:auto;min-width:220px">
             <thead><tr><th>유형</th><th class="n">건수</th><th class="n">비중</th><th class="n">환불금액</th></tr></thead>
             <tbody>
@@ -1664,9 +1664,8 @@ const App = (function () {
             </tbody>
           </table>
         </div>
-        ${R.csItems.length > 0 ? `<div style="flex:0 0 auto">
-          <div style="position:relative;border:1px solid var(--line);border-radius:6px;padding:8px;width:180px;height:180px"><canvas id="mr-cs-items"></canvas></div>
-          <div class="muted" style="font-size:10px;text-align:center;margin-top:4px">품목별 반품 구성</div>
+        ${R.csItems.length > 0 ? `<div style="flex:0 0 auto;text-align:center">
+          <div style="position:relative;width:200px;height:200px"><canvas id="mr-cs-items"></canvas></div>
         </div>` : ""}
       </div>`;
 
@@ -1843,7 +1842,7 @@ const App = (function () {
     const g = M.groven, y = M.yb;
     // 매출=채널별 합계, 매입=매입처별 합계 (자동)
     const sSum = (R) => (R.channels || []).reduce((a, r) => a + S.num(r.supply), 0);
-    const pSum = (R) => (R.vendors || []).reduce((a, r) => a + S.num(r.supply), 0);
+    const pSum = (R) => (R.vendors || []).reduce((a, r) => a + S.num(r.supply), 0) + (R.platform || []).reduce((a, r) => a + S.num(r.amount), 0);
     const incRows = [["groven", "그로븐", "면세", g], ["yb", "옐로우브릿지", "과세", y]];
     const incBody = incRows.map(([st, nm, tax, R]) => {
       const sv = sSum(R), pv = pSum(R), profit = sv - pv;
@@ -1930,8 +1929,8 @@ const App = (function () {
     const _csTopItems2 = Object.values(_csItemsMerged).sort((a, b) => b.count - a.count);
     const _csItemTotal2 = _csTopItems2.reduce((a, r) => a + r.count, 0);
     const _csSection2 = `<h4 class="doc-sec">Ⅴ. C/S 현황 <span class="muted" style="font-weight:400;font-size:11px">(${_csTotal2}건)</span></h4>
-      <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-start">
-        <div style="flex:0 0 auto;min-width:220px">
+      <div style="display:flex;gap:24px;flex-wrap:wrap;align-items:center">
+        <div style="flex:0 0 auto">
           <table class="doc-table" style="width:auto;min-width:220px">
             <thead><tr><th>유형</th><th class="n">건수</th><th class="n">비중</th><th class="n">환불금액</th></tr></thead>
             <tbody>
@@ -1948,9 +1947,8 @@ const App = (function () {
             </tbody>
           </table>
         </div>
-        ${_csTopItems2.length ? `<div style="flex:0 0 auto">
-          <div style="position:relative;border:1px solid var(--line);border-radius:6px;padding:8px;width:180px;height:180px"><canvas id="mr-cs-items2"></canvas></div>
-          <div class="muted" style="font-size:10px;text-align:center;margin-top:4px">품목별 반품 구성</div>
+        ${_csTopItems2.length ? `<div style="flex:0 0 auto;text-align:center">
+          <div style="position:relative;width:200px;height:200px"><canvas id="mr-cs-items2"></canvas></div>
         </div>` : ""}
       </div>`;
 
