@@ -1664,20 +1664,10 @@ const App = (function () {
             </tbody>
           </table>
         </div>
-        <div style="flex:1;min-width:200px">
-          <div style="font-size:11px;font-weight:700;color:var(--muted);margin-bottom:4px">▸ 반품 많은 품목 <button class="btn no-print" data-add="csItems" style="padding:1px 8px;font-size:11px;margin-left:6px;font-weight:600">➕ 행추가</button></div>
-          <table class="doc-table" style="width:auto;min-width:200px">
-            <thead><tr><th>품목</th><th class="n">건수</th><th class="n">비중</th><th class="c no-print"></th></tr></thead>
-            <tbody>
-              ${R.csItems.length ? R.csItems.map((r, i) => `<tr>
-                <td>${txtIn("csItems", i, "item", r.item, "품목명")}</td>
-                <td class="n">${numIn("csItems", i, "count", r.count)}</td>
-                <td class="n">${_csItemTotal ? (S.num(r.count) / _csItemTotal * 100).toFixed(0) : 0}%</td>
-                <td class="c no-print"><button class="icon-btn" data-rm="csItems" data-i="${i}">✕</button></td>
-              </tr>`).join("") : `<tr><td colspan="4" class="empty">행추가로 입력하세요</td></tr>`}
-            </tbody>
-          </table>
-        </div>
+        ${R.csItems.length > 0 ? `<div style="flex:0 0 auto">
+          <div style="position:relative;border:1px solid var(--line);border-radius:6px;padding:8px;width:180px;height:180px"><canvas id="mr-cs-items"></canvas></div>
+          <div class="muted" style="font-size:10px;text-align:center;margin-top:4px">품목별 반품 구성</div>
+        </div>` : ""}
       </div>`;
 
     main.innerHTML = `
@@ -1842,6 +1832,9 @@ const App = (function () {
         .sort((a, b) => b.sum - a.sum);
       pastelDoughnut("mr-ch-ch", chGroups);
       pastelDoughnut("mr-pf-ch", pfChart);
+      const csItemGroups = R.csItems.filter((r) => S.num(r.count) > 0)
+        .map((r) => ({ key: r.item || "(미상)", sum: S.num(r.count) }));
+      if (csItemGroups.length) pastelDoughnut("mr-cs-items", csItemGroups);
     });
   }
 
@@ -1955,14 +1948,9 @@ const App = (function () {
             </tbody>
           </table>
         </div>
-        ${_csTopItems2.length ? `<div style="flex:1;min-width:200px">
-          <div style="font-size:11px;font-weight:700;color:var(--muted);margin-bottom:4px">▸ 반품 많은 품목</div>
-          <table class="doc-table" style="width:auto;min-width:200px">
-            <thead><tr><th>품목</th><th class="n">건수</th><th class="n">비중</th></tr></thead>
-            <tbody>${_csTopItems2.map((r) => {
-              return `<tr><td>${esc(r.item)}</td><td class="n">${r.count}</td><td class="n">${_csItemTotal2 ? (r.count / _csItemTotal2 * 100).toFixed(0) : 0}%</td></tr>`;
-            }).join("")}</tbody>
-          </table>
+        ${_csTopItems2.length ? `<div style="flex:0 0 auto">
+          <div style="position:relative;border:1px solid var(--line);border-radius:6px;padding:8px;width:180px;height:180px"><canvas id="mr-cs-items2"></canvas></div>
+          <div class="muted" style="font-size:10px;text-align:center;margin-top:4px">품목별 반품 구성</div>
         </div>` : ""}
       </div>`;
 
@@ -2051,6 +2039,9 @@ const App = (function () {
         .map((c) => ({ key: c.name || "(미입력)", sum: S.num(c.supply) })).sort((a, b) => b.sum - a.sum);
       pastelDoughnut("mr-ch-ch", chGroups);
       pastelDoughnut("mr-pf-ch", pfChart);
+      const csItemGroups2 = _csTopItems2.filter((r) => r.count > 0)
+        .map((r) => ({ key: r.item || "(미상)", sum: r.count }));
+      if (csItemGroups2.length) pastelDoughnut("mr-cs-items2", csItemGroups2);
     });
   }
 
