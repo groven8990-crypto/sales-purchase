@@ -1470,12 +1470,13 @@ const App = (function () {
       fresh.platform = (prev.platform && prev.platform.length > 0) ? prev.platform : fresh.platform;
       // csItems: 품목·건수는 사용자 편집 보존, 환불금액은 실데이터(S.data.cs)로 항상 갱신
       if (prev.csItems && prev.csItems.length > 0) {
-        const freshRefundMap = {};
-        (fresh.csItems || []).forEach((r) => { freshRefundMap[(r.item || "").trim()] = S.num(r.refundAmount || 0); });
-        fresh.csItems = prev.csItems.map((r) => {
-          const freshAmt = freshRefundMap[(r.item || "").trim()] || 0;
-          // C/S 데이터에 금액 있으면 우선, 없으면 prev에 사용자 직접 입력한 값 유지
-          return { ...r, refundAmount: freshAmt > 0 ? freshAmt : (S.num(r.refundAmount) || 0) };
+        // prev 기준이 아닌 fresh(현재 C/S 실데이터) 기준 — C/S에서 삭제된 항목은 보고서에서도 사라짐
+        const prevMap = {};
+        prev.csItems.forEach((r) => { prevMap[(r.item || "").trim()] = r; });
+        fresh.csItems = fresh.csItems.map((r) => {
+          const key = (r.item || "").trim();
+          const pr = prevMap[key];
+          return { ...r, reason: (pr && pr.reason) || r.reason || "" };
         });
       }
       fresh.memo = prev.memo || "";
