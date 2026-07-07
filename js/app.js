@@ -1472,9 +1472,11 @@ const App = (function () {
       if (prev.csItems && prev.csItems.length > 0) {
         const freshRefundMap = {};
         (fresh.csItems || []).forEach((r) => { freshRefundMap[(r.item || "").trim()] = S.num(r.refundAmount || 0); });
-        fresh.csItems = prev.csItems.map((r) => ({
-          ...r, refundAmount: freshRefundMap[(r.item || "").trim()] || 0
-        }));
+        fresh.csItems = prev.csItems.map((r) => {
+          const freshAmt = freshRefundMap[(r.item || "").trim()] || 0;
+          // C/S 데이터에 금액 있으면 우선, 없으면 prev에 사용자 직접 입력한 값 유지
+          return { ...r, refundAmount: freshAmt > 0 ? freshAmt : (S.num(r.refundAmount) || 0) };
+        });
       }
       fresh.memo = prev.memo || "";
       fresh.deletedVendors = prev.deletedVendors || [];
