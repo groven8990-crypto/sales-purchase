@@ -1335,23 +1335,19 @@ const App = (function () {
     };
   }
 
-  // 보고서(.sheet)를 한 장의 PNG로 — 미리보기 후 저장
-  function exportSheetPng(main, label) {
+  // 공통 캡처 옵션 적용 후 canvas 반환 (Promise)
+  function captureSheetPng(main) {
     const node = main.querySelector(".sheet");
-    if (!node) return;
-    if (typeof html2canvas !== "function") { alert("이미지 변환 라이브러리를 불러오지 못했어요. 인터넷 연결을 확인해주세요."); return; }
-    const today = new Date().toISOString().slice(0, 10);
-    const yymmdd = today.replace(/-/g, "").slice(2); // "2026-07-07" → "260707"
-    html2canvas(node, {
+    if (!node) return Promise.reject(new Error("sheet 없음"));
+    if (typeof html2canvas !== "function") return Promise.reject(new Error("html2canvas 미로드"));
+    return html2canvas(node, {
       scale: 2, backgroundColor: "#ffffff", useCORS: true,
       onclone: (doc) => {
         doc.querySelectorAll(".no-print").forEach((el) => el.remove());
-        // 표는 내용에 맞춰 자동 너비 + 숫자 셀은 nowrap, 텍스트 셀은 줄바꿈 허용
         doc.querySelectorAll(".sheet table.doc-table").forEach((t) => { t.style.tableLayout = "auto"; });
         doc.querySelectorAll(".sheet .doc-table td.n, .sheet .doc-table th.n").forEach((c) => { c.style.whiteSpace = "nowrap"; });
         doc.querySelectorAll(".mr-in").forEach((el) => {
           const isNum = el.classList.contains("n");
-          const isArea = el.tagName === "TEXTAREA";
           let v = (el.value != null ? el.value : el.textContent) || "";
           if (isNum) v = won(S.num(v));
           const span = doc.createElement("span");
@@ -1362,8 +1358,30 @@ const App = (function () {
           el.parentNode.replaceChild(span, el);
         });
       },
-    }).then((canvas) => {
+    });
+  }
+
+  // 보고서(.sheet)를 한 장의 PNG로 — 미리보기 후 저장
+  function exportSheetPng(main, label) {
+    if (typeof html2canvas !== "function") { alert("이미지 변환 라이브러리를 불러오지 못했어요. 인터넷 연결을 확인해주세요."); return Promise.resolve(); }
+    const today = new Date().toISOString().slice(0, 10);
+    const yymmdd = today.replace(/-/g, "").slice(2);
+    return captureSheetPng(main).then((canvas) => {
       previewCanvas(canvas, `${yymmdd}-월마감보고서-${label}.png`);
+    }).catch((e) => alert("이미지 저장 실패: " + e));
+  }
+
+  // 미리보기 없이 바로 다운로드 (배치 저장용)
+  function downloadSheetPng(main, label) {
+    if (typeof html2canvas !== "function") return Promise.resolve();
+    const today = new Date().toISOString().slice(0, 10);
+    const yymmdd = today.replace(/-/g, "").slice(2);
+    const filename = `${yymmdd}-월마감보고서-${label}.png`;
+    return captureSheetPng(main).then((canvas) => {
+      const a = document.createElement("a");
+      a.download = filename;
+      a.href = canvas.toDataURL("image/png");
+      a.click();
     }).catch((e) => alert("이미지 저장 실패: " + e));
   }
 
@@ -1656,7 +1674,7 @@ const App = (function () {
     const _csItemTotal = R.csItems.reduce((a, r) => a + S.num(r.count), 0);
     const _csSection = `<h4 class="doc-sec">Ⅴ. C/S 현황 <span class="muted" style="font-weight:400;font-size:11px">(${_csTotal}건)</span></h4>
       <table class="doc-table" style="width:auto;min-width:260px;margin-bottom:8px">
-        <thead><tr><th style="width:80px">유형</th><th class="n">건수</th><th class="n">비중</th><th class="n">환불금액</th></tr></thead>
+        <thead><tr><th style="width:80px">유형</th><th class="n" style="width:44px">건수</th><th class="n" style="width:44px">비중</th><th class="n">환불금액</th></tr></thead>
         <tbody>
           ${_csTypes.filter((t) => _csByType[t].count > 0).map((t) => `<tr>
             <td>${t}</td>
@@ -1940,7 +1958,7 @@ const App = (function () {
     const _csItemTotal2 = _csTopItems2.reduce((a, r) => a + r.count, 0);
     const _csSection2 = `<h4 class="doc-sec">Ⅴ. C/S 현황 <span class="muted" style="font-weight:400;font-size:11px">(${_csTotal2}건)</span></h4>
       <table class="doc-table" style="width:auto;min-width:260px;margin-bottom:8px">
-        <thead><tr><th style="width:80px">유형</th><th class="n">건수</th><th class="n">비중</th><th class="n">환불금액</th></tr></thead>
+        <thead><tr><th style="width:80px">유형</th><th class="n" style="width:44px">건수</th><th class="n" style="width:44px">비중</th><th class="n">환불금액</th></tr></thead>
         <tbody>
           ${_csTypes2.filter((t) => _csByType2[t].count > 0).map((t) => `<tr>
             <td>${t}</td>
@@ -2043,7 +2061,19 @@ const App = (function () {
       S.save(true);
     });
     $("#mr-print", main).addEventListener("click", () => window.print());
-    $("#mr-png", main).addEventListener("click", () => exportSheetPng(main, "통합"));
+    $("#mr-png", main).addEventListener("click", async () => {
+      // 그로븐·YB: 임시 div에 렌더링 후 미리보기 없이 직접 다운로드
+      for (const [st, label] of [["groven", "그로븐"], ["yb", "YB"]]) {
+        const tmp = document.createElement("div");
+        tmp.style.cssText = "position:fixed;left:-9999px;top:0;width:900px;background:#fff";
+        document.body.appendChild(tmp);
+        renderManualStore(tmp, M, st, ym, yr, mo);
+        await downloadSheetPng(tmp, label);
+        tmp.remove();
+      }
+      // 통합: 미리보기 모달 표시
+      exportSheetPng(main, "통합");
+    });
     $("#mr-auto-all", main).addEventListener("click", () => {
       if (!confirm(`그로븐·YB 수기 보고서를 현재 데이터 자동값으로 다시 채울까요?\n지금 입력한 값은 덮어써져요. (플랫폼 세부내역은 유지됩니다)`)) return;
       ["groven", "yb"].forEach((st) => {
