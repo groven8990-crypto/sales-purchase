@@ -1646,8 +1646,8 @@ const App = (function () {
     if (!R.csItems) R.csItems = [];
     const _csItemTotal = R.csItems.reduce((a, r) => a + S.num(r.count), 0);
     const _csSection = `<h4 class="doc-sec">Ⅴ. C/S 현황 <span class="muted" style="font-weight:400;font-size:11px">(${_csTotal}건)</span></h4>
-      <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start">
-        <div style="flex:0 0 auto">
+      <div style="display:flex;gap:16px;flex-wrap:nowrap;align-items:flex-start">
+        <div style="flex:0 0 auto;align-self:flex-start">
           <table class="doc-table" style="width:auto;min-width:220px">
             <thead><tr><th>유형</th><th class="n">건수</th><th class="n">비중</th><th class="n">환불금액</th></tr></thead>
             <tbody>
@@ -1664,7 +1664,7 @@ const App = (function () {
             </tbody>
           </table>
         </div>
-        ${R.csItems.length > 0 ? `<div style="flex:0 0 auto">
+        ${R.csItems.length > 0 ? `<div style="flex:0 0 auto;align-self:flex-start">
           <table class="doc-table" style="width:auto;min-width:180px">
             <thead><tr><th>품목</th><th class="n">건수</th><th class="n">비중</th></tr></thead>
             <tbody>${R.csItems.map((r) => `<tr>
@@ -1933,8 +1933,8 @@ const App = (function () {
     const _csTopItems2 = Object.values(_csItemsMerged).sort((a, b) => b.count - a.count);
     const _csItemTotal2 = _csTopItems2.reduce((a, r) => a + r.count, 0);
     const _csSection2 = `<h4 class="doc-sec">Ⅴ. C/S 현황 <span class="muted" style="font-weight:400;font-size:11px">(${_csTotal2}건)</span></h4>
-      <div style="display:flex;gap:24px;flex-wrap:wrap;align-items:center">
-        <div style="flex:0 0 auto">
+      <div style="display:flex;gap:16px;flex-wrap:nowrap;align-items:flex-start">
+        <div style="flex:0 0 auto;align-self:flex-start">
           <table class="doc-table" style="width:auto;min-width:220px">
             <thead><tr><th>유형</th><th class="n">건수</th><th class="n">비중</th><th class="n">환불금액</th></tr></thead>
             <tbody>
@@ -1951,7 +1951,7 @@ const App = (function () {
             </tbody>
           </table>
         </div>
-        ${_csTopItems2.length ? `<div style="flex:0 0 auto">
+        ${_csTopItems2.length ? `<div style="flex:0 0 auto;align-self:flex-start">
           <table class="doc-table" style="width:auto;min-width:180px">
             <thead><tr><th>품목</th><th class="n">건수</th><th class="n">비중</th></tr></thead>
             <tbody>${_csTopItems2.map((r) => `<tr>
