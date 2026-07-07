@@ -2541,3 +2541,24 @@ const App = (function () {
 })();
 
 document.addEventListener("DOMContentLoaded", App.init);
+
+// 인쇄 시 canvas → img 변환 (브라우저 인쇄에서 canvas 미렌더링 문제 해결)
+window.addEventListener("beforeprint", () => {
+  document.querySelectorAll(".sheet canvas").forEach((canvas) => {
+    try {
+      const img = document.createElement("img");
+      img.src = canvas.toDataURL("image/png");
+      img.style.width = canvas.offsetWidth + "px";
+      img.style.height = canvas.offsetHeight + "px";
+      img.style.display = "block";
+      img.dataset.canvasPrintProxy = "1";
+      canvas.parentNode.insertBefore(img, canvas);
+      canvas.dataset.printHidden = "1";
+      canvas.style.display = "none";
+    } catch (e) { /* cross-origin 등 예외 무시 */ }
+  });
+});
+window.addEventListener("afterprint", () => {
+  document.querySelectorAll('[data-canvas-print-proxy="1"]').forEach((img) => img.remove());
+  document.querySelectorAll("canvas[data-print-hidden]").forEach((c) => { c.style.display = ""; delete c.dataset.printHidden; });
+});
