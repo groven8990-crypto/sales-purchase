@@ -1568,13 +1568,10 @@ const App = (function () {
     const vnT = R.vendors.reduce((a, r) => a + S.num(r.supply), 0) + pfFee + pfAd;
     // 공급처 매입을 '상품매입'(내용에 상품매입 포함)과 '그 외'로 나눠 그룹·소계·그룹내 비중
     const vnIdx = R.vendors.map((r, i) => ({ r, i }));
-    const isProd = (x) => /상품매입/.test(x.r.note || "");
-    const isLogi = (x) => !isProd(x) && /물류|배송|택배/.test(x.r.note || "");
+    const isProd = (x) => /상품매입|물류|배송|택배/.test(x.r.note || "");
     const byVS = (a, b) => S.num(b.r.supply) - S.num(a.r.supply);
     const prodRows = vnIdx.filter(isProd).sort(byVS);
     const etcRows = vnIdx.filter((x) => !isProd(x)).sort(byVS);
-    const logiRows = etcRows.filter(isLogi);
-    const pureEtcRows = etcRows.filter((x) => !isLogi(x));
     const prodT = prodRows.reduce((a, x) => a + S.num(x.r.supply), 0);
     const etcT = etcRows.reduce((a, x) => a + S.num(x.r.supply), 0) + pfFee + pfAd;
     const vnRow = (x, n, grpT, grp) => `<tr><td class="c">${n}</td>
@@ -1604,11 +1601,9 @@ const App = (function () {
       <td class="n" id="${idPfx}-pct">${grpT ? (supply / grpT * 100).toFixed(1) : "0.0"}%</td>
       <td class="c no-print"><span style="font-size:10px;color:var(--muted)">자동</span></td></tr>`;
     const pfAutoOffset = (pfFee > 0 ? 1 : 0) + (pfAd > 0 ? 1 : 0);
-    const pureEtcOffset = pfAutoOffset + pureEtcRows.length;
     const etcBodyContent = (pfFee > 0 ? pfAutoRow("mr-pf-fee", 1, pfSupLabel, "수수료 합계", feeRows.length, pfFee, etcT) : "")
       + (pfAd > 0 ? pfAutoRow("mr-pf-ad", pfFee > 0 ? 2 : 1, pfAdLabel, "광고비 합계", adRows.length, pfAd, etcT) : "")
-      + (pureEtcRows.length ? pureEtcRows.map((x, n) => vnRow(x, pfAutoOffset + n + 1, etcT, "etc")).join("") : (!pfAutoOffset && !logiRows.length ? `<tr><td colspan="7" class="empty">없음</td></tr>` : ""))
-      + (logiRows.length ? `<tr style="background:#f0f4ee"><td colspan="7" style="font-size:11px;color:var(--muted);padding:3px 14px;font-weight:600">▸ 물류비</td></tr>` + logiRows.map((x, n) => vnRow(x, pureEtcOffset + n + 1, etcT, "etc")).join("") : "");
+      + (etcRows.length ? etcRows.map((x, n) => vnRow(x, pfAutoOffset + n + 1, etcT, "etc")).join("") : (!pfAutoOffset ? `<tr><td colspan="7" class="empty">없음</td></tr>` : ""));
     const vnBody = vnGroup(prodRows, "▸ 상품매입", prodT, "prod")
       + `<tr class="sum"><td colspan="4">상품매입 소계</td><td class="n" id="mr-prodT">${won(prodT)}</td><td class="n">100%</td><td class="no-print"></td></tr>`
       + `<tr style="background:#eef4ff"><td colspan="7" style="font-weight:700;color:var(--navy);padding:5px 9px">▸ 수수료·광고비·기타</td></tr>`
@@ -1774,7 +1769,7 @@ const App = (function () {
       const re = $("#mr-rate", main); if (re) re.textContent = rt + "%";
       const ce = $("#mr-chT", main); if (ce) ce.textContent = won(chTotal);
       const ve = $("#mr-vnT", main); if (ve) ve.textContent = won(vnTotal);
-      const prodTot = R.vendors.filter((r) => /상품매입/.test(r.note || "")).reduce((a, r) => a + S.num(r.supply), 0);
+      const prodTot = R.vendors.filter((r) => /상품매입|물류|배송|택배/.test(r.note || "")).reduce((a, r) => a + S.num(r.supply), 0);
       const etcTot = vnTotal - prodTot;
       const pte = $("#mr-prodT", main); if (pte) pte.textContent = won(prodTot);
       const ete = $("#mr-etcT", main); if (ete) ete.textContent = won(etcTot);
@@ -1869,10 +1864,8 @@ const App = (function () {
 
     const vnMerged = mergeDetail(g.vendors, y.vendors, true);
     const vnT = vnMerged.reduce((a, r) => a + S.num(r.supply), 0);
-    const vnIsProd = (r) => /상품매입/.test(r.note || "");
-    const vnIsLogi = (r) => !vnIsProd(r) && /물류|배송|택배/.test(r.note || "");
+    const vnIsProd = (r) => /상품매입|물류|배송|택배/.test(r.note || "");
     const vnProd = vnMerged.filter(vnIsProd), vnEtc = vnMerged.filter((r) => !vnIsProd(r));
-    const vnLogi = vnEtc.filter(vnIsLogi), vnPureEtc = vnEtc.filter((r) => !vnIsLogi(r));
     const vnProdT = vnProd.reduce((a, r) => a + S.num(r.supply), 0);
     const vnEtcT = vnEtc.reduce((a, r) => a + S.num(r.supply), 0);
     const vnCRow = (r, n, grpT) => `<tr><td class="c">${n}</td><td class="name">${esc(r.name)}</td>
@@ -1880,12 +1873,9 @@ const App = (function () {
       <td class="n">${grpT ? (S.num(r.supply) / grpT * 100).toFixed(1) : "0.0"}%</td></tr>`;
     const vnCGroup = (rows, label, grpT) => `<tr style="background:#eef4ff"><td colspan="6" style="font-weight:700;color:var(--navy);padding:5px 9px">${label}</td></tr>`
       + (rows.length ? rows.map((r, n) => vnCRow(r, n + 1, grpT)).join("") : `<tr><td colspan="6" class="empty">없음</td></tr>`);
-    const vnLogiHeader = vnLogi.length ? `<tr style="background:#f0f4ee"><td colspan="6" style="font-size:11px;color:var(--muted);padding:3px 14px;font-weight:600">▸ 물류비</td></tr>` : "";
     const vnBody = vnCGroup(vnProd, "▸ 상품매입", vnProdT)
       + `<tr class="sum"><td colspan="4">상품매입 소계</td><td class="n">${won(vnProdT)}</td><td class="n">100%</td></tr>`
-      + `<tr style="background:#eef4ff"><td colspan="6" style="font-weight:700;color:var(--navy);padding:5px 9px">▸ 수수료·광고비·기타</td></tr>`
-      + (vnPureEtc.length ? vnPureEtc.map((r, n) => vnCRow(r, n + 1, vnEtcT)).join("") : (!vnLogi.length ? `<tr><td colspan="6" class="empty">없음</td></tr>` : ""))
-      + vnLogiHeader + vnLogi.map((r, n) => vnCRow(r, vnPureEtc.length + n + 1, vnEtcT)).join("")
+      + vnCGroup(vnEtc, "▸ 수수료·광고비·기타", vnEtcT)
       + `<tr class="sum"><td colspan="4">기타 소계</td><td class="n">${won(vnEtcT)}</td><td class="n">100%</td></tr>`;
 
     const bk = {
@@ -2351,7 +2341,7 @@ const App = (function () {
           </div>
         </div></div>
       <div class="card"><h3>🔁 고정비 · 정기결제 (매월 자동 반영)</h3>
-        <p class="hint">임대료·구독·통신·주결제 업체 등 <b>매월 똑같이 나가는 항목</b>을 등록하면, 마감보고서 '자동값 불러오기' 때 자동으로 들어갑니다. 내용에 <b>'상품매입'</b>을 넣으면 상품매입 그룹, <b>'물류', '배송', '택배'</b>를 넣으면 물류비 소그룹, 아니면 기타(수수료·비용) 그룹으로 분류돼요.</p>
+        <p class="hint">임대료·구독·통신·주결제 업체 등 <b>매월 똑같이 나가는 항목</b>을 등록하면, 마감보고서 '자동값 불러오기' 때 자동으로 들어갑니다. 내용에 <b>'상품매입', '물류', '배송', '택배'</b>를 넣으면 상품매입 그룹, 아니면 기타(수수료·비용) 그룹으로 분류돼요.</p>
         <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin-bottom:12px">
           <span><label style="display:block;font-size:12px;color:var(--muted);margin-bottom:3px">사업장</label><select id="fc-store" style="border:1px solid var(--line);border-radius:8px;padding:7px 9px"><option value="groven">그로븐</option><option value="yb">YB</option></select></span>
           <span style="flex:1;min-width:120px"><label style="display:block;font-size:12px;color:var(--muted);margin-bottom:3px">공급처</label><input id="fc-vendor" placeholder="예: 대우엔지니어링" style="width:100%;border:1px solid var(--line);border-radius:8px;padding:7px 9px"></span>
