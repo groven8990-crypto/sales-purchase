@@ -343,6 +343,22 @@ const Modals = (function () {
        <p class="hint">금액을 바꾸면 표·차트·보고서에 바로 반영됩니다.</p>`,
       `<button class="btn" id="ed-cancel">취소</button>
        <button class="btn primary" id="ed-save">저장</button>`);
+    // 매입: 세금계산서 선택 시 공급가 입력하면 세액(10%)·합계 자동계산
+    if (kind === "purchases") {
+      const supEl = q("#ed-supply"), vatEl = q("#ed-vat"), totEl = q("#ed-total"), evEl = q("#ed-evidence");
+      if (supEl && vatEl && totEl && evEl) {
+        const autoVat = () => {
+          if (evEl.value === "세금계산서") {
+            const s = S.num(supEl.value);
+            const v = Math.round(s * 0.1);
+            vatEl.value = v;
+            totEl.value = s + v;
+          }
+        };
+        supEl.addEventListener("input", autoVat);
+        evEl.addEventListener("change", autoVat);
+      }
+    }
     q("#ed-cancel").onclick = close;
     q("#ed-save").onclick = () => {
       const patch = {};
