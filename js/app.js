@@ -1960,7 +1960,7 @@ const App = (function () {
           <td>${esc(r.item)}</td>
           <td class="n">${r.count}</td>
           <td class="n">${_csItemTotal2 ? (r.count / _csItemTotal2 * 100).toFixed(0) : 0}%</td>
-          <td style="font-size:11px;color:var(--muted);white-space:pre-wrap;word-break:break-word">${esc(r.reason || "")}</td>
+          <td style="font-size:11px;white-space:pre-wrap;word-break:break-word">${esc(r.reason || "")}</td>
         </tr>`).join("")}</tbody>
       </table>` : ""}
       `;
