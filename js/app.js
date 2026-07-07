@@ -1363,7 +1363,7 @@ const App = (function () {
         });
       },
     }).then((canvas) => {
-      previewCanvas(canvas, `${yymmdd}-_${label}.png`);
+      previewCanvas(canvas, `${yymmdd}-월마감보고서-${label}.png`);
     }).catch((e) => alert("이미지 저장 실패: " + e));
   }
 
