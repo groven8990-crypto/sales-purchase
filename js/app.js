@@ -1666,16 +1666,15 @@ const App = (function () {
         </div>
         <div style="flex:1;min-width:200px">
           <div style="font-size:11px;font-weight:700;color:var(--muted);margin-bottom:4px">▸ 반품 많은 품목 <button class="btn no-print" data-add="csItems" style="padding:1px 8px;font-size:11px;margin-left:6px;font-weight:600">➕ 행추가</button></div>
-          <table class="doc-table" style="width:auto;min-width:260px">
-            <thead><tr><th>품목</th><th class="n">건수</th><th class="n">비중</th><th class="n">환불금액</th><th class="c no-print"></th></tr></thead>
+          <table class="doc-table" style="width:auto;min-width:200px">
+            <thead><tr><th>품목</th><th class="n">건수</th><th class="n">비중</th><th class="c no-print"></th></tr></thead>
             <tbody>
               ${R.csItems.length ? R.csItems.map((r, i) => `<tr>
                 <td>${txtIn("csItems", i, "item", r.item, "품목명")}</td>
                 <td class="n">${numIn("csItems", i, "count", r.count)}</td>
                 <td class="n">${_csItemTotal ? (S.num(r.count) / _csItemTotal * 100).toFixed(0) : 0}%</td>
-                <td class="n">${numIn("csItems", i, "refundAmount", r.refundAmount || 0)}</td>
                 <td class="c no-print"><button class="icon-btn" data-rm="csItems" data-i="${i}">✕</button></td>
-              </tr>`).join("") : `<tr><td colspan="5" class="empty">행추가로 입력하세요</td></tr>`}
+              </tr>`).join("") : `<tr><td colspan="4" class="empty">행추가로 입력하세요</td></tr>`}
             </tbody>
           </table>
         </div>
@@ -1956,12 +1955,12 @@ const App = (function () {
             </tbody>
           </table>
         </div>
-        ${_csTopItems2.length ? `<div style="flex:1;min-width:260px">
+        ${_csTopItems2.length ? `<div style="flex:1;min-width:200px">
           <div style="font-size:11px;font-weight:700;color:var(--muted);margin-bottom:4px">▸ 반품 많은 품목</div>
-          <table class="doc-table" style="width:auto;min-width:260px">
-            <thead><tr><th>품목</th><th class="n">건수</th><th class="n">비중</th><th class="n">환불금액</th></tr></thead>
+          <table class="doc-table" style="width:auto;min-width:200px">
+            <thead><tr><th>품목</th><th class="n">건수</th><th class="n">비중</th></tr></thead>
             <tbody>${_csTopItems2.map((r) => {
-              return `<tr><td>${esc(r.item)}</td><td class="n">${r.count}</td><td class="n">${_csItemTotal2 ? (r.count / _csItemTotal2 * 100).toFixed(0) : 0}%</td><td class="n">${r.refundAmount > 0 ? won(r.refundAmount) : "-"}</td></tr>`;
+              return `<tr><td>${esc(r.item)}</td><td class="n">${r.count}</td><td class="n">${_csItemTotal2 ? (r.count / _csItemTotal2 * 100).toFixed(0) : 0}%</td></tr>`;
             }).join("")}</tbody>
           </table>
         </div>` : ""}
