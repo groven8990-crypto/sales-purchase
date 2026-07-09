@@ -1003,6 +1003,33 @@ const App = (function () {
       ? balBlocks + `<div style="text-align:right;font-weight:800;font-size:14px;margin:12px 2px 0;color:#1a3a6b">전체 잔액 합계 : ₩${won(balTotal)}</div>`
       : `<div style="color:#6b7588;font-size:13px;padding:8px 2px">기록 없음</div>`;
 
+    // Ⅲ. 거래처별 예치 기간 카드
+    const periodCards = keys.map((k) => {
+      const [st, v] = k.split("|");
+      const list = data.filter((d) => (d.store || "") === st && d.vendor === v);
+      if (!list.length) return "";
+      const dates = list.map((d) => String(d.date).slice(0, 10)).filter(Boolean).sort();
+      const startD = dates[0];
+      const lastD = dates[dates.length - 1];
+      const startMs = new Date(startD).getTime();
+      const todayMs = new Date(today).getTime();
+      const months = Math.max(1, Math.round((todayMs - startMs) / (1000 * 60 * 60 * 24 * 30.5)));
+      const fmt = (d) => d ? d.replace(/-/g, ".") : "-";
+      const badge = `<span style="display:inline-block;font-size:9.5px;font-weight:700;background:#dce7f7;color:#1a3a6b;border-radius:3px;padding:1px 4px;margin-left:4px;vertical-align:middle">${stNm(st)}</span>`;
+      const row = (label, val) => `<div style="display:flex;justify-content:space-between;margin-top:4px;font-size:11px"><span style="color:#6b7588">${label}</span><span style="font-weight:600;font-variant-numeric:tabular-nums">${val}</span></div>`;
+      return `<div style="border:1px solid #cdd3dd;border-radius:4px;padding:7px 9px;background:#f7f9fc">
+        <div style="font-size:12px;font-weight:800;color:#1a3a6b">${esc(v)}${badge}</div>
+        ${row("시작일", fmt(startD))}
+        ${row("최근 사용", fmt(lastD))}
+        ${row("사용 기간", months + "개월")}
+      </div>`;
+    }).filter(Boolean).join("");
+    const periodSection = periodCards
+      ? `<hr style="border:none;border-top:1.5px solid #d0d6e0;margin:20px 0 0">
+         <div style="font-size:14px;font-weight:800;color:#1a3a6b;border-left:4px solid #1a3a6b;padding-left:9px;margin:16px 0 8px">Ⅲ. 거래처별 예치 기간</div>
+         <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px">${periodCards}</div>`
+      : "";
+
     const host = document.createElement("div");
     host.style.cssText = "position:fixed;left:-9999px;top:0;width:720px;background:#fff";
     host.innerHTML = `<div id="dp-report" style="width:720px;background:#fff;padding:34px 38px;box-sizing:border-box;font-family:'Pretendard','Malgun Gothic',sans-serif;color:#1f2733">
@@ -1014,6 +1041,7 @@ const App = (function () {
       ${useTable}
       <div style="font-size:14px;font-weight:800;color:#1a3a6b;border-left:4px solid #1a3a6b;padding-left:9px;margin:24px 0 4px">Ⅱ. 현재 예치금·적립금 잔액</div>
       ${balSection}
+      ${periodSection}
       <div style="margin-top:18px;font-size:11px;color:#6b7588;text-align:right">출력일 : ${todayK}</div>
     </div>`;
     document.body.appendChild(host);
