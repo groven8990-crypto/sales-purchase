@@ -134,7 +134,13 @@ const SPC = (function () {
 
   function save(silent) {
     data.updatedAt = new Date().toISOString();
-    localStorage.setItem(KEY, JSON.stringify(data));
+    try {
+      localStorage.setItem(KEY, JSON.stringify(data));
+    } catch (e) {
+      if (e && (e.name === "QuotaExceededError" || e.code === 22)) {
+        alert("⚠️ 저장 공간이 꽉 찼어요.\n\n'데이터 내보내기'로 백업 후 오래된 데이터를 삭제해 주세요.\n(입력한 내용은 이번 탭을 닫기 전까지 메모리에 유지돼요)");
+      }
+    }
     if (!silent) document.dispatchEvent(new CustomEvent("spc:changed"));
   }
 
