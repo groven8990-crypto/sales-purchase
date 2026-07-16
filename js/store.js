@@ -113,7 +113,13 @@ const SPC = (function () {
     try {
       const raw = localStorage.getItem(KEY);
       if (raw) {
-        const d = Object.assign(emptyData(), JSON.parse(raw));
+        // 압축 데이터(UTF16)면 해제, 아니면 기존 JSON 그대로 파싱
+        let parsed;
+        try {
+          parsed = (typeof LZString !== "undefined") ? JSON.parse(LZString.decompressFromUTF16(raw)) : null;
+        } catch (e) { parsed = null; }
+        if (!parsed) parsed = JSON.parse(raw); // 기존 비압축 데이터 호환
+        const d = Object.assign(emptyData(), parsed);
         // 새로 추가된 기본 규칙을 기존 데이터에도 보충 (학습 규칙은 그대로 유지)
         if (!d.rules) d.rules = [];
         DEFAULT_RULES.forEach((dr) => {
@@ -135,7 +141,9 @@ const SPC = (function () {
   function save(silent) {
     data.updatedAt = new Date().toISOString();
     try {
-      localStorage.setItem(KEY, JSON.stringify(data));
+      const json = JSON.stringify(data);
+      const val = (typeof LZString !== "undefined") ? LZString.compressToUTF16(json) : json;
+      localStorage.setItem(KEY, val);
     } catch (e) {
       if (e && (e.name === "QuotaExceededError" || e.code === 22)) {
         alert("⚠️ 저장 공간이 꽉 찼어요.\n\n'데이터 내보내기'로 백업 후 오래된 데이터를 삭제해 주세요.\n(입력한 내용은 이번 탭을 닫기 전까지 메모리에 유지돼요)");
