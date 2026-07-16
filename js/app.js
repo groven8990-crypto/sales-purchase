@@ -33,7 +33,8 @@ const App = (function () {
   function refreshScopeOptions() {
     const years = new Set(), months = new Set();
     [...S.data.sales, ...S.data.purchases, ...S.data.transactions, ...(S.data.orders || []), ...(S.data.settlements || [])].forEach((r) => {
-      if (r.year) years.add(S.num(r.year)); if (r.month) months.add(S.num(r.month));
+      if (r.year) years.add(S.num(r.year));
+      if (r.month) { const m = S.num(r.month); if (m >= 1 && m <= 12) months.add(m); }
     });
     const yf = $("#f-year"), mf = $("#f-month");
     yf.innerHTML = `<option value="">전체 연도</option>` +
