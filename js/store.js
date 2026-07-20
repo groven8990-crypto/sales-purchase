@@ -113,10 +113,17 @@ const SPC = (function () {
     try {
       const raw = localStorage.getItem(KEY);
       if (raw) {
-        // 'lz1:' 접두사면 압축 해제, 아니면 기존 JSON 그대로 파싱
+        // 세 가지 형식 자동 인식:
+        // 1) 'lz1:' 접두사 → 현재 압축 형식
+        // 2) '{' 시작 → 구버전 평문 JSON
+        // 3) 그 외 → 접두사 없는 압축 형식 (이전 버전 호환)
         let json;
         if (raw.startsWith("lz1:") && typeof LZString !== "undefined") {
           json = LZString.decompressFromUTF16(raw.slice(4));
+        } else if (raw.startsWith("{")) {
+          json = raw;
+        } else if (typeof LZString !== "undefined") {
+          json = LZString.decompressFromUTF16(raw);
         } else {
           json = raw;
         }
