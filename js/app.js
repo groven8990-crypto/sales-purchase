@@ -384,7 +384,6 @@ const App = (function () {
   function renderOrders(main) {
     let rows = S.filterBy(S.data.orders || [], { store: scope.store, year: scope.year, month: scope.month });
     rows = rows.slice().sort((a, b) => `${b.year}-${b.month}-${b.day}`.localeCompare(`${a.year}-${a.month}-${a.day}`));
-    const sText = (r) => [S.canonVendor(r.vendor), r.desc].map((x) => String(x == null ? "" : x)).join(" ").toLowerCase();
     main.innerHTML = `
       <div class="page-head">
         <div><h2>📦 발주내역 <span class="muted" id="od-cnt">(${rows.length}건)</span></h2>
@@ -394,10 +393,13 @@ const App = (function () {
           <button class="btn danger" id="od-clear">🗑️ 전체삭제</button></div>
       </div>
       ${help("orders")}
-      <div class="card" style="padding:10px 14px"><input id="od-search" placeholder="🔍 검색 (거래처·품목)" style="width:100%;border:1px solid var(--line);border-radius:9px;padding:9px 12px;font-size:13.5px"></div>
+      <div class="card" style="padding:10px 14px;display:flex;gap:8px">
+        <input id="od-sv" placeholder="🔍 거래처 검색" style="flex:1;border:1px solid var(--line);border-radius:9px;padding:9px 12px;font-size:13.5px">
+        <input id="od-si" placeholder="🔍 품목 검색" style="flex:1;border:1px solid var(--line);border-radius:9px;padding:9px 12px;font-size:13.5px">
+      </div>
       <div class="table-wrap"><table class="grid">
         <thead><tr><th>일자</th><th>거래처</th><th>받는분</th><th>주소</th><th>연락처</th><th>품목/내용</th><th class="num">수량</th><th>스토어</th><th>메모</th><th>송장번호</th><th></th></tr></thead>
-        <tbody>${rows.map((r) => `<tr data-s="${esc(sText(r))}">
+        <tbody>${rows.map((r) => `<tr data-v="${esc(String(S.canonVendor(r.vendor) || "").toLowerCase())}" data-i="${esc(String(r.desc || "").toLowerCase())}">
           <td>${esc((r.month || "") + "." + (r.day || ""))}</td><td>${esc(S.canonVendor(r.vendor) || "")}</td><td>${esc(r.recipient || "")}</td>
           <td style="max-width:230px;white-space:normal;font-size:12px;color:var(--muted)">${esc(r.addr || "")}</td>
           <td style="font-size:12px;color:var(--muted);white-space:nowrap">${esc(r.phone || "")}</td>
@@ -418,12 +420,18 @@ const App = (function () {
       S.data.orders = (S.data.orders || []).filter((r) => !ids.has(r.id));
       S.save(); renderOrders(main);
     });
-    const sIn = $("#od-search", main);
-    if (sIn) sIn.addEventListener("input", () => {
-      const q = sIn.value.trim().toLowerCase(); let n = 0;
-      $$("tbody tr", main).forEach((tr) => { const ok = !q || (tr.dataset.s || "").includes(q); tr.style.display = ok ? "" : "none"; if (ok) n++; });
+    const filterOrders = () => {
+      const qv = ($("#od-sv", main).value || "").trim().toLowerCase();
+      const qi = ($("#od-si", main).value || "").trim().toLowerCase();
+      let n = 0;
+      $$("tbody tr", main).forEach((tr) => {
+        const ok = (!qv || (tr.dataset.v || "").includes(qv)) && (!qi || (tr.dataset.i || "").includes(qi));
+        tr.style.display = ok ? "" : "none"; if (ok) n++;
+      });
       const c = $("#od-cnt", main); if (c) c.textContent = `(${n}건)`;
-    });
+    };
+    $("#od-sv", main).addEventListener("input", filterOrders);
+    $("#od-si", main).addEventListener("input", filterOrders);
     $$("[data-delod]", main).forEach((b) => b.addEventListener("click", () => {
       if (confirm("이 발주 건을 삭제할까요?")) { S.remove("orders", b.dataset.delod); renderOrders(main); }
     }));
