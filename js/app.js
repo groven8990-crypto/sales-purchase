@@ -384,7 +384,9 @@ const App = (function () {
   function renderOrders(main) {
     let rows = S.filterBy(S.data.orders || [], { store: scope.store, year: scope.year, month: scope.month });
     rows = rows.slice().sort((a, b) => `${b.year}-${b.month}-${b.day}`.localeCompare(`${a.year}-${a.month}-${a.day}`));
-    const sText = (r) => [r.vendor, r.recipient, r.addr, r.phone, r.desc, r.note, r.tracking].map((x) => String(x == null ? "" : x)).join(" ").toLowerCase();
+    const _alias = S.data.vendorAlias || {};
+    const resolveV = (v) => _alias[String(v || "").trim()] || v;
+    const sText = (r) => [resolveV(r.vendor), r.desc].map((x) => String(x == null ? "" : x)).join(" ").toLowerCase();
     main.innerHTML = `
       <div class="page-head">
         <div><h2>📦 발주내역 <span class="muted" id="od-cnt">(${rows.length}건)</span></h2>
@@ -398,7 +400,7 @@ const App = (function () {
       <div class="table-wrap"><table class="grid">
         <thead><tr><th>일자</th><th>거래처</th><th>받는분</th><th>주소</th><th>연락처</th><th>품목/내용</th><th class="num">수량</th><th>스토어</th><th>메모</th><th>송장번호</th><th></th></tr></thead>
         <tbody>${rows.map((r) => `<tr data-s="${esc(sText(r))}">
-          <td>${esc((r.month || "") + "." + (r.day || ""))}</td><td>${esc(r.vendor || "")}</td><td>${esc(r.recipient || "")}</td>
+          <td>${esc((r.month || "") + "." + (r.day || ""))}</td><td>${esc(resolveV(r.vendor) || "")}</td><td>${esc(r.recipient || "")}</td>
           <td style="max-width:230px;white-space:normal;font-size:12px;color:var(--muted)">${esc(r.addr || "")}</td>
           <td style="font-size:12px;color:var(--muted);white-space:nowrap">${esc(r.phone || "")}</td>
           <td>${esc(r.desc || "")}</td><td class="num">${esc(r.qty || "")}</td>
@@ -2555,6 +2557,15 @@ const App = (function () {
   }
 
   function init() {
+    // 발주서 파싱 시 거래처명이 '발주'로 들어오는 경우 → 디네트로 자동 매핑 (최초 1회)
+    if (S.data.vendorAlias && !S.data.vendorAlias["발주"]) {
+      S.data.vendorAlias["발주"] = "디네트";
+      S.save(true);
+    } else if (!S.data.vendorAlias) {
+      S.data.vendorAlias = { "발주": "디네트" };
+      S.save(true);
+    }
+
     // 고정해둔 연·월·스토어 복원
     const saved = loadSavedScope();
     if (saved.pinned) {
