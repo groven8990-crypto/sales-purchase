@@ -113,13 +113,14 @@ const SPC = (function () {
     try {
       const raw = localStorage.getItem(KEY);
       if (raw) {
-        // 압축 데이터(UTF16)면 해제, 아니면 기존 JSON 그대로 파싱
-        let parsed;
-        try {
-          parsed = (typeof LZString !== "undefined") ? JSON.parse(LZString.decompressFromUTF16(raw)) : null;
-        } catch (e) { parsed = null; }
-        if (!parsed) parsed = JSON.parse(raw); // 기존 비압축 데이터 호환
-        const d = Object.assign(emptyData(), parsed);
+        // 'lz1:' 접두사면 압축 해제, 아니면 기존 JSON 그대로 파싱
+        let json;
+        if (raw.startsWith("lz1:") && typeof LZString !== "undefined") {
+          json = LZString.decompressFromUTF16(raw.slice(4));
+        } else {
+          json = raw;
+        }
+        const d = Object.assign(emptyData(), JSON.parse(json));
         // 새로 추가된 기본 규칙을 기존 데이터에도 보충 (학습 규칙은 그대로 유지)
         if (!d.rules) d.rules = [];
         DEFAULT_RULES.forEach((dr) => {
@@ -142,7 +143,7 @@ const SPC = (function () {
     data.updatedAt = new Date().toISOString();
     try {
       const json = JSON.stringify(data);
-      const val = (typeof LZString !== "undefined") ? LZString.compressToUTF16(json) : json;
+      const val = (typeof LZString !== "undefined") ? "lz1:" + LZString.compressToUTF16(json) : json;
       localStorage.setItem(KEY, val);
     } catch (e) {
       if (e && (e.name === "QuotaExceededError" || e.code === 22)) {
