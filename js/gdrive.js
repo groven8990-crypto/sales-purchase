@@ -139,7 +139,7 @@ const GDrive = (function () {
       `<p>구글드라이브 폴더의 ${spec.label} 엑셀을 앱이 직접 읽어 등록해요. 하위(거래처) 폴더까지 자동으로 훑어요.</p>
        <div class="form-row"><label>구글 OAuth 클라이언트 ID <span class="muted" style="font-size:11px">(최초 1회만)</span></label>
          <input id="gd-cid" placeholder="0000....apps.googleusercontent.com" value="${E(c.clientId || DEFAULT_CLIENT_ID)}" style="width:100%"></div>
-       ${savedFolder ? `<div class="hint">최근 사용 폴더: <b>${E(savedFolder.name)}</b> <button class="btn" id="gd-usesaved" style="padding:2px 8px;margin-left:6px">이 폴더로 바로 가져오기</button></div>` : ""}
+       ${savedFolder ? `<div class="hint">최근 사용 폴더: <b>${E(savedFolder.name)}</b> <button class="btn" id="gd-usesaved" style="padding:2px 8px;margin-left:6px">이 폴더로 바로 가져오기</button> <button class="btn danger" id="gd-reimport" style="padding:2px 8px;margin-left:4px" title="가져온 기록을 지우고 전체 파일을 다시 가져옵니다">🔄 전체 다시 가져오기</button></div>` : ""}
        <label style="display:block;margin-top:8px;font-size:13px"><input type="checkbox" id="gd-newonly" checked> ⚡ <b>새로 올라온 파일만</b> 가져오기 (이미 가져온 파일은 건너뛰기 — 빠름)</label>
        <label style="display:block;margin-top:5px;font-size:13px"><input type="checkbox" id="gd-sample"> 🔎 거래처별 <b>최신 1일치만</b> 가져오기 (점검용 — 원본+회신 같이 와서 송장번호까지 확인)</label>
        <div id="gd-status" class="preview" style="margin-top:8px"></div>
@@ -158,7 +158,14 @@ const GDrive = (function () {
       `<button class="btn" id="gd-close">닫기</button><button class="btn primary" id="gd-connect">🔗 구글 연결 / 폴더 찾기</button>`);
     qq("#gd-close").onclick = Modals.close;
     qq("#gd-connect").onclick = () => connectAndFind(kind);
-    if (savedFolder) { const b = qq("#gd-usesaved"); if (b) b.onclick = () => connectThenImport(kind, savedFolder); }
+    if (savedFolder) {
+      const b = qq("#gd-usesaved"); if (b) b.onclick = () => connectThenImport(kind, savedFolder);
+      const rb = qq("#gd-reimport"); if (rb) rb.onclick = () => {
+        const imp = impMap(); delete imp[kind]; saveImp(imp);
+        const cb = qq("#gd-newonly"); if (cb) cb.checked = false;
+        connectThenImport(kind, savedFolder);
+      };
+    }
   }
 
   async function ensureToken() {
