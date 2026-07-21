@@ -382,74 +382,113 @@ const App = (function () {
   /* ===================== 인쇄용 마감 보고서 (시안1) ===================== */
   /* ===================== 발주내역 ===================== */
   function renderOrders(main) {
-    let rows = S.filterBy(S.data.orders || [], { store: scope.store, year: scope.year, month: scope.month });
-    rows = rows.slice().sort((a, b) => `${b.year}-${b.month}-${b.day}`.localeCompare(`${a.year}-${a.month}-${a.day}`));
+    const PAGE = 50;
+    let allRows = S.filterBy(S.data.orders || [], { store: scope.store, year: scope.year, month: scope.month });
+    allRows = allRows.slice().sort((a, b) => `${b.year}-${b.month}-${b.day}`.localeCompare(`${a.year}-${a.month}-${a.day}`));
     main.innerHTML = `
       <div class="page-head">
-        <div><h2>📦 발주내역 <span class="muted" id="od-cnt">(${rows.length}건)</span></h2>
+        <div><h2>📦 발주내역 <span class="muted" id="od-cnt">(${allRows.length}건)</span></h2>
           <div class="muted">${esc(scopeLabel())} · 발주서 기준 (매입 증빙과 별개)</div></div>
         <div class="row-actions"><button class="btn primary" data-act="import-orders">📦 발주서 올리기</button>
           <button class="btn" id="od-gdrive">📁 드라이브에서 가져오기</button>
           <button class="btn danger" id="od-clear">🗑️ 전체삭제</button></div>
       </div>
       ${help("orders")}
-      <div class="card" style="padding:10px 14px;display:flex;gap:8px">
-        <input id="od-sv" placeholder="🔍 거래처 검색" style="flex:1;border:1px solid var(--line);border-radius:9px;padding:9px 12px;font-size:13.5px">
-        <input id="od-si" placeholder="🔍 품목 검색" style="flex:1;border:1px solid var(--line);border-radius:9px;padding:9px 12px;font-size:13.5px">
-        <input id="od-sr" placeholder="🔍 받는분·주소 검색" style="flex:1;border:1px solid var(--line);border-radius:9px;padding:9px 12px;font-size:13.5px">
+      <div class="card" style="padding:10px 14px;display:flex;gap:8px;flex-wrap:wrap">
+        <input id="od-sv" placeholder="🔍 거래처 검색" style="flex:1;min-width:120px;border:1px solid var(--line);border-radius:9px;padding:9px 12px;font-size:13.5px">
+        <input id="od-si" placeholder="🔍 품목 검색" style="flex:1;min-width:120px;border:1px solid var(--line);border-radius:9px;padding:9px 12px;font-size:13.5px">
+        <input id="od-sr" placeholder="🔍 받는분·주소 검색" style="flex:1;min-width:120px;border:1px solid var(--line);border-radius:9px;padding:9px 12px;font-size:13.5px">
       </div>
       <div class="table-wrap"><table class="grid">
         <thead><tr><th>일자</th><th>거래처</th><th>받는분</th><th>주소</th><th>연락처</th><th>품목/내용</th><th class="num">수량</th><th>스토어</th><th>메모</th><th>송장번호</th><th></th></tr></thead>
-        <tbody>${rows.map((r) => `<tr data-v="${esc(String(S.canonVendor(r.vendor) || "").toLowerCase())}" data-i="${esc(String(r.desc || "").toLowerCase())}" data-r="${esc(String((r.recipient || "") + " " + (r.addr || "")).toLowerCase())}">
-          <td>${esc((r.month || "") + "." + (r.day || ""))}</td><td>${esc(S.canonVendor(r.vendor) || "")}</td><td>${esc(r.recipient || "")}</td>
-          <td style="max-width:230px;white-space:normal;font-size:12px;color:var(--muted)">${esc(r.addr || "")}</td>
-          <td style="font-size:12px;color:var(--muted);white-space:nowrap">${esc(r.phone || "")}</td>
-          <td>${esc(r.desc || "")}</td><td class="num">${esc(r.qty || "")}</td>
-          <td>${r.store === "yb" ? "YB" : (r.store === "groven" ? "그로븐" : "")}</td>
-          <td>${esc(r.note || "")}</td>
-          <td style="font-size:12px;${r.tracking ? "" : "color:var(--muted)"}white-space:nowrap">${esc(r.tracking || "—")}</td>
-          <td class="row-actions"><button class="icon-btn" data-csod="${r.id}" title="C/S 등록">📞</button><button class="icon-btn" data-delod="${r.id}" title="삭제">✕</button></td></tr>`).join("") ||
-          `<tr><td colspan="11" class="empty">발주 내역이 없어요. '발주서 올리기'로 추가하세요.</td></tr>`}
-        </tbody></table></div>`;
+        <tbody id="od-tbody"></tbody>
+      </table></div>
+      <div id="od-pager" style="display:flex;align-items:center;gap:10px;justify-content:center;padding:10px 0;font-size:13px"></div>`;
     wire(main);
-    $("#od-gdrive", main).addEventListener("click", () => GDrive.run("orders"));
-    $("#od-clear", main).addEventListener("click", () => {
-      if (!rows.length) { alert("삭제할 발주내역이 없어요."); return; }
-      const lbl = `${scope.store ? (scope.store === "yb" ? "YB" : "그로븐") : "전체"}${scope.year ? " " + scope.year + "년" : ""}${scope.month ? " " + scope.month + "월" : ""}`;
-      if (!confirm(`현재 보고 있는 ${lbl} 발주내역 ${rows.length}건을 모두 삭제할까요? (되돌릴 수 없어요)`)) return;
-      const ids = new Set(rows.map((r) => r.id));
-      S.data.orders = (S.data.orders || []).filter((r) => !ids.has(r.id));
-      S.save(); renderOrders(main);
-    });
+
+    let filtered = allRows;
+    let page = 0;
+
+    const rowHtml = (r) => `<tr>
+      <td>${esc((r.month || "") + "." + (r.day || ""))}</td><td>${esc(S.canonVendor(r.vendor) || "")}</td><td>${esc(r.recipient || "")}</td>
+      <td style="max-width:230px;white-space:normal;font-size:12px;color:var(--muted)">${esc(r.addr || "")}</td>
+      <td style="font-size:12px;color:var(--muted);white-space:nowrap">${esc(r.phone || "")}</td>
+      <td>${esc(r.desc || "")}</td><td class="num">${esc(r.qty || "")}</td>
+      <td>${r.store === "yb" ? "YB" : (r.store === "groven" ? "그로븐" : "")}</td>
+      <td>${esc(r.note || "")}</td>
+      <td style="font-size:12px;${r.tracking ? "" : "color:var(--muted)"}white-space:nowrap">${esc(r.tracking || "—")}</td>
+      <td class="row-actions"><button class="icon-btn" data-csod="${r.id}" title="C/S 등록">📞</button><button class="icon-btn" data-delod="${r.id}" title="삭제">✕</button></td></tr>`;
+
+    const renderPage = () => {
+      const total = filtered.length;
+      const totalPages = Math.max(1, Math.ceil(total / PAGE));
+      if (page >= totalPages) page = totalPages - 1;
+      const pageRows = filtered.slice(page * PAGE, (page + 1) * PAGE);
+      $("#od-tbody", main).innerHTML = pageRows.map(rowHtml).join("") ||
+        `<tr><td colspan="11" class="empty">발주 내역이 없어요.</td></tr>`;
+      const c = $("#od-cnt", main); if (c) c.textContent = `(${total}건)`;
+      const pager = $("#od-pager", main);
+      if (totalPages > 1) {
+        pager.innerHTML = `
+          <button class="btn" id="od-prev" ${page === 0 ? "disabled" : ""}>◀ 이전</button>
+          <span class="muted">${page + 1} / ${totalPages} 페이지</span>
+          <button class="btn" id="od-next" ${page >= totalPages - 1 ? "disabled" : ""}>다음 ▶</button>`;
+        const pp = $("#od-prev", main), np = $("#od-next", main);
+        if (pp) pp.onclick = () => { page--; renderPage(); };
+        if (np) np.onclick = () => { page++; renderPage(); };
+      } else { pager.innerHTML = ""; }
+    };
+
     const filterOrders = () => {
       const qv = ($("#od-sv", main).value || "").trim().toLowerCase();
       const qi = ($("#od-si", main).value || "").trim().toLowerCase();
       const qr = ($("#od-sr", main).value || "").trim().toLowerCase();
-      let n = 0;
-      $$("tbody tr", main).forEach((tr) => {
-        const ok = (!qv || (tr.dataset.v || "").includes(qv)) &&
-                   (!qi || (tr.dataset.i || "").includes(qi)) &&
-                   (!qr || (tr.dataset.r || "").includes(qr));
-        tr.style.display = ok ? "" : "none"; if (ok) n++;
-      });
-      const c = $("#od-cnt", main); if (c) c.textContent = `(${n}건)`;
+      filtered = allRows.filter((r) =>
+        (!qv || (S.canonVendor(r.vendor) || "").toLowerCase().includes(qv)) &&
+        (!qi || (r.desc || "").toLowerCase().includes(qi)) &&
+        (!qr || ((r.recipient || "") + " " + (r.addr || "")).toLowerCase().includes(qr))
+      );
+      page = 0;
+      renderPage();
     };
+
+    renderPage();
+
+    $("#od-gdrive", main).addEventListener("click", () => GDrive.run("orders"));
+    $("#od-clear", main).addEventListener("click", () => {
+      if (!allRows.length) { alert("삭제할 발주내역이 없어요."); return; }
+      const lbl = `${scope.store ? (scope.store === "yb" ? "YB" : "그로븐") : "전체"}${scope.year ? " " + scope.year + "년" : ""}${scope.month ? " " + scope.month + "월" : ""}`;
+      if (!confirm(`현재 보고 있는 ${lbl} 발주내역 ${allRows.length}건을 모두 삭제할까요? (되돌릴 수 없어요)`)) return;
+      const ids = new Set(allRows.map((r) => r.id));
+      S.data.orders = (S.data.orders || []).filter((r) => !ids.has(r.id));
+      S.save(); renderOrders(main);
+    });
     $("#od-sv", main).addEventListener("input", filterOrders);
     $("#od-si", main).addEventListener("input", filterOrders);
     $("#od-sr", main).addEventListener("input", filterOrders);
-    $$("[data-delod]", main).forEach((b) => b.addEventListener("click", () => {
-      if (confirm("이 발주 건을 삭제할까요?")) { S.remove("orders", b.dataset.delod); renderOrders(main); }
-    }));
-    $$("[data-csod]", main).forEach((b) => b.addEventListener("click", () => {
-      const o = (S.data.orders || []).find((x) => x.id === b.dataset.csod); if (!o) return;
-      const p2 = (n) => String(n).padStart(2, "0");
-      const date = (o.year && o.month && o.day) ? `${o.year}-${p2(o.month)}-${p2(o.day)}` : new Date().toISOString().slice(0, 10);
-      S.data.cs = S.data.cs || [];
-      S.data.cs.push({ id: S.uid(), date, store: o.store, channel: o.vendor || "", recipient: o.recipient || "", orderNo: "", type: "반품", item: o.desc || "", status: "접수", note: "" });
-      S.save();
-      alert(`C/S 관리에 등록했어요. (받는분: ${o.recipient || "-"})\nC/S 탭에서 유형·처리내용을 보완하세요.`);
-      go("cs");
-    }));
+
+    // 이벤트 위임으로 삭제·CS 버튼 처리 (행이 교체돼도 리스너 재등록 불필요)
+    $("#od-tbody", main).addEventListener("click", (e) => {
+      const db = e.target.closest("[data-delod]");
+      const cb = e.target.closest("[data-csod]");
+      if (db) {
+        if (!confirm("이 발주 건을 삭제할까요?")) return;
+        const delId = db.dataset.delod;
+        S.remove("orders", delId);
+        allRows = allRows.filter((r) => r.id !== delId);
+        filtered = filtered.filter((r) => r.id !== delId);
+        renderPage();
+      } else if (cb) {
+        const o = (S.data.orders || []).find((x) => x.id === cb.dataset.csod); if (!o) return;
+        const p2 = (n) => String(n).padStart(2, "0");
+        const date = (o.year && o.month && o.day) ? `${o.year}-${p2(o.month)}-${p2(o.day)}` : new Date().toISOString().slice(0, 10);
+        S.data.cs = S.data.cs || [];
+        S.data.cs.push({ id: S.uid(), date, store: o.store, channel: o.vendor || "", recipient: o.recipient || "", orderNo: "", type: "반품", item: o.desc || "", status: "접수", note: "" });
+        S.save();
+        alert(`C/S 관리에 등록했어요. (받는분: ${o.recipient || "-"})\nC/S 탭에서 유형·처리내용을 보완하세요.`);
+        go("cs");
+      }
+    });
   }
 
   /* ===================== 정산서 ===================== */
