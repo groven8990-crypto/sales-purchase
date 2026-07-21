@@ -389,7 +389,12 @@ const GDrive = (function () {
         await ensure();
         st(`<div class="muted">Drive에 저장 중…</div>`);
         await uploadSyncData();
-        st(`<div class="ok">✅ Drive에 저장했어요. 다른 기기에서 '불러오기'로 가져오세요.</div>`);
+        // 저장 직후 파일을 다시 읽어 JSON 유효성 확인
+        const verify = await downloadSyncData();
+        const isOk = verify.startsWith("{");
+        st(isOk
+          ? `<div class="ok">✅ Drive에 저장됐어요. 확인: ${verify.slice(0, 40).replace(/[<>]/g,"")}…</div>`
+          : `<div class="err">⚠️ 저장은 됐지만 파일 형식이 이상해요 (${verify.slice(0,20)}…). 다시 저장해 주세요.</div>`);
       } catch (e) { st(`<div class="err">❌ ${E(e.message)}</div>`); }
     };
 
