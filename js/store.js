@@ -165,13 +165,23 @@ const SPC = (function () {
     data.updatedAt = new Date().toISOString();
     try {
       const json = JSON.stringify(data);
-      const val = (typeof LZString !== "undefined") ? "lz1:" + LZString.compressToUTF16(json) : json;
-      localStorage.setItem(KEY, val);
-    } catch (e) {
-      if (e && (e.name === "QuotaExceededError" || e.code === 22)) {
-        alert("⚠️ 저장 공간이 꽉 찼어요.\n\n지금 바로 ☁️ Drive 동기화 → '저장'을 눌러 백업하세요.\n(새로고침하기 전까지 데이터는 메모리에 살아있어요)");
+      try {
+        // 1차: 평문 JSON으로 저장 (가장 안전, 읽기 실패 없음)
+        localStorage.setItem(KEY, json);
+      } catch (e1) {
+        if (e1 && (e1.name === "QuotaExceededError" || e1.code === 22)) {
+          // 2차: 용량 초과 시 lz-string 압축 시도
+          try {
+            if (typeof LZString !== "undefined") {
+              const compressed = LZString.compressToUTF16(json);
+              if (compressed) localStorage.setItem(KEY, "lz1:" + compressed);
+            }
+          } catch (e2) {
+            alert("⚠️ 저장 공간이 꽉 찼어요.\n\n지금 바로 ☁️ Drive 동기화 → '저장'을 눌러 백업하세요.\n(새로고침하기 전까지 데이터는 메모리에 살아있어요)");
+          }
+        }
       }
-    }
+    } catch (_) {}
     if (!silent) document.dispatchEvent(new CustomEvent("spc:changed"));
   }
 
