@@ -176,6 +176,23 @@ const SPC = (function () {
           d.migrations.seedDeposits20260716 = true;
           if (seeded) console.log("[마이그레이션] 예치금 잔액조정 " + seeded + "건 복구");
         }
+        // 도매꾹(YB)은 기존 기록이 남아있어 위에서 건너뜀 → 잔액이 35,170원이 되도록 차액 조정
+        if (!d.migrations.fixDomeggookBal20260716) {
+          const target = 35170;
+          const list = (d.deposits || []).filter((dp) => (dp.store || "") === "yb" && dp.vendor === "도매꾹");
+          const bal = list.reduce((a, dp) => {
+            const n = Number(String(dp.amount == null ? 0 : dp.amount).replace(/[,₩\s]/g, "")) || 0;
+            return dp.kind === "충전" ? a + n : (dp.kind === "사용" ? a - n : a);
+          }, 0);
+          const diff = target - bal;
+          if (diff !== 0) {
+            d.deposits.push({ id: "seeddmk" + Date.now().toString(36), store: "yb", vendor: "도매꾹",
+              date: "2026-07-16", kind: diff > 0 ? "충전" : "사용", amount: Math.abs(diff),
+              memo: "잔액조정 (07.16 현황 보고 기준, 차액 보정)" });
+            console.log("[마이그레이션] 도매꾹(YB) 잔액 " + bal + " → " + target + " 조정");
+          }
+          d.migrations.fixDomeggookBal20260716 = true;
+        }
         return d;
       }
     } catch (e) {
