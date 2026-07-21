@@ -255,8 +255,8 @@ const GDrive = (function () {
       try {
         const file = await download(f);
         const _pn = (f.parentName || "").trim();
-        const _isMonth = /^(0?[1-9]|1[0-2])월?$/.test(_pn);
-        const baseVendor = (f.isRoot || _isMonth) ? "" : _pn; // 월 폴더명은 무시
+        const _isMonth = /^(0?[1-9]|1[0-2])월?$|^\d{2,4}년(\s*(0?[1-9]|1[0-2])월?)?$/.test(_pn);
+        const baseVendor = (f.isRoot || _isMonth) ? "" : _pn; // 월/연월 폴더명은 무시
         if (kind === "orders") {
           const t = await Parsers.readGenericTable(file);
           if (isReply(f.name)) { Modals.buildTracking(t, { name: f.name }).forEach((e) => replies.push(e)); replyFiles++; }

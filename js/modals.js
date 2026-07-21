@@ -38,7 +38,7 @@ const Modals = (function () {
   function fileVendor(name) {
     const base = String(name).replace(/\.[^.]+$/, "");
     const toks = base.split(/[-_\s]+/).filter(Boolean);
-    const skip = /^\d+$|^(0?[1-9]|1[0-2])월$|발주서|정산|회신|주문|내역서?|그로븐|옐로우브릿지|옐브|면세|과세|grov|groven|yellow|bridge|^yb$/i;
+    const skip = /^\d+$|^(0?[1-9]|1[0-2])월$|^\d{2,4}년(\s*(0?[1-9]|1[0-2])월?)?$|발주서|정산|회신|주문|내역서?|그로븐|옐로우브릿지|옐브|면세|과세|grov|groven|yellow|bridge|^yb$/i;
     return (toks.find((x) => !skip.test(x) && /[가-힣A-Za-z]/.test(x)) || "");
   }
   // 기본 연/월 선택 (드롭다운) — 상단 스코프/마지막 입력값을 기본값으로

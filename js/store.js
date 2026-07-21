@@ -136,6 +136,23 @@ const SPC = (function () {
           if (dp.date) dp.date = normDateStr(dp.date);
           if (dp.at) dp.at = normDateStr(dp.at, true);
         });
+        // 연월 형식 거래처 자동 정리 (1월, 25년 12월 등 폴더명이 거래처로 잘못 들어간 경우)
+        if (!d.migrations) d.migrations = {};
+        if (!d.migrations.fixYearMonthVendor) {
+          const ymRe = /^(\d{2,4}년(\s*(0?[1-9]|1[0-2])월?)?|(0?[1-9]|1[0-2])월?)$/;
+          const before = (d.orders || []).length;
+          d.orders = (d.orders || []).filter((o) => !ymRe.test((o.vendor || "").trim()));
+          d.migrations.fixYearMonthVendor = true;
+          if (before > (d.orders || []).length) {
+            // 드라이브 가져오기 기록도 초기화 → 재가져오기 시 올바른 거래처로 재등록
+            try {
+              const imp = JSON.parse(localStorage.getItem("spc_gdrive_imported") || "{}");
+              delete imp.orders;
+              localStorage.setItem("spc_gdrive_imported", JSON.stringify(imp));
+            } catch (_) {}
+            console.log("[마이그레이션] 연월 거래처 " + (before - d.orders.length) + "건 정리 완료, 드라이브 발주 기록 초기화됨");
+          }
+        }
         return d;
       }
     } catch (e) {

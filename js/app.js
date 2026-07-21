@@ -396,10 +396,11 @@ const App = (function () {
       <div class="card" style="padding:10px 14px;display:flex;gap:8px">
         <input id="od-sv" placeholder="🔍 거래처 검색" style="flex:1;border:1px solid var(--line);border-radius:9px;padding:9px 12px;font-size:13.5px">
         <input id="od-si" placeholder="🔍 품목 검색" style="flex:1;border:1px solid var(--line);border-radius:9px;padding:9px 12px;font-size:13.5px">
+        <input id="od-sr" placeholder="🔍 받는분·주소 검색" style="flex:1;border:1px solid var(--line);border-radius:9px;padding:9px 12px;font-size:13.5px">
       </div>
       <div class="table-wrap"><table class="grid">
         <thead><tr><th>일자</th><th>거래처</th><th>받는분</th><th>주소</th><th>연락처</th><th>품목/내용</th><th class="num">수량</th><th>스토어</th><th>메모</th><th>송장번호</th><th></th></tr></thead>
-        <tbody>${rows.map((r) => `<tr data-v="${esc(String(S.canonVendor(r.vendor) || "").toLowerCase())}" data-i="${esc(String(r.desc || "").toLowerCase())}">
+        <tbody>${rows.map((r) => `<tr data-v="${esc(String(S.canonVendor(r.vendor) || "").toLowerCase())}" data-i="${esc(String(r.desc || "").toLowerCase())}" data-r="${esc(String((r.recipient || "") + " " + (r.addr || "")).toLowerCase())}">
           <td>${esc((r.month || "") + "." + (r.day || ""))}</td><td>${esc(S.canonVendor(r.vendor) || "")}</td><td>${esc(r.recipient || "")}</td>
           <td style="max-width:230px;white-space:normal;font-size:12px;color:var(--muted)">${esc(r.addr || "")}</td>
           <td style="font-size:12px;color:var(--muted);white-space:nowrap">${esc(r.phone || "")}</td>
@@ -423,15 +424,19 @@ const App = (function () {
     const filterOrders = () => {
       const qv = ($("#od-sv", main).value || "").trim().toLowerCase();
       const qi = ($("#od-si", main).value || "").trim().toLowerCase();
+      const qr = ($("#od-sr", main).value || "").trim().toLowerCase();
       let n = 0;
       $$("tbody tr", main).forEach((tr) => {
-        const ok = (!qv || (tr.dataset.v || "").includes(qv)) && (!qi || (tr.dataset.i || "").includes(qi));
+        const ok = (!qv || (tr.dataset.v || "").includes(qv)) &&
+                   (!qi || (tr.dataset.i || "").includes(qi)) &&
+                   (!qr || (tr.dataset.r || "").includes(qr));
         tr.style.display = ok ? "" : "none"; if (ok) n++;
       });
       const c = $("#od-cnt", main); if (c) c.textContent = `(${n}건)`;
     };
     $("#od-sv", main).addEventListener("input", filterOrders);
     $("#od-si", main).addEventListener("input", filterOrders);
+    $("#od-sr", main).addEventListener("input", filterOrders);
     $$("[data-delod]", main).forEach((b) => b.addEventListener("click", () => {
       if (confirm("이 발주 건을 삭제할까요?")) { S.remove("orders", b.dataset.delod); renderOrders(main); }
     }));
