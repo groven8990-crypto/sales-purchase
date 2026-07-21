@@ -311,7 +311,13 @@ const GDrive = (function () {
   }
 
   async function uploadSyncData() {
-    const data = localStorage.getItem("spc_data_v2") || "{}";
+    const raw = localStorage.getItem("spc_data_v2") || "{}";
+    // 압축 저장돼 있으면 풀어서 평문 JSON으로 업로드
+    let data = raw;
+    if (!raw.startsWith("{") && typeof LZString !== "undefined") {
+      const dec = raw.startsWith("lz1:") ? LZString.decompressFromUTF16(raw.slice(4)) : LZString.decompressFromUTF16(raw);
+      if (dec) data = dec;
+    }
     const blob = new Blob([data], { type: "application/json" });
     const fid = await findSyncFileId();
     let r;
@@ -392,8 +398,13 @@ const GDrive = (function () {
       try {
         await ensure();
         st(`<div class="muted">Drive에서 불러오는 중…</div>`);
-        const text = await downloadSyncData();
-        JSON.parse(text);
+        let text = await downloadSyncData();
+        // 드라이브에 압축 데이터가 저장된 경우 복원
+        if (!text.startsWith("{") && typeof LZString !== "undefined") {
+          const dec = text.startsWith("lz1:") ? LZString.decompressFromUTF16(text.slice(4)) : LZString.decompressFromUTF16(text);
+          if (dec) text = dec;
+        }
+        JSON.parse(text); // 유효성 검사
         localStorage.setItem("spc_data_v2", text);
         localStorage.setItem(SYNC_KEY, JSON.stringify({ time: new Date().toISOString(), dir: "down" }));
         st(`<div class="ok">✅ 불러왔어요! 새로고침합니다…</div>`);

@@ -109,25 +109,23 @@ const SPC = (function () {
     return t ? `${date} ${p2(t[1])}:${t[2]}:${t[3] || "00"}` : date;
   }
 
+  function rawToJson(raw) {
+    if (!raw) return null;
+    if (raw.startsWith("{")) return raw;
+    if (raw.startsWith("lz1:") && typeof LZString !== "undefined") return LZString.decompressFromUTF16(raw.slice(4));
+    if (typeof LZString !== "undefined") return LZString.decompressFromUTF16(raw);
+    return null;
+  }
+
   function load() {
     try {
       const raw = localStorage.getItem(KEY);
       if (raw) {
-        // 세 가지 형식 자동 인식:
-        // 1) 'lz1:' 접두사 → 현재 압축 형식
-        // 2) '{' 시작 → 구버전 평문 JSON
-        // 3) 그 외 → 접두사 없는 압축 형식 (이전 버전 호환)
-        let json;
-        if (raw.startsWith("lz1:") && typeof LZString !== "undefined") {
-          json = LZString.decompressFromUTF16(raw.slice(4));
-        } else if (raw.startsWith("{")) {
-          json = raw;
-        } else if (typeof LZString !== "undefined") {
-          json = LZString.decompressFromUTF16(raw);
-        } else {
-          json = raw;
-        }
+        const json = rawToJson(raw);
+        if (!json) { console.warn("저장 데이터 복원 실패 (압축 해제 불가)"); return emptyData(); }
         const d = Object.assign(emptyData(), JSON.parse(json));
+        // 평문 JSON으로 재저장 (압축 저장돼 있던 경우 수정)
+        if (!raw.startsWith("{")) { try { localStorage.setItem(KEY, json); } catch (_) {} }
         // 새로 추가된 기본 규칙을 기존 데이터에도 보충 (학습 규칙은 그대로 유지)
         if (!d.rules) d.rules = [];
         DEFAULT_RULES.forEach((dr) => {
@@ -150,8 +148,7 @@ const SPC = (function () {
     data.updatedAt = new Date().toISOString();
     try {
       const json = JSON.stringify(data);
-      const val = (typeof LZString !== "undefined") ? "lz1:" + LZString.compressToUTF16(json) : json;
-      localStorage.setItem(KEY, val);
+      localStorage.setItem(KEY, json);
     } catch (e) {
       if (e && (e.name === "QuotaExceededError" || e.code === 22)) {
         alert("⚠️ 저장 공간이 꽉 찼어요.\n\n'데이터 내보내기'로 백업 후 오래된 데이터를 삭제해 주세요.\n(입력한 내용은 이번 탭을 닫기 전까지 메모리에 유지돼요)");
