@@ -166,9 +166,13 @@ const SPC = (function () {
     try {
       const json = JSON.stringify(data);
       // lz-string 압축 우선 (용량·속도), 실패 시 평문 JSON fallback
+      // 압축 결과는 반드시 즉시 복원 검증 — 검증 실패 시 절대 압축본을 저장하지 않음 (데이터 손실 방지)
       let compressed = null;
       if (typeof LZString !== "undefined") {
-        try { compressed = LZString.compressToUTF16(json); } catch (_) {}
+        try {
+          const c = LZString.compressToUTF16(json);
+          if (c && LZString.decompressFromUTF16(c) === json) compressed = c;
+        } catch (_) {}
       }
       try {
         localStorage.setItem(KEY, compressed ? "lz1:" + compressed : json);
