@@ -151,7 +151,7 @@ const SPC = (function () {
       localStorage.setItem(KEY, json);
     } catch (e) {
       if (e && (e.name === "QuotaExceededError" || e.code === 22)) {
-        alert("⚠️ 저장 공간이 꽉 찼어요.\n\n'데이터 내보내기'로 백업 후 오래된 데이터를 삭제해 주세요.\n(입력한 내용은 이번 탭을 닫기 전까지 메모리에 유지돼요)");
+        alert("⚠️ 저장 공간이 꽉 찼어요.\n\n지금 바로 ☁️ Drive 동기화 → '저장'을 눌러 백업하세요.\n(새로고침하기 전까지 데이터는 메모리에 살아있어요)");
       }
     }
     if (!silent) document.dispatchEvent(new CustomEvent("spc:changed"));

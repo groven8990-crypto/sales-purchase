@@ -311,13 +311,8 @@ const GDrive = (function () {
   }
 
   async function uploadSyncData() {
-    const raw = localStorage.getItem("spc_data_v2") || "{}";
-    // 압축 저장돼 있으면 풀어서 평문 JSON으로 업로드
-    let data = raw;
-    if (!raw.startsWith("{") && typeof LZString !== "undefined") {
-      const dec = raw.startsWith("lz1:") ? LZString.decompressFromUTF16(raw.slice(4)) : LZString.decompressFromUTF16(raw);
-      if (dec) data = dec;
-    }
+    // localStorage 대신 메모리 데이터 직접 사용 (저장 공간 초과 시에도 백업 가능)
+    const data = S.exportJSON();
     const blob = new Blob([data], { type: "application/json" });
     const fid = await findSyncFileId();
     let r;
