@@ -153,6 +153,29 @@ const SPC = (function () {
             console.log("[마이그레이션] 연월 거래처 " + (before - d.orders.length) + "건 정리 완료, 드라이브 발주 기록 초기화됨");
           }
         }
+        // 예치금 잔액 복구 (2026-07-16 현황 보고 기준 잔액조정) — 해당 거래처에 기록이 하나도 없을 때만
+        if (!d.migrations.seedDeposits20260716) {
+          const SEED = [
+            { store: "yb", vendor: "늘푸른우리", amount: 89500 },
+            { store: "yb", vendor: "최고집", amount: 107650 },
+            { store: "yb", vendor: "도매꾹", amount: 35170 },
+            { store: "groven", vendor: "최고집", amount: 127150 },
+            { store: "groven", vendor: "늘푸른우리", amount: 60200 },
+            { store: "groven", vendor: "비셀러", amount: 51720 },
+          ];
+          d.deposits = d.deposits || [];
+          let seeded = 0;
+          SEED.forEach((s, i) => {
+            const has = d.deposits.some((dp) => (dp.store || "") === s.store && dp.vendor === s.vendor);
+            if (!has) {
+              d.deposits.push({ id: "seed" + Date.now().toString(36) + i, store: s.store, vendor: s.vendor,
+                date: "2026-07-16", kind: "충전", amount: s.amount, memo: "잔액조정 (07.16 현황 보고 기준)" });
+              seeded++;
+            }
+          });
+          d.migrations.seedDeposits20260716 = true;
+          if (seeded) console.log("[마이그레이션] 예치금 잔액조정 " + seeded + "건 복구");
+        }
         return d;
       }
     } catch (e) {
