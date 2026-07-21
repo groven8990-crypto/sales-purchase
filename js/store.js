@@ -148,7 +148,8 @@ const SPC = (function () {
     data.updatedAt = new Date().toISOString();
     try {
       const json = JSON.stringify(data);
-      localStorage.setItem(KEY, json);
+      const val = (typeof LZString !== "undefined") ? "lz1:" + LZString.compressToUTF16(json) : json;
+      localStorage.setItem(KEY, val);
     } catch (e) {
       if (e && (e.name === "QuotaExceededError" || e.code === 22)) {
         alert("⚠️ 저장 공간이 꽉 찼어요.\n\n지금 바로 ☁️ Drive 동기화 → '저장'을 눌러 백업하세요.\n(새로고침하기 전까지 데이터는 메모리에 살아있어요)");
