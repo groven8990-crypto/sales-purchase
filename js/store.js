@@ -153,45 +153,42 @@ const SPC = (function () {
             console.log("[마이그레이션] 연월 거래처 " + (before - d.orders.length) + "건 정리 완료, 드라이브 발주 기록 초기화됨");
           }
         }
-        // 예치금 잔액 복구 (2026-07-16 현황 보고 기준 잔액조정) — 해당 거래처에 기록이 하나도 없을 때만
-        if (!d.migrations.seedDeposits20260716) {
-          const SEED = [
-            { store: "yb", vendor: "늘푸른우리", amount: 89500 },
-            { store: "yb", vendor: "최고집", amount: 107650 },
-            { store: "yb", vendor: "도매꾹", amount: 35170 },
-            { store: "groven", vendor: "최고집", amount: 127150 },
-            { store: "groven", vendor: "늘푸른우리", amount: 60200 },
-            { store: "groven", vendor: "비셀러", amount: 51720 },
+        // 예치금 전체 재구성 — 07.15 현황보고(총충전/총사용) 기준 + 07.20 사용·충전 반영
+        // 6개 사업장·거래처의 07-20 이전 기록(임시 잔액조정 포함)을 걷어내고 보고서 수치로 다시 깔아줌.
+        // 07-21 이후 기록(오늘 직접 입력분)은 그대로 보존.
+        if (!d.migrations.rebuildDeposits20260721) {
+          const BASE = [
+            // [store, vendor, 시작일(총충전 기록일), 총충전(~07.15), 총사용(~07.15)]
+            ["groven", "최고집",     "2026-04-08", 556250,  429100],
+            ["groven", "늘푸른우리", "2026-04-15", 438500,  378300],
+            ["groven", "비셀러",     "2026-06-12", 100000,  48280],
+            ["yb",     "늘푸른우리", "2026-04-16", 941000,  834500],
+            ["yb",     "최고집",     "2026-04-13", 2754400, 2680100],
+            ["yb",     "도매꾹",     "2026-03-31", 3141300, 3080830],
           ];
-          d.deposits = d.deposits || [];
-          let seeded = 0;
-          SEED.forEach((s, i) => {
-            const has = d.deposits.some((dp) => (dp.store || "") === s.store && dp.vendor === s.vendor);
-            if (!has) {
-              d.deposits.push({ id: "seed" + Date.now().toString(36) + i, store: s.store, vendor: s.vendor,
-                date: "2026-07-16", kind: "충전", amount: s.amount, memo: "잔액조정 (07.16 현황 보고 기준)" });
-              seeded++;
-            }
+          const D20 = [
+            // 07.20 변동 (전부 YB): [vendor, kind, amount, memo]
+            ["도매꾹",     "사용", 25300,  "상품구매대금결제 (2건)"],
+            ["최고집",     "사용", 66650,  "상품구매대금결제 (7건)"],
+            ["늘푸른우리", "사용", 17000,  "상품구매대금결제 (1건)"],
+            ["최고집",     "충전", 100000, "충전"],
+          ];
+          const pairs = new Set(BASE.map(([st, v]) => st + "|" + v));
+          d.deposits = (d.deposits || []).filter((dp) => {
+            const k = (dp.store || "") + "|" + dp.vendor;
+            return !(pairs.has(k) && String(dp.date || "") <= "2026-07-20");
           });
-          d.migrations.seedDeposits20260716 = true;
-          if (seeded) console.log("[마이그레이션] 예치금 잔액조정 " + seeded + "건 복구");
-        }
-        // 도매꾹(YB)은 기존 기록이 남아있어 위에서 건너뜀 → 잔액이 35,170원이 되도록 차액 조정
-        if (!d.migrations.fixDomeggookBal20260716) {
-          const target = 35170;
-          const list = (d.deposits || []).filter((dp) => (dp.store || "") === "yb" && dp.vendor === "도매꾹");
-          const bal = list.reduce((a, dp) => {
-            const n = Number(String(dp.amount == null ? 0 : dp.amount).replace(/[,₩\s]/g, "")) || 0;
-            return dp.kind === "충전" ? a + n : (dp.kind === "사용" ? a - n : a);
-          }, 0);
-          const diff = target - bal;
-          if (diff !== 0) {
-            d.deposits.push({ id: "seeddmk" + Date.now().toString(36), store: "yb", vendor: "도매꾹",
-              date: "2026-07-16", kind: diff > 0 ? "충전" : "사용", amount: Math.abs(diff),
-              memo: "잔액조정 (07.16 현황 보고 기준, 차액 보정)" });
-            console.log("[마이그레이션] 도매꾹(YB) 잔액 " + bal + " → " + target + " 조정");
-          }
-          d.migrations.fixDomeggookBal20260716 = true;
+          let n = 0;
+          const mkid = () => "sd" + Date.now().toString(36) + (n++);
+          BASE.forEach(([st, v, startDate, chg, use]) => {
+            d.deposits.push({ id: mkid(), store: st, vendor: v, date: startDate, kind: "충전", amount: chg, memo: "누적 충전 (~07.15 현황보고 기준)" });
+            d.deposits.push({ id: mkid(), store: st, vendor: v, date: "2026-07-15", kind: "사용", amount: use, memo: "누적 사용 (~07.15 현황보고 기준)" });
+          });
+          D20.forEach(([v, kind, amount, memo]) => {
+            d.deposits.push({ id: mkid(), store: "yb", vendor: v, date: "2026-07-20", kind, amount, memo });
+          });
+          d.migrations.rebuildDeposits20260721 = true;
+          console.log("[마이그레이션] 예치금 재구성: 07.15 기준 누적 + 07.20 변동 " + n + "건 등록");
         }
         return d;
       }
