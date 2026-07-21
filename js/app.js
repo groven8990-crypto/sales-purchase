@@ -985,7 +985,8 @@ const App = (function () {
   // 예치금·적립금 현황 보고서 PNG (① 현재 잔액 → ② 금일 사용)
   function depositUsageReport(deps) {
     const stNm = (s) => s === "yb" ? "YB" : (s === "groven" ? "그로븐" : "공통");
-    const today = new Date().toISOString().slice(0, 10);
+    // 한국 시간 기준 오늘 (toISOString은 UTC라 아침엔 어제로 잡힘)
+    const today = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);
     const todayK = today.replace(/-/g, ".");
     const data = deps || [];
     // ① 현재 잔액 현황 (사업장·거래처별 충전-사용)
