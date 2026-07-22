@@ -999,18 +999,19 @@ const App = (function () {
       const use = list.filter((d) => d.kind === "사용").reduce((a, d) => a + S.num(d.amount), 0);
       return { st, v, chg, use, bal: depBalance(list) };
     }).filter((r) => r.chg || r.use);
-    // ② 금일 사용 현황
-    // 금일 사용 — 사업장+거래처별로 한 줄(합계)
+    // ② 금일 현황 (사용·충전) — 사업장+거래처별로 한 줄(합계)
     const useMap = {};
-    data.filter((d) => d.kind === "사용" && String(d.date).slice(0, 10) === today).forEach((d) => {
+    data.filter((d) => (d.kind === "사용" || d.kind === "충전") && String(d.date).slice(0, 10) === today).forEach((d) => {
       const k = `${d.store || ""}|${d.vendor}`;
-      if (!useMap[k]) useMap[k] = { store: d.store || "", vendor: d.vendor, amount: 0, memo: d.memo || "", n: 0 };
-      useMap[k].amount += S.num(d.amount); useMap[k].n++;
+      if (!useMap[k]) useMap[k] = { store: d.store || "", vendor: d.vendor, use: 0, chg: 0, memo: d.memo || "", n: 0 };
+      if (d.kind === "사용") useMap[k].use += S.num(d.amount); else useMap[k].chg += S.num(d.amount);
+      useMap[k].n++;
       if (!useMap[k].memo && d.memo) useMap[k].memo = d.memo;
     });
     const useRows = Object.values(useMap).sort((a, b) => `${a.store}|${a.vendor}`.localeCompare(`${b.store}|${b.vendor}`));
     if (!balRows.length && !useRows.length) { alert("표시할 예치금·적립금 기록이 없어요."); return; }
-    const useTotal = useRows.reduce((a, d) => a + S.num(d.amount), 0);
+    const useTotal = useRows.reduce((a, d) => a + S.num(d.use), 0);
+    const chgTotal = useRows.reduce((a, d) => a + S.num(d.chg), 0);
     const balTotal = balRows.reduce((a, r) => a + r.bal, 0);
 
     const TD = 'border:1px solid #bcc4d0;padding:6px 8px';
@@ -1018,20 +1019,26 @@ const App = (function () {
     const TDn = TD + ';text-align:right;font-variant-numeric:tabular-nums';
     const TH = 'border:1px solid #bcc4d0;padding:7px;background:#eef1f6;font-weight:700';
 
-    // ① 금일 사용 표
+    // ① 금일 현황 표 (사용·충전, 금액 없으면 하이픈)
+    const dash = `<span style="color:#9aa3b2">-</span>`;
+    const amt = (n) => S.num(n) ? won(n) : dash;
     const useBody = useRows.length ? useRows.map((d, i) => `<tr>
       <td style="${TDc}">${i + 1}</td><td style="${TDc}">${stNm(d.store)}</td>
       <td style="${TD};word-break:break-all">${esc(d.vendor)}</td>
-      <td style="${TDn}">${won(d.amount)}</td><td style="${TD};white-space:nowrap">${esc(d.memo || "")}${d.n > 1 ? ` <span style="color:#6b7588">(${d.n}건)</span>` : ""}</td></tr>`).join("")
-      : `<tr><td style="${TDc};color:#6b7588" colspan="5">오늘 사용한 내역이 없습니다</td></tr>`;
+      <td style="${TDn}">${amt(d.use)}</td><td style="${TDn}">${amt(d.chg)}</td>
+      <td style="${TD};white-space:nowrap">${esc(d.memo || "")}${d.n > 1 ? ` <span style="color:#6b7588">(${d.n}건)</span>` : ""}</td></tr>`).join("")
+      : `<tr><td style="${TDc};color:#6b7588" colspan="6">오늘 사용·충전 내역이 없습니다</td></tr>`;
     const useTable = `<table style="width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed">
       <thead><tr>
         <th style="${TH};width:42px">순번</th><th style="${TH};width:56px">사업장</th>
-        <th style="${TH};width:130px">거래처</th><th style="${TH};width:110px;text-align:right">사용액</th>
+        <th style="${TH};width:130px">거래처</th><th style="${TH};width:100px;text-align:right">사용</th>
+        <th style="${TH};width:100px;text-align:right">충전</th>
         <th style="${TH}">메모</th>
       </tr></thead><tbody>${useBody}
-      ${useRows.length ? `<tr style="background:#e7ebf2;font-weight:800"><td style="${TDc}" colspan="3">금일 사용 합계</td>
-        <td style="${TDn}">₩${won(useTotal)}</td><td style="${TD}"></td></tr>` : ""}
+      ${useRows.length ? `<tr style="background:#e7ebf2;font-weight:800"><td style="${TDc}" colspan="3">금일 합계</td>
+        <td style="${TDn}">${useTotal ? "₩" + won(useTotal) : dash}</td>
+        <td style="${TDn}">${chgTotal ? "₩" + won(chgTotal) : dash}</td>
+        <td style="${TD}"></td></tr>` : ""}
       </tbody></table>`;
 
     // ② 잔액 — 사업장별 블록
@@ -1091,7 +1098,7 @@ const App = (function () {
         <div style="font-size:23px;font-weight:800;letter-spacing:5px">예치금 현황보고</div>
         <div style="font-size:12px;color:#6b7588;letter-spacing:2px;margin-top:4px">${scope.store ? stNm(scope.store) : "그로븐 · YB 통합"} &nbsp;|&nbsp; ${todayK} 기준</div>
       </div>
-      <div style="font-size:14px;font-weight:800;color:#1a3a6b;border-left:4px solid #1a3a6b;padding-left:9px;margin:6px 0 9px">Ⅰ. 금일 사용 현황 <span style="font-size:12px;font-weight:600;color:#6b7588">(${todayK})</span></div>
+      <div style="font-size:14px;font-weight:800;color:#1a3a6b;border-left:4px solid #1a3a6b;padding-left:9px;margin:6px 0 9px">Ⅰ. 금일 현황 <span style="font-size:12px;font-weight:600;color:#6b7588">(${todayK})</span></div>
       ${useTable}
       <div style="font-size:14px;font-weight:800;color:#1a3a6b;border-left:4px solid #1a3a6b;padding-left:9px;margin:24px 0 4px">Ⅱ. 현재 예치금·적립금 잔액</div>
       ${balSection}
