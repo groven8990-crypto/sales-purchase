@@ -384,7 +384,9 @@ const App = (function () {
   function renderOrders(main) {
     const PAGE = 50;
     let allRows = S.filterBy(S.data.orders || [], { store: scope.store, year: scope.year, month: scope.month });
-    allRows = allRows.slice().sort((a, b) => `${b.year}-${b.month}-${b.day}`.localeCompare(`${a.year}-${a.month}-${a.day}`));
+    // 일자 내림차순 (최근 것부터) — 숫자 기준이라 7.9가 7.15보다 위로 오는 문제 없음
+    const odKey = (r) => S.num(r.year) * 10000 + S.num(r.month) * 100 + S.num(r.day);
+    allRows = allRows.slice().sort((a, b) => odKey(b) - odKey(a));
     main.innerHTML = `
       <div class="page-head">
         <div><h2>📦 발주내역 <span class="muted" id="od-cnt">(${allRows.length}건)</span></h2>
