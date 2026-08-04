@@ -315,7 +315,13 @@ const App = (function () {
 
   function renderTable(main, kind) {
     let rows = S.filterBy(S.data[kind], { store: scope.store, year: scope.year, month: scope.month });
-    rows = S.byAmountDesc(rows, SORT_FIELD[kind]);
+    if (kind === "transactions") {
+      // 입출금은 날짜 오름차순 (그 외는 금액 큰 순)
+      const dKey = (r) => S.num(r.year) * 10000 + S.num(r.month) * 100 + S.num(r.day);
+      rows = rows.slice().sort((a, b) => dKey(a) - dKey(b));
+    } else {
+      rows = S.byAmountDesc(rows, SORT_FIELD[kind]);
+    }
     const cols = COLS[kind];
     const total = S.sum(rows, SORT_FIELD[kind]);
     const importBtn = kind === "transactions"
