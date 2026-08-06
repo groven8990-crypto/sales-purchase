@@ -405,6 +405,26 @@ const SPC = (function () {
     save();
   }
 
+  /* ---- 일회성 정리: 거래처명이 달라 이중 저장된 발주 중복 제거 ----
+   * (canonVendor·VENDOR_ALIAS 초기화 이후 시점에 실행해야 해서 load() 밖에 둠) */
+  (function dedupOrdersByCanonVendor() {
+    try {
+      if (!data.migrations) data.migrations = {};
+      if (data.migrations.dedupOrdersCanon20260722) return;
+      const sig = (o) => [o.store || "", o.year, o.month, o.day, canonVendor(o.vendor),
+        o.desc, o.recipient || "", String(o.addr || "").replace(/\s+/g, "")].join("|");
+      const seen = {}; const keep = []; let removed = 0;
+      (data.orders || []).forEach((o) => {
+        const k = sig(o); const ex = seen[k];
+        if (ex) { if (o.tracking && !ex.tracking) ex.tracking = o.tracking; removed++; }
+        else { seen[k] = o; keep.push(o); }
+      });
+      data.orders = keep;
+      data.migrations.dedupOrdersCanon20260722 = true;
+      if (removed) console.log("[마이그레이션] 거래처명 이중 저장 발주 " + removed + "건 정리");
+    } catch (_) {}
+  })();
+
   /* ---- 공개 API ------------------------------------------- */
   return {
     KEY, STORES, CATEGORIES, EVIDENCES, CHANNELS,
