@@ -899,7 +899,7 @@ const Modals = (function () {
   }
   function addOrdersDedup(out) {
     // 주소까지 포함 → 동명이인·합배송은 따로 보존, 같은 발주(원본/회신)는 한 줄로 합침
-    const sig = (o) => `${o.store || ""}|${o.year}|${o.month}|${o.day}|${o.vendor}|${o.desc}|${o.recipient || ""}|${(o.addr || "").replace(/\s+/g, "")}`;
+    const sig = (o) => `${o.store || ""}|${o.year}|${o.month}|${o.day}|${S.canonVendor(o.vendor)}|${o.desc}|${o.recipient || ""}|${(o.addr || "").replace(/\s+/g, "")}`;
     const byKey = {}; (S.data.orders || []).forEach((o) => { byKey[sig(o)] = o; });
     const fresh = []; let skipped = 0;
     out.forEach((o) => {

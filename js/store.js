@@ -317,6 +317,7 @@ const SPC = (function () {
     "충남마른김가공수산업협동조합": "충남마른김", "충남마른김가공수산업": "충남마른김",
     "11번가": "십일번가", "에스케이플래닛": "십일번가",
     "발주": "디네트",
+    "동일마늘": "동일",
   };
   // 주 거래처(이 목록에 있으면 그대로 유지). 그 외 + 십일번가 제외는 모두 도매꾹으로
   const VENDOR_KEEP = ["푸드엔드베스트", "최고집", "도매꾹 이머니 충전", "해담별", "일비",
@@ -334,7 +335,7 @@ const SPC = (function () {
     let n = String(name || "").trim();
     if (!n) return "(미지정)";
     const userMap = (data && data.vendorAlias) || {};
-    let s = n.replace(/주식회사|㈜|\(주\)|\(유\)|농업회사법인|영농조합법인|유한회사|협동조합/g, "").replace(/[\s\(\)（）]/g, "").trim();
+    let s = n.replace(/주식회사|㈜|\(주\)|\(유\)|농업회사법인|농업법인회사|농업법인|영농조합법인|유한회사|협동조합/g, "").replace(/[\s\(\)（）]/g, "").trim();
     if (userMap[n]) return userMap[n];
     if (userMap[s]) return userMap[s];
     if (VENDOR_ALIAS[n]) return VENDOR_ALIAS[n];
