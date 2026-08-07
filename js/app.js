@@ -925,7 +925,8 @@ const App = (function () {
     // 사업장별 섹션 (통합이면 그로븐/옐브 둘 다, 특정 스토어면 그 하나)
     const stores = scope.store ? [scope.store] : ["groven", "yb"];
     const sections = stores.map((st) => {
-      const vs = [...new Set(all.filter((d) => (d.store || "") === st).map((d) => d.vendor).filter(Boolean))];
+      const vs = [...new Set(all.filter((d) => (d.store || "") === st).map((d) => d.vendor).filter(Boolean))]
+        .sort((a, b) => a.localeCompare(b, "ko")); // 거래처 카드 가나다순
       if (!vs.length) return "";
       return `<h3 style="margin:6px 0 8px;color:var(--navy)">${stNm(st)}</h3>
         <div class="kpibar">${vs.map((v) => cardFor(st, v)).join("")}</div>`;
