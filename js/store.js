@@ -182,13 +182,24 @@ const SPC = (function () {
           const mkid = () => "sd" + Date.now().toString(36) + (n++);
           BASE.forEach(([st, v, startDate, chg, use]) => {
             d.deposits.push({ id: mkid(), store: st, vendor: v, date: startDate, kind: "충전", amount: chg, memo: "누적 충전 (~07.15 현황보고 기준)" });
-            d.deposits.push({ id: mkid(), store: st, vendor: v, date: "2026-07-15", kind: "사용", amount: use, memo: "누적 사용 (~07.15 현황보고 기준)" });
+            d.deposits.push({ id: mkid(), store: st, vendor: v, date: "2026-06-30", kind: "사용", amount: use, memo: "누적 사용 (~07.15 현황보고 기준, 이월 처리)" });
           });
           D20.forEach(([v, kind, amount, memo]) => {
             d.deposits.push({ id: mkid(), store: "yb", vendor: v, date: "2026-07-20", kind, amount, memo });
           });
           d.migrations.rebuildDeposits20260721 = true;
           console.log("[마이그레이션] 예치금 재구성: 07.15 기준 누적 + 07.20 변동 " + n + "건 등록");
+        }
+        // 누적 기준 기록이 7월에 잡혀서 '7월 사용'이 누적치로 보이는 문제 → 6월말로 이월 처리
+        if (!d.migrations.fixDepositBaselineDates20260722) {
+          let moved = 0;
+          (d.deposits || []).forEach((dp) => {
+            if (dp.memo === "누적 사용 (~07.15 현황보고 기준)" && String(dp.date) === "2026-07-15") {
+              dp.date = "2026-06-30"; dp.memo = "누적 사용 (~07.15 현황보고 기준, 이월 처리)"; moved++;
+            }
+          });
+          d.migrations.fixDepositBaselineDates20260722 = true;
+          if (moved) console.log("[마이그레이션] 예치금 누적 기준 기록 " + moved + "건을 6월말로 이월 처리");
         }
         return d;
       }
