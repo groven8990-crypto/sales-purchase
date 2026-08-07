@@ -873,6 +873,7 @@ const App = (function () {
 
   /* ===================== 예치금 충전현황 ===================== */
   let depFilter = ""; // "store|vendor"
+  const depSort = { col: "날짜", dir: 1 }; // 예치금 목록 정렬 상태 (세션 유지)
   // 현재 잔액: 잔액(bal)이 기록된 항목이 있으면 가장 최근 거래의 잔액을 사용
   // (중복 누적·부분 명세서여도 실제 잔액이 정확). 없으면 충전−사용 합계.
   // 현재 잔액 = 충전 합계 − 사용 합계 (파일·붙여넣기 등 여러 소스 합산)
@@ -897,14 +898,29 @@ const App = (function () {
     const vendors = [...new Set(deps.map((d) => `${d.store || ""}|${d.vendor}`))];
     if (depFilter && vendors.indexOf(depFilter) === -1) depFilter = "";
     const stNm = (s) => s === "yb" ? "YB" : (s === "groven" ? "그로븐" : "공통");
+    // 상단에서 고른 연·월에 속한 기록인지 (연·월 미선택이면 전체)
+    const inScopeMonth = (d) => {
+      if (!scope.year && !scope.month) return true;
+      const m = String(d.date || "").match(/(\d{4})-(\d{1,2})/);
+      if (!m) return false;
+      return (!scope.year || +m[1] === +scope.year) && (!scope.month || +m[2] === +scope.month);
+    };
     const cardFor = (st, v) => {
       const list = deps.filter((d) => (d.store || "") === st && d.vendor === v);
-      const chg = list.filter((d) => d.kind === "충전").reduce((a, d) => a + S.num(d.amount), 0);
-      const use = list.filter((d) => d.kind === "사용").reduce((a, d) => a + S.num(d.amount), 0);
+      const sum = (arr, kind) => arr.filter((d) => d.kind === kind).reduce((a, d) => a + S.num(d.amount), 0);
+      const chg = sum(list, "충전"), use = sum(list, "사용");
       const bal = depBalance(list), key = `${st}|${v}`, on = depFilter === key;
+      let hint;
+      if (scope.month) {
+        const mlist = list.filter(inScopeMonth);
+        hint = `${scope.month}월 충전 ₩${won(sum(mlist, "충전"))} · 사용 ₩${won(sum(mlist, "사용"))}<br>
+          <span style="opacity:.75">누적 충전 ₩${won(chg)} · 사용 ₩${won(use)}</span>`;
+      } else {
+        hint = `충전 ₩${won(chg)} · 사용 ₩${won(use)}`;
+      }
       return `<div class="kb" data-depk="${esc(key)}" style="cursor:pointer;${on ? "outline:2px solid var(--navy)" : ""}"><div class="l">${esc(v)}${on ? " ✓" : ""}</div>
         <div class="v" style="color:${bal >= 0 ? "var(--navy)" : "var(--red)"}">₩${won(bal)}</div>
-        <div class="hint">충전 ₩${won(chg)} · 사용 ₩${won(use)}</div></div>`;
+        <div class="hint">${hint}</div></div>`;
     };
     // 사업장별 섹션 (통합이면 그로븐/옐브 둘 다, 특정 스토어면 그 하나)
     const stores = scope.store ? [scope.store] : ["groven", "yb"];
@@ -914,8 +930,19 @@ const App = (function () {
       return `<h3 style="margin:6px 0 8px;color:var(--navy)">${stNm(st)}</h3>
         <div class="kpibar">${vs.map((v) => cardFor(st, v)).join("")}</div>`;
     }).join("");
-    const viewDeps = depFilter ? deps.filter((d) => `${d.store || ""}|${d.vendor}` === depFilter) : deps;
-    const sorted = [...viewDeps].sort((a, b) => String(b.date).localeCompare(String(a.date)));
+    // 아래 목록: 카드 필터 + 상단 연·월 필터 적용, 컬럼 클릭 정렬
+    const viewDeps = (depFilter ? deps.filter((d) => `${d.store || ""}|${d.vendor}` === depFilter) : deps).filter(inScopeMonth);
+    const DEP_KEYS = {
+      "날짜": (d) => String(d.date || ""), "사업장": (d) => stNm(d.store), "거래처": (d) => String(d.vendor || ""),
+      "구분": (d) => String(d.kind || ""), "금액": (d) => S.num(d.amount), "메모": (d) => String(d.memo || ""),
+    };
+    const dk = DEP_KEYS[depSort.col] || DEP_KEYS["날짜"];
+    const sorted = [...viewDeps].sort((a, b) => {
+      const x = dk(a), y = dk(b);
+      const c = (typeof x === "number" && typeof y === "number") ? x - y : String(x).localeCompare(String(y), "ko");
+      return c * depSort.dir;
+    });
+    const depTh = (label, cls) => `<th class="${cls || ""}" data-dsort="${label}" style="cursor:pointer;user-select:none" title="클릭해서 정렬">${label}${depSort.col === label ? (depSort.dir > 0 ? " ▲" : " ▼") : ""}</th>`;
     main.innerHTML = `
       <div class="page-head"><div><h2>💳 예치금 현황 <span class="muted">${esc(scope.store ? stNm(scope.store) : "통합")}</span></h2>
         <div class="muted">사업장별로 거래처 충전·사용·잔액 (상단 스토어 탭으로 그로븐/YB만 보기)</div></div>
@@ -946,13 +973,15 @@ const App = (function () {
         </div>
         <div class="form-row"><label>메모</label><input id="dp-memo" placeholder="(선택)" value="${esc(memoDefault(dKind, dVendor))}" style="width:100%;border:1px solid var(--line);border-radius:8px;padding:7px 9px"></div>
         <button class="btn primary" id="dp-add">➕ 추가</button></div>
+      <div class="card" style="padding:8px 14px;font-size:12.5px;color:var(--muted)">
+        📋 아래 목록: ${scope.month ? `${scope.year ? scope.year + "년 " : ""}${scope.month}월 기록만 표시` : "전체 기록"} (${sorted.length}건) · 컬럼 제목 클릭으로 정렬</div>
       <div class="table-wrap"><table class="grid">
-        <thead><tr><th>날짜</th><th>사업장</th><th>거래처</th><th>구분</th><th class="num">금액</th><th>메모</th><th></th></tr></thead>
+        <thead><tr>${depTh("날짜")}${depTh("사업장")}${depTh("거래처")}${depTh("구분")}${depTh("금액", "num")}${depTh("메모")}<th></th></tr></thead>
         <tbody>${sorted.map((d) => `<tr><td>${esc(d.date)}</td><td>${stNm(d.store)}</td><td>${esc(d.vendor)}</td>
           <td><span class="tag ${d.kind === "충전" ? "in" : "out"}">${d.kind}</span></td>
           <td class="num">₩${won(d.amount)}</td><td>${esc(d.memo || "")}</td>
           <td class="row-actions"><button class="icon-btn edit" data-editdep="${d.id}" title="수정">✎</button><button class="icon-btn" data-deldep="${d.id}" title="삭제">✕</button></td></tr>`).join("") ||
-          `<tr><td colspan="7" class="empty">기록이 없어요. 위에서 추가하거나 파일을 올리세요.</td></tr>`}
+          `<tr><td colspan="7" class="empty">${scope.month ? `${scope.month}월 기록이 없어요. (상단 월 선택을 바꾸면 다른 달이 보여요)` : "기록이 없어요. 위에서 추가하거나 파일을 올리세요."}</td></tr>`}
         </tbody></table></div>`;
     wire(main);
     // 칩(버튼) 선택 — 그룹 내 하나만 선택
@@ -984,6 +1013,11 @@ const App = (function () {
       depLastInput = { store, vendor, kind }; // 방금 고른 값 유지
       S.save(); renderDeposits(main);
     });
+    $$("th[data-dsort]", main).forEach((th) => th.addEventListener("click", () => {
+      const c = th.dataset.dsort;
+      if (depSort.col === c) depSort.dir = -depSort.dir; else { depSort.col = c; depSort.dir = 1; }
+      renderDeposits(main);
+    }));
     $$("[data-editdep]", main).forEach((b) => b.addEventListener("click", () => Modals.editRow("deposits", b.dataset.editdep)));
     $$("[data-deldep]", main).forEach((b) => b.addEventListener("click", () => {
       if (confirm("이 기록을 삭제할까요?")) { S.remove("deposits", b.dataset.deldep); renderDeposits(main); }
