@@ -1802,7 +1802,7 @@ const App = (function () {
       <td class="n">${count > 0 ? count : ""}</td>
       <td class="n" id="${idPfx}-amount">${won(supply)}</td>
       <td class="n" id="${idPfx}-pct">${grpT ? (supply / grpT * 100).toFixed(1) : "0.0"}%</td>
-      <td class="c no-print"><span style="font-size:10px;color:var(--muted)">자동</span></td></tr>`;
+      <td class="c no-print" style="white-space:nowrap"><span style="font-size:10px;color:var(--muted)">자동</span></td></tr>`;
     const pfAutoOffset = (pfFee > 0 ? 1 : 0) + (pfAd > 0 ? 1 : 0);
     const etcBodyContent = (pfFee > 0 ? pfAutoRow("mr-pf-fee", 1, pfSupLabel, "수수료 합계", feeRows.length, pfFee, etcT) : "")
       + (pfAd > 0 ? pfAutoRow("mr-pf-ad", pfFee > 0 ? 2 : 1, pfAdLabel, "광고비 합계", adRows.length, pfAd, etcT) : "")
