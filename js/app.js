@@ -11,6 +11,11 @@ const App = (function () {
   const esc = (s) => String(s == null ? "" : s).replace(/[&<>"]/g, (c) =>
     ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
+  // 타이핑 중 매 키마다 전체 저장하면 느려짐 → 입력이 멈추면(0.6초) 저장
+  let _saveTimer = null;
+  const saveSoon = (silent) => { clearTimeout(_saveTimer); _saveTimer = setTimeout(() => { _saveTimer = null; S.save(silent); }, 600); };
+  window.addEventListener("beforeunload", () => { if (_saveTimer) { clearTimeout(_saveTimer); _saveTimer = null; S.save(true); } });
+
   const scope = { store: "", year: "", month: "", view: "home", pinned: false };
   const SCOPE_KEY = "spc_scope_v1";
 
@@ -1991,7 +1996,7 @@ const App = (function () {
         else if (sec === "memo") R.memo = val;
         else R[sec][i][f] = val;
       };
-      el.addEventListener("input", () => { upd(); recalc(); S.save(true); });
+      el.addEventListener("input", () => { upd(); recalc(); saveSoon(true); });
       // 구분(수수료/광고비) 변경 시 해당 그룹으로 이동하도록 다시 그림
       if (el.tagName === "SELECT") el.addEventListener("change", () => { upd(); reSave(true); });
     });
@@ -2229,7 +2234,7 @@ const App = (function () {
     if (cmEl) cmEl.addEventListener("input", () => {
       M.combinedMemo = cmEl.value;
       const mw = $("#mr-combined-memo-wrap", main); if (mw) mw.classList.toggle("no-print", !cmEl.value.trim());
-      S.save(true);
+      saveSoon(true);
     });
     $("#mr-print", main).addEventListener("click", () => window.print());
     $("#mr-png", main).addEventListener("click", () => exportSheetPng(main, "통합"));
