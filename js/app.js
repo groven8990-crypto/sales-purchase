@@ -289,40 +289,72 @@ const App = (function () {
   }
 
   /* ===================== 표 (매출/매입/입출금) ===================== */
+  // 각 컬럼: [제목, 렌더, css클래스, 정렬키] — 정렬키가 있으면 헤더 클릭으로 정렬 가능
+  const dateKey = (r) => S.num(r.year) * 10000 + S.num(r.month) * 100 + S.num(r.day);
+  const storeNm = (r) => r.store === "yb" ? "YB" : r.store === "groven" ? "그로븐" : "";
+  const sKey = (f) => (r) => String(r[f] || "");
+  const nKey = (f) => (r) => S.num(r[f]);
   const COLS = {
     sales: [
-      ["순번", (r, i) => i + 1], ["월", (r) => `${r.year}.${r.month}`], ["채널", (r) => esc(r.channel)],
-      ["구분", (r) => esc(r.taxClass)], ["내용", (r) => esc(r.desc)], ["건수", (r) => S.num(r.orders)],
-      ["공급가액", (r) => won(r.supply), "num"], ["세액", (r) => won(r.vat), "num"],
-      ["합계", (r) => won(r.total || r.supply), "num"], ["정산", (r) => esc(r.settled)],
+      ["순번", (r, i) => i + 1],
+      ["월", (r) => `${r.year}.${r.month}`, "", dateKey],
+      ["채널", (r) => esc(r.channel), "", sKey("channel")],
+      ["구분", (r) => esc(r.taxClass), "", sKey("taxClass")],
+      ["내용", (r) => esc(r.desc), "", sKey("desc")],
+      ["건수", (r) => S.num(r.orders), "", nKey("orders")],
+      ["공급가액", (r) => won(r.supply), "num", nKey("supply")],
+      ["세액", (r) => won(r.vat), "num", nKey("vat")],
+      ["합계", (r) => won(r.total || r.supply), "num", (r) => S.num(r.total || r.supply)],
+      ["정산", (r) => esc(r.settled), "", sKey("settled")],
     ],
     purchases: [
-      ["순번", (r, i) => i + 1], ["일자", (r) => `${r.month || ""}.${r.day || ""}`], ["증빙", (r) => esc(r.evidence)],
-      ["분류", (r) => esc(r.category)], ["내용", (r) => esc(r.desc)], ["업체명", (r) => esc(r.vendor)],
-      ["공급가", (r) => won(r.supply), "num"], ["세액", (r) => won(r.vat), "num"],
-      ["합계", (r) => won(r.total || r.supply), "num"], ["결제", (r) => esc(r.paid)],
+      ["순번", (r, i) => i + 1],
+      ["일자", (r) => `${r.month || ""}.${r.day || ""}`, "", dateKey],
+      ["증빙", (r) => esc(r.evidence), "", sKey("evidence")],
+      ["분류", (r) => esc(r.category), "", sKey("category")],
+      ["내용", (r) => esc(r.desc), "", sKey("desc")],
+      ["업체명", (r) => esc(r.vendor), "", (r) => S.canonVendor(r.vendor)],
+      ["공급가", (r) => won(r.supply), "num", nKey("supply")],
+      ["세액", (r) => won(r.vat), "num", nKey("vat")],
+      ["합계", (r) => won(r.total || r.supply), "num", (r) => S.num(r.total || r.supply)],
+      ["결제", (r) => esc(r.paid), "", sKey("paid")],
     ],
     transactions: [
-      ["순번", (r, i) => i + 1], ["일자", (r) => `${r.month || ""}.${r.day || ""}`],
-      ["사업장", (r) => esc(r.store === "yb" ? "YB" : r.store === "groven" ? "그로븐" : "")],
-      ["구분", (r) => `<span class="tag ${r.type}">${r.type === "in" ? "입금" : "출금"}</span>`],
-      ["분류", (r) => esc(r.category)], ["내용", (r) => esc(r.desc)], ["거래처", (r) => esc(r.counterparty)],
-      ["금액", (r) => won(r.amount), "num"], ["은행", (r) => esc(r.bank)], ["비고", (r) => esc(r.note)],
+      ["순번", (r, i) => i + 1],
+      ["일자", (r) => `${r.month || ""}.${r.day || ""}`, "", dateKey],
+      ["사업장", (r) => esc(storeNm(r)), "", (r) => storeNm(r)],
+      ["구분", (r) => `<span class="tag ${r.type}">${r.type === "in" ? "입금" : "출금"}</span>`, "", sKey("type")],
+      ["분류", (r) => esc(r.category), "", sKey("category")],
+      ["내용", (r) => esc(r.desc), "", sKey("desc")],
+      ["거래처", (r) => esc(r.counterparty), "", sKey("counterparty")],
+      ["금액", (r) => won(r.amount), "num", nKey("amount")],
+      ["은행", (r) => esc(r.bank), "", sKey("bank")],
+      ["비고", (r) => esc(r.note), "", sKey("note")],
     ],
   };
+  const STORE_COL = ["사업장", (r) => esc(storeNm(r)), "", (r) => storeNm(r)];
   const SORT_FIELD = { sales: "supply", purchases: "supply", transactions: "amount" };
   const TITLES = { sales: "매출", purchases: "매입", transactions: "입출금" };
+  // 탭별 정렬 상태 (세션 동안 유지) — 기본: 매출은 공급가액 큰 순, 매입·입출금은 일자 오름차순
+  const tblSort = {};
 
   function renderTable(main, kind) {
     let rows = S.filterBy(S.data[kind], { store: scope.store, year: scope.year, month: scope.month });
-    if (kind === "transactions") {
-      // 입출금은 날짜 오름차순 (그 외는 금액 큰 순)
-      const dKey = (r) => S.num(r.year) * 10000 + S.num(r.month) * 100 + S.num(r.day);
-      rows = rows.slice().sort((a, b) => dKey(a) - dKey(b));
+    const cols = COLS[kind].slice();
+    // 통합 뷰에서는 사업장 컬럼 표시 (입출금은 원래 있음)
+    if (!scope.store && kind !== "transactions") cols.splice(2, 0, STORE_COL);
+    const srt = tblSort[kind] || (tblSort[kind] = kind === "sales" ? { col: "공급가액", dir: -1 } : { col: "일자", dir: 1 });
+    const activeCol = cols.find((c) => c[0] === srt.col && c[3]);
+    if (activeCol) {
+      const key = activeCol[3];
+      rows = rows.slice().sort((a, b) => {
+        const x = key(a), y = key(b);
+        const c = (typeof x === "number" && typeof y === "number") ? x - y : String(x).localeCompare(String(y), "ko");
+        return c * srt.dir;
+      });
     } else {
       rows = S.byAmountDesc(rows, SORT_FIELD[kind]);
     }
-    const cols = COLS[kind];
     const total = S.sum(rows, SORT_FIELD[kind]);
     const importBtn = kind === "transactions"
       ? `<button class="btn primary" data-act="import-bank">🏦 통장내역 올리기</button>`
@@ -340,7 +372,7 @@ const App = (function () {
     main.innerHTML = `
       <div class="page-head">
         <div><h2>${TITLES[kind]} <span class="muted" id="tb-cnt">(${rows.length}건 · 합계 ₩${won(total)})</span></h2>
-          <div class="muted">${esc(scopeLabel())} · 금액 큰 순</div></div>
+          <div class="muted">${esc(scopeLabel())} · ${esc(srt.col)} ${srt.dir > 0 ? "오름차순" : "내림차순"} (컬럼 제목 클릭으로 정렬 변경)</div></div>
         <div class="row-actions">${importBtn}
           ${rows.length ? `<button class="btn danger" id="tb-clear-all">🗑️ 전체삭제</button>` : ""}
         </div>
@@ -348,7 +380,9 @@ const App = (function () {
       ${help(kind)}
       <div class="card" style="padding:10px 14px"><input id="tb-search" placeholder="🔍 검색 (업체명·내용·증빙·분류…)" style="width:100%;border:1px solid var(--line);border-radius:9px;padding:9px 12px;font-size:13.5px"></div>
       <div class="table-wrap"><table class="grid">
-        <thead><tr>${cols.map((c) => `<th class="${c[2] || ""}">${c[0]}</th>`).join("")}<th></th></tr></thead>
+        <thead><tr>${cols.map((c) => c[3]
+          ? `<th class="${c[2] || ""}" data-sort="${c[0]}" style="cursor:pointer;user-select:none" title="클릭해서 정렬">${c[0]}${srt.col === c[0] ? (srt.dir > 0 ? " ▲" : " ▼") : ""}</th>`
+          : `<th class="${c[2] || ""}">${c[0]}</th>`).join("")}<th></th></tr></thead>
         <tbody>${rows.map((r, i) => `<tr data-id="${r.id}" data-s="${esc(sText(r))}">${cols.map((c) =>
           `<td class="${c[2] || ""}">${c[1](r, i)}</td>`).join("")}
           <td class="row-actions"><button class="icon-btn edit" data-edit="${r.id}" title="수정">✎</button>
@@ -369,6 +403,11 @@ const App = (function () {
     });
 
     wire(main);
+    $$("th[data-sort]", main).forEach((th) => th.addEventListener("click", () => {
+      const c = th.dataset.sort;
+      if (srt.col === c) srt.dir = -srt.dir; else { srt.col = c; srt.dir = 1; }
+      renderTable(main, kind);
+    }));
     $$("[data-edit]", main).forEach((b) => b.addEventListener("click", () => Modals.editRow(kind, b.dataset.edit)));
     $$("[data-del]", main).forEach((b) => b.addEventListener("click", () => {
       if (confirm("이 행을 삭제할까요?")) S.remove(kind, b.dataset.del);
