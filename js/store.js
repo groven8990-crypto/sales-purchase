@@ -190,6 +190,19 @@ const SPC = (function () {
           d.migrations.rebuildDeposits20260721 = true;
           console.log("[마이그레이션] 예치금 재구성: 07.15 기준 누적 + 07.20 변동 " + n + "건 등록");
         }
+        // 수기 보고서에 저장된 부동소수점 꼬리(12033827.2727…) 일괄 반올림
+        if (!d.migrations.roundManualReport20260810) {
+          const walk = (o) => {
+            if (!o || typeof o !== "object") return;
+            Object.keys(o).forEach((k) => {
+              const v = o[k];
+              if (typeof v === "number" && isFinite(v) && !Number.isInteger(v)) o[k] = Math.round(v);
+              else if (v && typeof v === "object") walk(v);
+            });
+          };
+          walk(d.manualReport || {});
+          d.migrations.roundManualReport20260810 = true;
+        }
         // 누적 기준 기록이 7월에 잡혀서 '7월 사용'이 누적치로 보이는 문제 → 6월말로 이월 처리
         if (!d.migrations.fixDepositBaselineDates20260722) {
           let moved = 0;

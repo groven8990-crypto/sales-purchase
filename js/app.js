@@ -1268,9 +1268,9 @@ const App = (function () {
     const r = blankStoreReport();
     const sl = S.filterBy(S.data.sales, { store: st, year: yr, month: mo });
     const pl = S.filterBy(S.data.purchases, { store: st, year: yr, month: mo });
-    r.sales = S.sum(sl, "supply");
-    r.purchase = S.sum(pl, "supply");
-    r.channels = S.groupSum(sl, "channel", "supply").map((g) => ({ name: g.key, count: g.count, supply: g.sum }));
+    r.sales = Math.round(S.sum(sl, "supply"));
+    r.purchase = Math.round(S.sum(pl, "supply"));
+    r.channels = S.groupSum(sl, "channel", "supply").map((g) => ({ name: g.key, count: g.count, supply: Math.round(g.sum) }));
     const vi = S.data.vendorItems || {};
     // 플랫폼 공급처(쿠팡·지마켓 등)는 Ⅲ-1 세부로 자동 분리, 나머지는 Ⅲ 공급처 목록으로
     const platformPl = pl.filter((p) => PLATFORM_VENDORS.has(S.canonVendor(p.vendor)));
@@ -1279,7 +1279,7 @@ const App = (function () {
       supplier: S.canonVendor(p.vendor),
       item: p.desc || "",
       type: ((p.category || "") + " " + (p.desc || "")).match(/광고|[Aa][Dd]|상품전시/) ? "광고비" : "수수료",
-      amount: S.num(p.supply),
+      amount: Math.round(S.num(p.supply)),
     }));
     // 발주건수 집계 — 발주서를 올렸으면 발주건수 우선, 없으면 홈택스 계산서 건수 폴백
     const ordRows = S.filterBy(S.data.orders || [], { store: st, year: yr, month: mo });
@@ -1291,7 +1291,7 @@ const App = (function () {
     r.vendors = S.groupSum(vendorPl, "vendor", "supply").map((g) => {
       const note = vi[g.key] || vendorPl.filter((p) => S.canonVendor(p.vendor) === g.key).map((p) => vi[p.vendor]).find(Boolean) || "";
       const count = ordByVendor[g.key] !== undefined ? ordByVendor[g.key] : g.count;
-      return { name: g.key, note, count, supply: g.sum };
+      return { name: g.key, note, count, supply: Math.round(g.sum) };
     });
     // 고정비/정기결제 자동 반영 — 실제 매입 자료가 이미 있는 공급처는 무시(중복 방지)
     (S.data.fixedCosts || []).filter((fc) => (fc.store || "") === st).forEach((fc) => {
@@ -1300,7 +1300,7 @@ const App = (function () {
     });
     const tx = S.filterBy(S.data.transactions, { store: st, year: yr, month: mo });
     const ins = tx.filter((t) => t.type === "in"), outs = tx.filter((t) => t.type === "out");
-    r.bank = { inCnt: ins.length, inSum: S.sum(ins, "amount"), outCnt: outs.length, outSum: S.sum(outs, "amount") };
+    r.bank = { inCnt: ins.length, inSum: Math.round(S.sum(ins, "amount")), outCnt: outs.length, outSum: Math.round(S.sum(outs, "amount")) };
     // C/S 품목별 집계 자동 채움
     const csForMo = (S.data.cs || []).filter((c) => {
       if (c.store && c.store !== st) return false;
@@ -1738,7 +1738,7 @@ const App = (function () {
     }
     const fullNm = store === "yb" ? "옐로우브릿지" : "그로븐";
     const tax = store === "yb" ? "과세" : "면세";
-    const numIn = (sec, i, f, v) => `<input class="mr-in n" data-sec="${sec}" data-i="${i}" data-f="${f}" value="${S.num(v)}" inputmode="numeric">`;
+    const numIn = (sec, i, f, v) => `<input class="mr-in n" data-sec="${sec}" data-i="${i}" data-f="${f}" value="${Math.round(S.num(v))}" inputmode="numeric">`;
     const txtIn = (sec, i, f, v, ph) => `<input class="mr-in" data-sec="${sec}" data-i="${i}" data-f="${f}" value="${esc(v || "")}" placeholder="${ph || ""}">`;
 
     // 공급가 많은 순으로 정렬 (빈 행은 자연히 아래로)
@@ -1990,7 +1990,7 @@ const App = (function () {
       const upd = () => {
         const sec = el.dataset.sec, i = +el.dataset.i, f = el.dataset.f;
         const isNum = el.classList.contains("n") || /Cnt|Sum|count|supply|sales|purchase|amount/.test(f);
-        const val = isNum ? S.num(el.value) : el.value;
+        const val = isNum ? Math.round(S.num(el.value)) : el.value; // 부동소수점 꼬리 방지
         if (sec === "totals") R[f] = val;
         else if (sec === "bank") R.bank[f] = val;
         else if (sec === "memo") R.memo = val;
