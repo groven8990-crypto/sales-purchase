@@ -1516,13 +1516,25 @@ const App = (function () {
     const node = main.querySelector(".sheet");
     if (!node) return Promise.reject(new Error("sheet 없음"));
     if (typeof html2canvas !== "function") return Promise.reject(new Error("html2canvas 미로드"));
+    // 캡처 전 textarea에 식별자 부여 — 클론에서 현재 입력값을 정확히 가져오기 위함
+    node.querySelectorAll("textarea").forEach((t, i) => { t.dataset.taIdx = String(i); });
     return html2canvas(node, {
       scale: 2, backgroundColor: "#ffffff", useCORS: true,
       onclone: (doc) => {
         doc.querySelectorAll(".no-print").forEach((el) => el.remove());
         doc.querySelectorAll(".sheet table.doc-table").forEach((t) => { t.style.tableLayout = "auto"; });
         doc.querySelectorAll(".sheet .doc-table td.n, .sheet .doc-table th.n").forEach((c) => { c.style.whiteSpace = "nowrap"; });
+        // 모든 textarea(비고 등)를 줄바꿈 보존 텍스트로 교체 — textarea는 캡처 시 한 줄로 잘림
+        doc.querySelectorAll("textarea").forEach((el) => {
+          const live = node.querySelector(`textarea[data-ta-idx="${el.dataset.taIdx}"]`);
+          const v = (live ? live.value : (el.value != null ? el.value : el.textContent)) || "";
+          const span = doc.createElement("span");
+          span.textContent = v;
+          span.style.cssText = "display:block;font-size:12px;line-height:1.6;padding:2px 6px 2px 0;white-space:pre-wrap;word-break:break-word;";
+          el.parentNode.replaceChild(span, el);
+        });
         doc.querySelectorAll(".mr-in").forEach((el) => {
+          if (el.tagName === "SPAN") return; // 위에서 이미 교체된 textarea
           const isNum = el.classList.contains("n");
           let v = (el.value != null ? el.value : el.textContent) || "";
           if (isNum) v = won(S.num(v));
