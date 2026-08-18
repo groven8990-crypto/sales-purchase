@@ -11,6 +11,22 @@ const App = (function () {
   const esc = (s) => String(s == null ? "" : s).replace(/[&<>"]/g, (c) =>
     ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
+  // 금액 입력칸 천단위 콤마 자동 — 커서 위치 보존 (맨 뒤로 튀지 않게)
+  const wireMoneyInput = (el) => {
+    if (!el) return;
+    el.addEventListener("input", () => {
+      const raw = el.value;
+      const digits = raw.replace(/[^\d]/g, "");
+      const beforeCnt = raw.slice(0, el.selectionStart == null ? raw.length : el.selectionStart).replace(/[^\d]/g, "").length;
+      const formatted = digits ? Number(digits).toLocaleString("en-US") : "";
+      if (formatted === raw) return;
+      el.value = formatted;
+      let pos = 0, cnt = 0;
+      while (pos < formatted.length && cnt < beforeCnt) { if (/\d/.test(formatted[pos])) cnt++; pos++; }
+      try { el.setSelectionRange(pos, pos); } catch (_) {}
+    });
+  };
+
   // 타이핑 중 매 키마다 전체 저장하면 느려짐 → 입력이 멈추면(0.6초) 저장
   let _saveTimer = null;
   const saveSoon = (silent) => { clearTimeout(_saveTimer); _saveTimer = setTimeout(() => { _saveTimer = null; S.save(silent); }, 600); };
@@ -773,8 +789,7 @@ const App = (function () {
       b.parentNode.querySelectorAll(".dp-chip").forEach((x) => x.classList.remove("on")); b.classList.add("on");
       if (b.parentNode.dataset.g === "platform") { const pi = $("#ad-plat", main); if (pi) pi.value = ""; }
     }));
-    const amtIn = $("#ad-amount", main);
-    if (amtIn) amtIn.addEventListener("input", () => { const n = S.num(amtIn.value); amtIn.value = n ? n.toLocaleString("en-US") : ""; });
+    wireMoneyInput($("#ad-amount", main));
     $("#ad-add", main).addEventListener("click", () => {
       const platform = ($("#ad-plat", main).value.trim()) || chipVal("platform");
       const amount = S.num($("#ad-amount", main).value);
@@ -1003,13 +1018,8 @@ const App = (function () {
         mi.value = memoDefault(chipVal("kind"), v);
       }
     }));
-    // 금액 천단위 콤마 자동
-    const amtIn = $("#dp-amount", main);
-    if (amtIn) amtIn.addEventListener("input", () => {
-      const n = S.num(amtIn.value);
-      const cur = amtIn.selectionStart;
-      amtIn.value = n ? n.toLocaleString("en-US") : "";
-    });
+    // 금액 천단위 콤마 자동 (커서 보존)
+    wireMoneyInput($("#dp-amount", main));
     $("#dp-add", main).addEventListener("click", () => {
       const vendor = ($("#dp-vendor", main).value.trim()) || chipVal("vendor");
       const amount = S.num($("#dp-amount", main).value);
