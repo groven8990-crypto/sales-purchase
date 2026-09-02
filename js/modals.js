@@ -1007,13 +1007,13 @@ const Modals = (function () {
           const total  = Math.round(parseFloat(String(r[iTotal]  || "0").replace(/,/g,"")) || 0);
           const vat    = iVat >= 0
             ? Math.round(parseFloat(String(r[iVat] || "0").replace(/,/g,"")) || 0)
-            : Math.max(0, total - supply);
+            : (supply < 0 ? total - supply : Math.max(0, total - supply));
           const kindStr = String(r[iKind] || "").trim();
           const taxClass = kindStr.includes("세금") ? "과세" : "면세";
           const channel  = cleanName(iCustomer >= 0 ? r[iCustomer] : "") || "홈택스";
           const desc     = String(r[iItem] || "").trim();
           const htId     = iApprv >= 0 ? String(r[iApprv] || "").trim() : "";
-          if (supply <= 0) continue;
+          if (supply === 0) continue; // 마이너스(수정)계산서는 유지, 0원 행만 제외
           parsed.push({ year, month, channel, taxClass, desc, supply, vat, total: total || supply, orders: 0, settled: "", htId });
         }
 
@@ -1112,7 +1112,7 @@ const Modals = (function () {
             const vat     = iVat >= 0 ? Math.round(parseFloat(String(r[iVat] || "0").replace(/,/g,"")) || 0) : 0;
             const total   = Math.round(parseFloat(String(r[iTotal]  || "0").replace(/,/g,"")) || 0) || supply;
             const htId    = iApprv >= 0 ? String(r[iApprv] || "").trim() : "";
-            if (!vendor || supply <= 0) continue;
+            if (!vendor || supply === 0) continue; // 취소(마이너스) 건은 유지, 0원 행만 제외
             parsed.push({ store: "", year, month, day, vendor, supply, vat, total, evidence: "현금영수증", category: "상품매입", desc: "", htId });
           }
         } else {
@@ -1146,8 +1146,8 @@ const Modals = (function () {
             const evidence = String(r[iKind] || "계산서").trim() || "계산서";
             const desc     = String(r[iItem] || "").trim();
             const htId     = iApprv >= 0 ? String(r[iApprv] || "").trim() : "";
-            if (!vendor || supply <= 0) continue;
-            parsed.push({ store, year, month, day, vendor, supply, vat: vat > 0 ? vat : 0, total: total || supply, evidence, category: "상품매입", desc, htId });
+            if (!vendor || supply === 0) continue; // 마이너스(수정)계산서는 유지, 0원 행만 제외
+            parsed.push({ store, year, month, day, vendor, supply, vat: supply < 0 ? vat : (vat > 0 ? vat : 0), total: total || supply, evidence, category: "상품매입", desc, htId });
           }
         }
     }
