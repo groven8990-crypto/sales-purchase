@@ -1183,21 +1183,31 @@ const Modals = (function () {
       const chosenStore = onBtn ? onBtn.dataset.v : "groven"; // 사용자가 선택한 사업장으로 강제 적용
       if (!S.data.purchases) S.data.purchases = [];
       // 승인번호 있으면 승인번호 기준(가장 확실), 없으면 거래처+날짜+금액 기준
-      const existingHtIds = new Set(S.data.purchases.filter((p) => p.htId).map((p) => p.htId));
+      const byHtId = new Map(S.data.purchases.filter((p) => p.htId).map((p) => [p.htId, p]));
       const sigFallback = (p) => `${p.store}|${p.vendor}|${p.year}|${p.month}|${p.day}|${p.supply}`;
       const existingSigs = new Set(S.data.purchases.filter((p) => !p.htId).map(sigFallback));
-      let added = 0, skipped = 0;
+      let added = 0, skipped = 0, moved = 0;
       parsed.forEach((p) => {
         const row = Object.assign({}, p, { store: chosenStore }); // 선택 사업장 덮어쓰기
-        if (row.htId && existingHtIds.has(row.htId)) { skipped++; return; }
+        if (row.htId && byHtId.has(row.htId)) {
+          // 같은 승인번호가 이미 있음 — 사업장이 다르면 지금 선택한 사업장으로 이동 (잘못 올린 것 교정)
+          const ex = byHtId.get(row.htId);
+          if ((ex.store || "") !== chosenStore) { ex.store = chosenStore; moved++; }
+          else skipped++;
+          return;
+        }
         if (!row.htId && existingSigs.has(sigFallback(row))) { skipped++; return; }
-        if (row.htId) existingHtIds.add(row.htId); else existingSigs.add(sigFallback(row));
+        if (row.htId) byHtId.set(row.htId, row); else existingSigs.add(sigFallback(row));
         S.data.purchases.push(Object.assign({ id: S.uid() }, row));
         added++;
       });
       S.save(); close(); App.go("purchases");
-      if (skipped) alert(`${added}건 추가, 중복 ${skipped}건은 건너뛰었어요.`);
-      else alert(`${added}건을 매입에 등록했어요.`);
+      const stNm2 = chosenStore === "yb" ? "옐로우브릿지" : "그로븐";
+      const parts = [];
+      if (added) parts.push(`${added}건 추가`);
+      if (moved) parts.push(`${moved}건 사업장 이동(→${stNm2})`);
+      if (skipped) parts.push(`중복 ${skipped}건 건너뜀`);
+      alert(parts.length ? parts.join(", ") : "변경된 내용이 없어요.");
     };
   }
 
