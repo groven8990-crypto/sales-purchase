@@ -1274,6 +1274,15 @@ const App = (function () {
   // 플랫폼 수수료/광고비로 자동 분류할 공급처명 목록
   const PLATFORM_VENDORS = new Set(["쿠팡", "지마켓", "G마켓", "옥션", "네이버", "십일번가", "카카오", "당근", "위메프", "티몬"]);
 
+  // 플랫폼 세부(Ⅲ-1) 병합: 기존 항목(수기 수정 포함)은 유지하고, 실데이터에 새로 생긴 항목만 추가
+  function mergePlatform(prevPf, freshPf) {
+    const prev = prevPf || [], fresh = freshPf || [];
+    if (!prev.length) return fresh;
+    const key = (r) => S.canonVendor(r.supplier || "") + "|" + String(r.item || "").trim();
+    const have = new Set(prev.map(key));
+    return prev.concat(fresh.filter((r) => !have.has(key(r))));
+  }
+
   function autoFillStoreReport(st, yr, mo) {
     const r = blankStoreReport();
     const sl = S.filterBy(S.data.sales, { store: st, year: yr, month: mo });
@@ -1691,7 +1700,7 @@ const App = (function () {
         const prevOnlyCh = (prev.channels || []).filter((c) => c.name && !freshChNames.has(c.name));
         fresh.channels = [...fresh.channels, ...prevOnlyCh];
       }
-      fresh.platform = (prev.platform && prev.platform.length > 0) ? prev.platform : fresh.platform;
+      fresh.platform = mergePlatform(prev.platform, fresh.platform); // 새 세금계산서 수수료·광고비 항목 자동 추가
       // csItems: 품목·건수는 사용자 편집 보존, 환불금액은 실데이터(S.data.cs)로 항상 갱신
       if (prev.csItems && prev.csItems.length > 0) {
         // prev 기준이 아닌 fresh(현재 C/S 실데이터) 기준 — C/S에서 삭제된 항목은 보고서에서도 사라짐
@@ -2047,7 +2056,7 @@ const App = (function () {
       if (!confirm(`${fullNm}의 수기 보고서를 현재 데이터 자동값으로 다시 채울까요? 지금 입력한 값은 덮어써져요. (플랫폼 세부내역은 유지됩니다)`)) return;
       const keepPf = R.platform, keepMemo = R.memo;
       M[store] = autoFillStoreReport(store, yr, mo);
-      M[store].platform = (keepPf && keepPf.length > 0) ? keepPf : M[store].platform;
+      M[store].platform = mergePlatform(keepPf, M[store].platform);
       M[store].memo = keepMemo || "";
       reSave(true);
     });
@@ -2265,7 +2274,7 @@ const App = (function () {
       ["groven", "yb"].forEach((st) => {
         const keepPf = (M[st] || {}).platform;
         M[st] = autoFillStoreReport(st, yr, mo);
-        M[st].platform = keepPf || [];
+        M[st].platform = mergePlatform(keepPf, M[st].platform);
       });
       S.save(); renderManualReport(main);
     });
