@@ -1053,36 +1053,43 @@ const Modals = (function () {
   /* ===== 홈택스 전자(세금)계산서 매입 등록 ===== */
   function importHometax() {
     open("🏛️ 홈택스 매입 등록 (계산서·현금영수증)",
-      `<p>홈택스 → 전자계산서 목록조회 또는 <b>현금영수증 매입내역</b> 엑셀을 올리세요. 두 형식 모두 자동으로 인식합니다.</p>
+      `<p>홈택스 → 전자계산서 목록조회 또는 <b>현금영수증 매입내역</b> 엑셀을 올리세요. 두 형식 모두 자동으로 인식하고, <b>여러 파일을 한번에</b> 선택할 수 있어요.</p>
        <div class="form-row"><label>사업장 <span class="muted" style="font-weight:400;font-size:12px">— 어느 사업장 매입인지 선택하세요</span></label>
-         ${storeSelect("ht-store")}</div>
-       <div class="form-row"><label>파일</label><input type="file" id="ht-file" accept=".xls,.xlsx,.csv"></div>
+         <div class="chips" id="ht-store-chips">
+           <button type="button" class="dp-chip on" data-v="groven">그로븐 (면세)</button>
+           <button type="button" class="dp-chip" data-v="yb">옐로우브릿지 (과세)</button>
+         </div></div>
+       <div class="form-row"><label>파일 <span class="muted" style="font-weight:400;font-size:12px">— Ctrl 누르고 클릭하면 여러 개 선택</span></label>
+         <input type="file" id="ht-file" accept=".xls,.xlsx,.csv" multiple></div>
        <div id="ht-prev" class="preview"></div>`,
       `<button class="btn" id="ht-cancel">취소</button><button class="btn primary" id="ht-apply" disabled>매입에 추가</button>`);
 
     let parsed = [];
 
     q("#ht-cancel").onclick = close;
-    q("#ht-file").onchange = async (e) => {
-      const f = e.target.files[0]; if (!f) return;
-      try {
-        const buf = await f.arrayBuffer();
-        const wb = XLSX.read(buf, { type: "array", cellDates: true, cellNF: false });
-        const ws = wb.Sheets[wb.SheetNames[0]];
-        const rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: "" });
+    // 사업장 버튼 토글
+    q("#ht-store-chips").querySelectorAll(".dp-chip").forEach((b) => b.onclick = () => {
+      q("#ht-store-chips").querySelectorAll(".dp-chip").forEach((x) => x.classList.remove("on"));
+      b.classList.add("on");
+    });
 
-        const cleanVendor = (s) => String(s || "").replace(/주식회사|㈜|\(주\)|\(유\)|농업회사법인|영농조합법인|유한회사|협동조합/g, "").replace(/^\s+|\s+$/g, "");
+    // 파일 1개 파싱 → parsed에 추가 (실패 시 throw)
+    async function parseOneFile(f) {
+      const buf = await f.arrayBuffer();
+      const wb = XLSX.read(buf, { type: "array", cellDates: true, cellNF: false });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: "" });
 
-        // 헤더 행 자동 감지: 전자계산서("작성일자") 또는 현금영수증("매입일시") 모두 지원
-        let hdrIdx = rows.findIndex((r) => r.some((c) => String(c).replace(/\s/g,"") === "작성일자"));
-        const isCashReceipt = hdrIdx < 0;
-        if (isCashReceipt) hdrIdx = rows.findIndex((r) => r.some((c) => String(c).replace(/\s/g,"") === "매입일시"));
-        if (hdrIdx < 0) { q("#ht-prev").innerHTML = `<div class="err">❌ 헤더 행을 찾지 못했어요. 홈택스 전자계산서 또는 현금영수증 목록 엑셀인지 확인해주세요.</div>`; return; }
+      const cleanVendor = (s) => String(s || "").replace(/주식회사|㈜|\(주\)|\(유\)|농업회사법인|영농조합법인|유한회사|협동조합/g, "").replace(/^\s+|\s+$/g, "");
 
-        const hdr = rows[hdrIdx].map((c) => String(c).replace(/\s/g,""));
-        const ci = (name) => hdr.findIndex((h) => h === name || h.includes(name));
+      // 헤더 행 자동 감지: 전자계산서("작성일자") 또는 현금영수증("매입일시") 모두 지원
+      let hdrIdx = rows.findIndex((r) => r.some((c) => String(c).replace(/\s/g,"") === "작성일자"));
+      const isCashReceipt = hdrIdx < 0;
+      if (isCashReceipt) hdrIdx = rows.findIndex((r) => r.some((c) => String(c).replace(/\s/g,"") === "매입일시"));
+      if (hdrIdx < 0) throw new Error("헤더 행을 찾지 못했어요 (홈택스 전자계산서/현금영수증 엑셀인지 확인)");
 
-        parsed = [];
+      const hdr = rows[hdrIdx].map((c) => String(c).replace(/\s/g,""));
+      const ci = (name) => hdr.findIndex((h) => h === name || h.includes(name));
 
         if (isCashReceipt) {
           // ── 현금영수증 형식 ──
@@ -1143,21 +1150,37 @@ const Modals = (function () {
             parsed.push({ store, year, month, day, vendor, supply, vat: vat > 0 ? vat : 0, total: total || supply, evidence, category: "상품매입", desc, htId });
           }
         }
+    }
 
-        if (!parsed.length) { q("#ht-prev").innerHTML = `<div class="err">❌ 읽을 수 있는 행이 없어요.</div>`; return; }
-
+    q("#ht-file").onchange = async (e) => {
+      const files = Array.from(e.target.files || []); if (!files.length) return;
+      parsed = [];
+      const fileLines = [];
+      for (const f of files) {
+        const before = parsed.length;
+        try {
+          await parseOneFile(f);
+          const n = parsed.length - before;
+          fileLines.push(n ? `<div class="ok">✅ ${E(f.name)} — ${n}건</div>`
+                           : `<div class="err">❌ ${E(f.name)} — 읽을 수 있는 행이 없어요</div>`);
+        } catch (err) { fileLines.push(`<div class="err">❌ ${E(f.name)} — ${E(err.message)}</div>`); }
+      }
+      let summary = "";
+      if (parsed.length) {
         const byVendor = {};
         parsed.forEach((p) => { byVendor[p.vendor] = (byVendor[p.vendor] || 0) + p.supply; });
         const vendorList = Object.entries(byVendor).sort((a,b)=>b[1]-a[1]).slice(0,8)
-          .map(([v,s])=>`<b>${v}</b> ₩${s.toLocaleString()}`).join(" · ");
-        q("#ht-prev").innerHTML = `<div class="ok">✅ ${parsed.length}건 인식 (${Object.keys(byVendor).length}개 거래처)<br>${vendorList}</div>`;
-        q("#ht-apply").disabled = false;
-      } catch (err) { q("#ht-prev").innerHTML = `<div class="err">❌ ${E(err.message)}</div>`; }
+          .map(([v,s])=>`<b>${E(v)}</b> ₩${s.toLocaleString()}`).join(" · ");
+        summary = `<div class="ok" style="margin-top:6px">합계 <b>${parsed.length}건</b> (${Object.keys(byVendor).length}개 거래처)<br>${vendorList}</div>`;
+      }
+      q("#ht-prev").innerHTML = fileLines.join("") + summary;
+      q("#ht-apply").disabled = !parsed.length;
     };
 
     q("#ht-apply").onclick = () => {
       if (!parsed.length) return;
-      const chosenStore = q("#ht-store").value; // 사용자가 선택한 사업장으로 강제 적용
+      const onBtn = q("#ht-store-chips").querySelector(".dp-chip.on");
+      const chosenStore = onBtn ? onBtn.dataset.v : "groven"; // 사용자가 선택한 사업장으로 강제 적용
       if (!S.data.purchases) S.data.purchases = [];
       // 승인번호 있으면 승인번호 기준(가장 확실), 없으면 거래처+날짜+금액 기준
       const existingHtIds = new Set(S.data.purchases.filter((p) => p.htId).map((p) => p.htId));
