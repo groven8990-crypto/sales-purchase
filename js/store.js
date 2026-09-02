@@ -449,6 +449,32 @@ const SPC = (function () {
     } catch (_) {}
   })();
 
+  /* ---- 일회성 정리: 수기 보고서 플랫폼 세부에 이중 등록된 항목 제거 ----
+   * 같은 플랫폼 + 같은 금액이 두 번 들어간 경우(수기 입력 vs 자동 추가) 첫 항목만 남김 */
+  (function dedupManualReportPlatform() {
+    try {
+      if (!data.migrations) data.migrations = {};
+      if (data.migrations.dedupPlatform20260902) return;
+      let removed = 0;
+      Object.keys(data.manualReport || {}).forEach((ym) => {
+        const m = data.manualReport[ym];
+        ["groven", "yb"].forEach((st) => {
+          const R = m && m[st];
+          if (!R || !Array.isArray(R.platform)) return;
+          const seen = new Set(); const keep = [];
+          R.platform.forEach((r) => {
+            const k = canonVendor(r.supplier || "") + "|" + Math.round(num(r.amount));
+            if (seen.has(k)) { removed++; return; }
+            seen.add(k); keep.push(r);
+          });
+          R.platform = keep;
+        });
+      });
+      data.migrations.dedupPlatform20260902 = true;
+      if (removed) console.log("[마이그레이션] 플랫폼 세부 이중 항목 " + removed + "건 정리");
+    } catch (_) {}
+  })();
+
   /* ---- 공개 API ------------------------------------------- */
   return {
     KEY, STORES, CATEGORIES, EVIDENCES, CHANNELS,

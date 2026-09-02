@@ -1275,12 +1275,16 @@ const App = (function () {
   const PLATFORM_VENDORS = new Set(["쿠팡", "지마켓", "G마켓", "옥션", "네이버", "십일번가", "카카오", "당근", "위메프", "티몬"]);
 
   // 플랫폼 세부(Ⅲ-1) 병합: 기존 항목(수기 수정 포함)은 유지하고, 실데이터에 새로 생긴 항목만 추가
+  // 같은 플랫폼에서 내용 글자만 다르고 금액이 같으면 같은 항목으로 봄 (수기 입력 vs 세금계산서 문구 차이)
   function mergePlatform(prevPf, freshPf) {
     const prev = prevPf || [], fresh = freshPf || [];
     if (!prev.length) return fresh;
-    const key = (r) => S.canonVendor(r.supplier || "") + "|" + String(r.item || "").trim();
-    const have = new Set(prev.map(key));
-    return prev.concat(fresh.filter((r) => !have.has(key(r))));
+    const canon = (r) => S.canonVendor(r.supplier || "");
+    const itemKey = (r) => canon(r) + "|" + String(r.item || "").trim();
+    const amtKey = (r) => canon(r) + "|" + Math.round(S.num(r.amount));
+    const haveItem = new Set(prev.map(itemKey));
+    const haveAmt = new Set(prev.map(amtKey));
+    return prev.concat(fresh.filter((r) => !haveItem.has(itemKey(r)) && !haveAmt.has(amtKey(r))));
   }
 
   function autoFillStoreReport(st, yr, mo) {
