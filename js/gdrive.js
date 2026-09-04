@@ -21,6 +21,7 @@ const GDrive = (function () {
   const SPEC = {
     orders: { label: "발주서", folderHint: "발주관리", target: "orders", view: "orders" },
     settlements: { label: "정산서", folderHint: "정산", target: "settlements", view: "settlements" },
+    bank: { label: "통장내역", folderHint: "통장", target: "transactions", view: "transactions" },
   };
 
   let accessToken = "";
@@ -261,6 +262,11 @@ const GDrive = (function () {
           const t = await Parsers.readGenericTable(file);
           if (isReply(f.name)) { Modals.buildTracking(t, { name: f.name }).forEach((e) => replies.push(e)); replyFiles++; }
           else Modals.buildOrders(t, { name: f.name, baseVendor, yr, mo }).forEach((o) => out.push(o));
+        } else if (kind === "bank") {
+          // 파일명/폴더명에서 사업장 추정 (없으면 통합 — 입출금 탭에서 ✎수정 가능)
+          const st = Modals.storeFromName(f.name) || Modals.storeFromName(_pn) || "";
+          const r = await Parsers.parseBankStatement(file, st);
+          r.txns.forEach((t) => out.push(t));
         } else {
           const { sheets } = await Parsers.readSheets(file);
           const best = Modals.settlementSheetPick(sheets);
@@ -272,7 +278,9 @@ const GDrive = (function () {
     }
     saveImp(imp);
     if (!out.length && !replies.length) { setStatus(`<div class="err">읽을 행이 없었어요. (파일 ${sheetFiles.length}개${failed ? `, 실패 ${failed}개` : ""})</div>`); return; }
-    const res = kind === "orders" ? Modals.addOrdersDedup(out) : Modals.addSettlementsDedup(out);
+    const res = kind === "orders" ? Modals.addOrdersDedup(out)
+      : kind === "bank" ? S.addTransactions(out)
+      : Modals.addSettlementsDedup(out);
     const tracked = kind === "orders" ? Modals.applyTracking(replies) : 0; // 회신 송장번호를 같은 받는분+주소 발주에 채움
     if (res.first && App.scope) { App.scope.year = res.first.year; App.scope.month = res.first.month; }
     setStatus(`<div class="ok">✅ 파일 ${sheetFiles.length}개 처리 — <b>${res.added}건 추가</b>${res.skipped ? `, 중복 ${res.skipped}건` : ""}${replyFiles ? `, 회신 ${replyFiles}개→송장 ${tracked}건 매칭` : ""}${skippedExisting ? `, 기존 ${skippedExisting}개 건너뜀` : ""}${failed ? `, 실패 ${failed}개` : ""}</div>`);

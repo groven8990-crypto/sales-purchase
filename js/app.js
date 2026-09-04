@@ -378,7 +378,8 @@ const App = (function () {
     }
     const total = S.sum(rows, SORT_FIELD[kind]);
     const importBtn = kind === "transactions"
-      ? `<button class="btn primary" data-act="import-bank">🏦 통장내역 올리기</button>`
+      ? `<button class="btn primary" data-act="import-bank">🏦 통장내역 올리기</button>
+         <button class="btn" id="tb-gdrive">📁 드라이브에서 가져오기</button>`
       : kind === "purchases"
       ? `<button class="btn primary" data-act="import-hometax">🏛️ 홈택스 계산서</button>
          <button class="btn" data-act="import-po">🧾 발주서 올리기</button>`
@@ -424,6 +425,8 @@ const App = (function () {
     });
 
     wire(main);
+    const gdBtn = $("#tb-gdrive", main);
+    if (gdBtn) gdBtn.addEventListener("click", () => GDrive.run("bank"));
     $$("th[data-sort]", main).forEach((th) => th.addEventListener("click", () => {
       const c = th.dataset.sort;
       if (srt.col === c) srt.dir = -srt.dir; else { srt.col = c; srt.dir = 1; }
