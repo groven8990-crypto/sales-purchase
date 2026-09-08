@@ -79,7 +79,7 @@ const App = (function () {
     transactions: `<b>통장 입출금</b> 내역이에요.<ul><li><b>🏦 통장내역 올리기</b>로 기업은행 거래내역을 올리면 입금/출금이 자동 분류돼요.</li><li>각 줄을 ✎수정해서 <b>사업장(그로븐/YB)</b>을 지정할 수 있어요.</li></ul>`,
     orders: `마켓에서 받은 <b>발주서(주문/배송 파일)</b>를 올려 발주내역으로 모아요.<ol><li><b>📦 발주서 올리기</b> → 파일을 <b>여러 개 한꺼번에</b> 선택해도 돼요.</li><li>파일명에 '그로븐/옐로우브릿지'가 있으면 <b>사업장 자동</b>, 날짜·거래처도 파일명에서 자동.</li><li>열은 자동으로 맞춰지니 그대로 <b>추가</b>. 같은 파일을 또 올려도 중복은 안 쌓여요.</li><li>다 지우려면 <b>🗑️ 전체삭제</b>.</li></ol>`,
     settlements: `거래처에서 받은 <b>발주정산내역서</b>를 올려요.<ol><li><b>🧾 정산서 올리기</b> → 여러 개 동시 가능, 파일명으로 사업장 자동.</li><li>시트가 2개여도(예: 해담별) <b>정산상세 시트를 자동으로</b> 찾아 읽어요.</li><li>받는분·품목·수량·공급가·배송비·합계가 자동 정리, <b>실주문/리뷰</b> 구분.</li></ol>`,
-    reconcile: `<b>발주내역 ↔ 정산서</b>를 <b>받는분(수령인)</b> 기준으로 대조해요.<ul><li><b>🔴 미정산</b>: 발주는 했는데 정산 안 됨 / <b>⚠️ 건수차이</b>: 건수가 다름</li><li><b>🟡 발주없음</b>: 정산엔 있는데 발주기록 없음 / <b>✅ 정산완료</b></li><li>상단 카드를 누르면 그 상태만 모아 봐요.</li><li><b>시작일~종료일</b>을 골라 <b>📅 이 기간으로 대조</b>를 누르면, 정산주기(주결제·15일결제 등)에 맞춘 기간만 대조해요. <b>↩︎ 이번 달 전체</b>로 되돌려요.</li></ul>`,
+    reconcile: `<b>거래처별</b>로 발주내역 ↔ 정산서를 자동 대조해요. 거래처 줄을 <b>클릭하면 건별 짝맞춤 상세</b>가 펼쳐져요.<ul><li>발주 1건과 정산 1건을 <b>받는분+주소+품목</b>으로 자동으로 짝지어요.</li><li><b>✅ 일치</b>: 품목·수량까지 맞음 / <b>⚠️ 수량차이·❗ 품목차이</b>: 짝은 맞는데 내용이 다름</li><li><b>🔴 미정산</b>: 발주했는데 정산서에 없음(누락) / <b>🟡 발주없음</b>: 정산서에만 있음(<b>과청구 의심!</b>)</li><li>상단 카드를 누르면 그 상태가 있는 거래처·건만 모아 봐요.</li><li><b>시작일~종료일</b>로 정산주기(주결제·15일결제 등)에 맞춘 기간 대조, <b>↩︎ 이번 달 전체</b>로 복귀.</li></ul>`,
     deposits: `거래처별 <b>예치금·적립금</b> 충전·사용·잔액을 관리해요.<ul><li><b>📥 파일 올리기</b>(도매꾹 등) 또는 <b>직접 입력</b>(거래처·구분·금액 칩 선택).</li><li>잔액 = 충전 합계 − 사용 합계. <b>📸 현황 보고(PNG)</b>로 이미지 저장.</li></ul>`,
     adspend: `플랫폼 <b>광고비 소진</b>을 매일 빠르게 기록해요.<ol><li>플랫폼·사업장 <b>칩</b>을 고르고(선택은 유지됨) <b>소진액</b>만 입력해 추가.</li><li>상단에서 이번 달 플랫폼별 합계를 바로 봐요.</li></ol>`,
     cs: `고객 <b>C/S(반품·교환·환불 등)</b> 처리 상태를 관리해요.<ol><li>C/S가 오면 <b>접수</b>로 등록.</li><li>처리하면서 ✎로 <b>처리중 → 완료</b>, 처리내용을 적어요.</li><li>상단 카드로 밀린 건(접수/처리중)을 확인.</li></ol>`,
@@ -647,11 +647,13 @@ const App = (function () {
   }
 
   /* ===================== 발주 ↔ 정산 대조 ===================== */
-  let recFilter = ""; // "" | 완료 | 건수차이 | 미정산 | 발주없음
+  let recFilter = ""; // "" | 일치 | 수량차이 | 품목차이 | 미정산 | 발주없음
   let recRange = { from: "", to: "" }; // 정산주기(주결제·15일결제 등)에 맞춘 기간 대조
+  let recOpen = new Set(); // 펼쳐놓은 거래처 (재렌더 후에도 유지)
   function renderReconcile(main) {
     const stNm = (s) => s === "yb" ? "YB" : (s === "groven" ? "그로븐" : "");
     const norm = (s) => String(s || "").trim().replace(/\s/g, "");
+    const normItem = (s) => String(s || "").toLowerCase().replace(/[\s()\[\]{}0-9.,kg개입봉팩g×x*\-_/]/g, "");
     const p2 = (n) => String(n).padStart(2, "0");
     const ymd = (r) => (r.year && r.month && r.day) ? `${r.year}-${p2(r.month)}-${p2(r.day)}` : "";
     const ymOf = (r) => (r.year && r.month) ? `${r.year}-${p2(r.month)}` : "";
@@ -671,32 +673,90 @@ const App = (function () {
       : S.filterBy(S.data.settlements || [], { store: scope.store, year: scope.year, month: scope.month });
     const orders = baseOrders.filter(inRange);
     const setts = baseSetts.filter(inRange);
-    const map = {};
-    orders.forEach((o) => { const k = norm(o.recipient); if (!k) return; (map[k] = map[k] || { name: o.recipient || "", store: o.store, ord: [], set: [] }).ord.push(o); });
-    setts.forEach((s) => { const k = norm(s.recipient); if (!k) return; (map[k] = map[k] || { name: s.recipient || "", store: s.store, ord: [], set: [] }).set.push(s); });
     const noRecip = orders.filter((o) => !norm(o.recipient)).length + setts.filter((s) => !norm(s.recipient)).length;
-    const dateOf = (o) => o.date || (o.month ? o.month + "월" + (o.day ? " " + o.day + "일" : "") : "");
-    const rows = Object.values(map).map((g) => {
-      const ordCnt = g.ord.length, setCnt = g.set.length;
-      const status = ordCnt && setCnt ? (ordCnt === setCnt ? "완료" : "건수차이") : (ordCnt ? "미정산" : "발주없음");
-      const items = [...new Set(g.ord.map((o) => o.desc).concat(g.set.map((s) => s.item)).filter(Boolean))].join(", ");
-      const vendor = (g.set[0] && g.set[0].vendor) || (g.ord[0] && g.ord[0].vendor) || "";
-      const date = dateOf(g.set[0] || g.ord[0] || {});
-      const addr = (g.set[0] && g.set[0].addr) || (g.ord.find((o) => o.addr) || {}).addr || "";
-      return { name: g.name, store: g.store, vendor, date, addr, ordCnt, setCnt, items,
-        setSup: g.set.reduce((a, s) => a + S.num(s.supply), 0), setTot: g.set.reduce((a, s) => a + S.num(s.total), 0), status };
-    }).sort((a, b) => {
-      const rank = { 미정산: 0, 건수차이: 1, 발주없음: 2, 완료: 3 };
-      return (rank[a.status] - rank[b.status]) || (a.vendor || "").localeCompare(b.vendor || "") || a.name.localeCompare(b.name);
+
+    /* ── 1) 거래처(정규화 이름)별로 묶기 ── */
+    const vendors = {};
+    const gFor = (v) => { const k = S.canonVendor(v || "") || "(미지정)"; return vendors[k] = vendors[k] || { key: k, ord: [], set: [], rev: [] }; };
+    orders.forEach((o) => { if (norm(o.recipient)) gFor(o.vendor).ord.push(o); });
+    setts.forEach((s) => { if (!norm(s.recipient)) return; const g = gFor(s.vendor); (s.review ? g.rev : g.set).push(s); });
+
+    /* ── 2) 거래처 안에서 발주↔정산 1:1 짝맞춤 ──
+     * 받는분 일치가 기본 조건. 주소·품목·수량이 맞을수록 높은 점수의 짝을 우선 연결. */
+    const addrKey = (a) => norm(a).replace(/특별시|광역시|특별자치/g, "").slice(0, 10);
+    const itemEq = (a, b) => { const x = normItem(a), y = normItem(b); return !!x && !!y && (x.includes(y) || y.includes(x)); };
+    const dateStr = (r) => r.date || ((r.month || "") + "." + (r.day || ""));
+    Object.values(vendors).forEach((g) => {
+      const used = new Set();
+      g.pairs = []; g.unOrd = []; g.unSet = [];
+      g.set.forEach((s) => {
+        let best = -1, bestScore = 0;
+        g.ord.forEach((o, i) => {
+          if (used.has(i)) return;
+          if (norm(o.recipient) !== norm(s.recipient)) return;
+          let sc = 1; // 받는분 일치
+          const oa = addrKey(o.addr), sa = addrKey(s.addr);
+          if (oa && sa && (oa.includes(sa) || sa.includes(oa))) sc += 3;
+          if (itemEq(o.desc, s.item)) sc += 2;
+          if (S.num(o.qty) && S.num(s.qty) && S.num(o.qty) === S.num(s.qty)) sc += 1;
+          if (sc > bestScore) { bestScore = sc; best = i; }
+        });
+        if (best >= 0) {
+          used.add(best);
+          const o = g.ord[best];
+          const st = !itemEq(o.desc, s.item) ? "품목차이"
+            : (S.num(o.qty) && S.num(s.qty) && S.num(o.qty) !== S.num(s.qty)) ? "수량차이" : "일치";
+          g.pairs.push({ o, s, st });
+        } else g.unSet.push(s); // 짝 없는 정산 = 발주없음(과청구 의심)
+      });
+      g.ord.forEach((o, i) => { if (!used.has(i)) g.unOrd.push(o); }); // 짝 없는 발주 = 미정산
+      g.cnt = {
+        "일치": g.pairs.filter((p) => p.st === "일치").length,
+        "수량차이": g.pairs.filter((p) => p.st === "수량차이").length,
+        "품목차이": g.pairs.filter((p) => p.st === "품목차이").length,
+        "미정산": g.unOrd.length, "발주없음": g.unSet.length,
+      };
+      g.problems = g.cnt["수량차이"] + g.cnt["품목차이"] + g.cnt["미정산"] + g.cnt["발주없음"];
+      g.setTot = g.set.reduce((a, s) => a + S.num(s.total), 0);
+      g.searchText = [g.key, ...g.ord.map((o) => o.recipient + " " + o.desc), ...g.set.map((s) => s.recipient + " " + s.item)].join(" ").toLowerCase();
     });
-    const cnt = (st) => rows.filter((r) => r.status === st).length;
-    const view = recFilter ? rows.filter((r) => r.status === recFilter) : rows;
-    const badge = (st) => st === "완료" ? "in" : (st === "미정산" ? "out" : "");
-    const stStyle = (st) => st === "건수차이" ? "background:#fef3c7;color:#92400e" : (st === "발주없음" ? "background:#ede9fe;color:#6d28d9" : "");
+    let glist = Object.values(vendors).filter((g) => g.ord.length || g.set.length || g.rev.length)
+      .sort((a, b) => b.problems - a.problems || b.setTot - a.setTot || a.key.localeCompare(b.key, "ko"));
+    const totCnt = (st) => glist.reduce((a, g) => a + g.cnt[st], 0);
+    if (recFilter) glist = glist.filter((g) => g.cnt[recFilter] > 0);
+
+    const TAG = {
+      "일치": ["in", ""], "미정산": ["out", ""],
+      "수량차이": ["", "background:#fef3c7;color:#92400e"],
+      "품목차이": ["", "background:#fde8e8;color:#9b2c2c"],
+      "발주없음": ["", "background:#ede9fe;color:#6d28d9"],
+    };
+    const tag = (st) => `<span class="tag ${TAG[st][0]}" style="${TAG[st][1]}">${st}</span>`;
+    const cell = (r, isOrd) => r ? `${esc(isOrd ? (r.desc || "") : (r.item || ""))} <span class="muted">×${esc(r.qty || "?")}</span>` : `<span class="muted">—</span>`;
+
+    /* 거래처 상세 (짝맞춤 결과 행들) */
+    const detailRows = (g) => {
+      const rows = [];
+      g.pairs.forEach((p) => rows.push({ st: p.st, date: dateStr(p.o), name: p.o.recipient, ordC: cell(p.o, true), setC: cell(p.s, false), amt: S.num(p.s.total) }));
+      g.unOrd.forEach((o) => rows.push({ st: "미정산", date: dateStr(o), name: o.recipient, ordC: cell(o, true), setC: cell(null), amt: 0 }));
+      g.unSet.forEach((s) => rows.push({ st: "발주없음", date: dateStr(s), name: s.recipient, ordC: cell(null), setC: cell(s, false), amt: S.num(s.total) }));
+      const order = { "발주없음": 0, "미정산": 1, "품목차이": 2, "수량차이": 3, "일치": 4 };
+      let view = rows.sort((a, b) => order[a.st] - order[b.st] || String(a.name).localeCompare(String(b.name), "ko"));
+      if (recFilter) view = view.filter((r) => r.st === recFilter);
+      return `<tr class="rc-detail"><td colspan="9" style="padding:0;background:#f8fafd">
+        <table class="grid" style="margin:0">
+          <thead><tr><th style="width:70px">일자</th><th style="width:90px">받는분</th><th>발주 (품목×수량)</th><th>정산서 (품목×수량)</th><th class="num" style="width:95px">정산금액</th><th style="width:80px">상태</th></tr></thead>
+          <tbody>${view.map((r) => `<tr>
+            <td style="white-space:nowrap;font-size:12px">${esc(r.date)}</td><td style="white-space:nowrap">${esc(r.name)}</td>
+            <td style="font-size:12.5px">${r.ordC}</td><td style="font-size:12.5px">${r.setC}</td>
+            <td class="num">${r.amt ? "₩" + won(r.amt) : "—"}</td><td>${tag(r.st)}</td></tr>`).join("") ||
+            `<tr><td colspan="6" class="empty">해당 상태의 건이 없어요.</td></tr>`}</tbody>
+        </table></td></tr>`;
+    };
 
     main.innerHTML = `
       <div class="page-head"><div><h2>🔁 발주 ↔ 정산 대조 <span class="muted">${useRange ? esc((recRange.from || "처음") + " ~ " + (recRange.to || "끝")) : esc(scopeLabel())}</span></h2>
-        <div class="muted">받는분(수령인) 기준 · 발주내역 ↔ 정산서 비교</div></div></div>
+        <div class="muted">거래처별 요약 → 클릭하면 건별 짝맞춤 상세 (받는분+주소+품목 기준 자동 매칭)</div></div></div>
       <div class="card" style="padding:10px 14px;display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
         <span><label style="display:block;font-size:12px;color:var(--muted);margin-bottom:3px">시작일</label><input id="rc-from" type="date" value="${recRange.from}" style="border:1px solid var(--line);border-radius:8px;padding:7px 9px"></span>
         <span><label style="display:block;font-size:12px;color:var(--muted);margin-bottom:3px">종료일</label><input id="rc-to" type="date" value="${recRange.to}" style="border:1px solid var(--line);border-radius:8px;padding:7px 9px"></span>
@@ -705,23 +765,28 @@ const App = (function () {
         <span class="muted" style="font-size:12px">${useRange ? "선택한 기간의 발주·정산만 대조 중이에요." : "정산주기(주결제·15일결제 등)에 맞춰 기간을 골라 대조하세요."}</span>
       </div>
       <div class="kpibar">
-        ${[["", "전체", rows.length], ["완료", "✅ 정산완료", cnt("완료")], ["건수차이", "⚠️ 건수차이", cnt("건수차이")], ["미정산", "🔴 미정산", cnt("미정산")], ["발주없음", "🟡 발주없음", cnt("발주없음")]].map(([v, l, n]) =>
+        ${[["", "전체 거래처", Object.values(vendors).length + "곳"], ["일치", "✅ 일치", totCnt("일치")], ["수량차이", "⚠️ 수량차이", totCnt("수량차이")], ["품목차이", "❗ 품목차이", totCnt("품목차이")], ["미정산", "🔴 미정산", totCnt("미정산")], ["발주없음", "🟡 발주없음(과청구?)", totCnt("발주없음")]].map(([v, l, n]) =>
           `<div class="kb rc-fl" data-fl="${v}" style="cursor:pointer;${recFilter === v ? "outline:2px solid var(--navy)" : ""}"><div class="l">${l}</div><div class="v">${n}</div></div>`).join("")}
       </div>
-      ${(!orders.length && !setts.length) ? `<div class="card"><p class="empty">이 달의 발주내역·정산서가 없어요. 먼저 발주서/정산서를 올려주세요.</p></div>` : ""}
+      ${(!orders.length && !setts.length) ? `<div class="card"><p class="empty">이 기간의 발주내역·정산서가 없어요. 먼저 발주서/정산서를 올려주세요.</p></div>` : ""}
       ${noRecip ? `<div class="hint" style="margin-bottom:10px">⚠️ 받는분(수령인) 정보가 없는 행 ${noRecip}건은 대조에서 빠졌어요. (예전에 올린 발주는 받는분이 없을 수 있어요 → 다시 올리면 포함돼요)</div>` : ""}
       ${help("reconcile")}
-      <div class="card" style="padding:10px 14px"><input id="rc-search" placeholder="🔍 검색 (거래처·받는분·품목·일자)" style="width:100%;border:1px solid var(--line);border-radius:9px;padding:9px 12px;font-size:13.5px"></div>
+      <div class="card" style="padding:10px 14px"><input id="rc-search" placeholder="🔍 거래처·받는분·품목 검색" style="width:100%;border:1px solid var(--line);border-radius:9px;padding:9px 12px;font-size:13.5px"></div>
       <div class="table-wrap"><table class="grid rc-table">
-        <thead><tr><th>일자</th><th>거래처</th><th>사업장</th><th>받는분</th><th>주소</th><th>품목</th><th class="num">발주</th><th class="num">정산</th><th class="num">정산합계</th><th>상태</th></tr></thead>
-        <tbody>${view.map((r) => `<tr data-s="${esc([r.vendor, r.name, r.items, r.date, r.addr].join(" ").toLowerCase())}">
-          <td style="white-space:nowrap">${esc(r.date)}</td><td>${esc(r.vendor)}</td><td>${stNm(r.store)}</td><td style="white-space:nowrap">${esc(r.name)}</td>
-          <td class="rc-addr" title="${esc(r.addr)}">${esc(r.addr)}</td>
-          <td class="rc-item" title="${esc(r.items)}">${esc(r.items)}</td>
-          <td class="num">${r.ordCnt}건</td><td class="num">${r.setCnt}건</td>
-          <td class="num">₩${won(r.setTot)}</td>
-          <td><span class="tag ${badge(r.status)}" style="${stStyle(r.status)}">${r.status}</span></td></tr>`).join("") ||
-          `<tr><td colspan="10" class="empty">해당 상태의 건이 없어요.</td></tr>`}
+        <thead><tr><th style="width:26px"></th><th>거래처</th><th class="num">발주</th><th class="num">정산</th><th class="num">✅ 일치</th><th class="num">⚠️ 차이</th><th class="num">🔴 미정산</th><th class="num">🟡 발주없음</th><th class="num">정산 청구액</th></tr></thead>
+        <tbody>${glist.map((g) => {
+          const open = recOpen.has(g.key);
+          const diff = g.cnt["수량차이"] + g.cnt["품목차이"];
+          return `<tr class="rc-vrow" data-vk="${esc(g.key)}" data-s="${esc(g.searchText)}" style="cursor:pointer;${g.problems ? "" : "opacity:.75"}">
+            <td style="text-align:center;color:var(--muted)">${open ? "▾" : "▸"}</td>
+            <td><b>${esc(g.key)}</b>${g.problems ? ` <span class="tag out" style="font-size:10.5px">문제 ${g.problems}건</span>` : ` <span class="tag in" style="font-size:10.5px">깨끗</span>`}${g.rev.length ? ` <span class="muted" style="font-size:11px">(리뷰 ${g.rev.length}건 별도)</span>` : ""}</td>
+            <td class="num">${g.ord.length}건</td><td class="num">${g.set.length}건</td>
+            <td class="num" style="color:var(--green,#2C7A4B)">${g.cnt["일치"]}</td>
+            <td class="num" style="${diff ? "color:#92400e;font-weight:700" : "color:var(--muted)"}">${diff}</td>
+            <td class="num" style="${g.cnt["미정산"] ? "color:#b91c1c;font-weight:700" : "color:var(--muted)"}">${g.cnt["미정산"]}</td>
+            <td class="num" style="${g.cnt["발주없음"] ? "color:#6d28d9;font-weight:700" : "color:var(--muted)"}">${g.cnt["발주없음"]}</td>
+            <td class="num">₩${won(g.setTot)}</td></tr>${open ? detailRows(g) : ""}`;
+        }).join("") || `<tr><td colspan="9" class="empty">표시할 거래처가 없어요.</td></tr>`}
         </tbody></table></div>`;
     wire(main);
     $("#rc-apply", main).addEventListener("click", () => {
@@ -731,10 +796,20 @@ const App = (function () {
     });
     $("#rc-reset", main).addEventListener("click", () => { recRange = { from: "", to: "" }; renderReconcile(main); });
     $$(".rc-fl", main).forEach((b) => b.addEventListener("click", () => { recFilter = recFilter === b.dataset.fl ? "" : b.dataset.fl; renderReconcile(main); }));
+    $$(".rc-vrow", main).forEach((tr) => tr.addEventListener("click", () => {
+      const k = tr.dataset.vk;
+      if (recOpen.has(k)) recOpen.delete(k); else recOpen.add(k);
+      renderReconcile(main);
+    }));
     const sIn = $("#rc-search", main);
     if (sIn) sIn.addEventListener("input", () => {
       const q = sIn.value.trim().toLowerCase();
-      $$("tbody tr", main).forEach((tr) => { tr.style.display = (!q || (tr.dataset.s || "").includes(q)) ? "" : "none"; });
+      $$(".rc-vrow", main).forEach((tr) => {
+        const show = !q || (tr.dataset.s || "").includes(q);
+        tr.style.display = show ? "" : "none";
+        const next = tr.nextElementSibling;
+        if (next && next.classList.contains("rc-detail")) next.style.display = show ? "" : "none";
+      });
     });
   }
 
