@@ -80,12 +80,14 @@ const GDrive = (function () {
   }
   async function listChildren(folderId, pageToken) {
     const q = `'${folderId}' in parents and trashed=false`;
-    const j = await api("q=" + encodeURIComponent(q) + "&fields=nextPageToken,files(id,name,mimeType,modifiedTime)&pageSize=200" + (pageToken ? "&pageToken=" + pageToken : ""));
+    const j = await api("q=" + encodeURIComponent(q) + "&fields=nextPageToken,files(id,name,mimeType,modifiedTime,shortcutDetails)&pageSize=200" + (pageToken ? "&pageToken=" + pageToken : ""));
     return j;
   }
   // 폴더(및 하위 폴더 최대 3단계) 안의 엑셀 파일 모으기. 각 파일에 부모 폴더명(=거래처) 기록.
+  // 바로가기(shortcut)도 따라감 — 거래처가 공유해준 폴더를 바로가기로 넣어둔 경우 대응.
   async function collectFiles(rootId, rootName) {
     const FOLDER = "application/vnd.google-apps.folder";
+    const SHORTCUT = "application/vnd.google-apps.shortcut";
     const files = [];
     let frontier = [{ id: rootId, name: rootName, depth: 0 }];
     const seen = new Set();
@@ -97,8 +99,13 @@ const GDrive = (function () {
         do {
           const j = await listChildren(fol.id, pt);
           (j.files || []).forEach((f) => {
-            if (f.mimeType === FOLDER) { if (fol.depth < 3) next.push({ id: f.id, name: f.name, depth: fol.depth + 1 }); }
-            else files.push({ id: f.id, name: f.name, mimeType: f.mimeType, modifiedTime: f.modifiedTime, parentName: fol.name, isRoot: fol.depth === 0 });
+            let id = f.id, mime = f.mimeType;
+            if (mime === SHORTCUT && f.shortcutDetails) { // 바로가기 → 실제 대상으로 치환
+              id = f.shortcutDetails.targetId;
+              mime = f.shortcutDetails.targetMimeType || "";
+            }
+            if (mime === FOLDER) { if (fol.depth < 3) next.push({ id, name: f.name, depth: fol.depth + 1 }); }
+            else files.push({ id, name: f.name, mimeType: mime, modifiedTime: f.modifiedTime, parentName: fol.name, isRoot: fol.depth === 0 });
           });
           pt = j.nextPageToken || "";
         } while (pt);
@@ -109,6 +116,7 @@ const GDrive = (function () {
   }
   function isSheetFile(f) {
     const n = f.name || "";
+    if (/^~\$/.test(n)) return false; // 엑셀 임시 잠금파일 (~$로 시작) 제외
     if (/변환|템플릿|template|thumbs|양식|등록\s*방법|작성\s*방법|매뉴얼|manual/i.test(n)) return false;
     if (/\.(xlsx|xls|csv)$/i.test(n)) return true;
     return /spreadsheetml|ms-excel|csv|google-apps\.spreadsheet/i.test(f.mimeType || "");
