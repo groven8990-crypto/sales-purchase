@@ -217,6 +217,7 @@ const GDrive = (function () {
     try { files = await collectFiles(folder.id, folder.name); }
     catch (e) { setStatus(`<div class="err">${E(e.message)}</div>`); return; }
     let sheetFiles = files.filter(isSheetFile);
+    const allSheetCnt = sheetFiles.length;
     // 발주: 파일명에 '발주'(발주서 등) 또는 회신표시(회신·운송장·송장)만. 그 외(정산·기타)는 건너뜀
     if (kind === "orders") sheetFiles = sheetFiles.filter((f) => /발주|회신|운송장|송장/.test(f.name || ""));
     if (!sheetFiles.length) { setStatus(`<div class="err">폴더에서 ${spec.label} 엑셀을 못 찾았어요.</div>`); return; }
@@ -249,7 +250,7 @@ const GDrive = (function () {
     const mo = (App.scope && App.scope.month) || (new Date().getMonth() + 1);
     const isReply = (n) => /회신|운송장|송장/.test(n || ""); // 회신(송장번호) 파일 판별
     const out = [], replies = [];
-    let done = 0, failed = 0, replyFiles = 0;
+    let done = 0, failed = 0, replyFiles = 0, lastErr = "";
     for (const f of sheetFiles) {
       done++;
       setStatus(`<div class="muted">⬇️ (${done}/${sheetFiles.length}) ${E(f.name)} 읽는 중…</div>`);
@@ -274,10 +275,20 @@ const GDrive = (function () {
         }
         impK[f.id] = f.modifiedTime; // 처리 성공 → 가져온 파일로 기록
         if (done % 10 === 0) saveImp(imp); // 중간에 끊겨도 진행분 보존
-      } catch (e) { failed++; }
+      } catch (e) { failed++; lastErr = (f.name || "") + " — " + (e && e.message ? e.message : e); console.warn("가져오기 실패:", f.name, e); }
     }
     saveImp(imp);
-    if (!out.length && !replies.length) { setStatus(`<div class="err">읽을 행이 없었어요. (파일 ${sheetFiles.length}개${failed ? `, 실패 ${failed}개` : ""})</div>`); return; }
+    if (!out.length && !replies.length) {
+      // 진단 정보: 어떤 폴더를 훑었고 뭐가 있었는지 보여줌 (엉뚱한 폴더 선택·필터 문제를 바로 알 수 있게)
+      const subs = [...new Set(files.filter((x) => !x.isRoot).map((x) => x.parentName))];
+      setStatus(`<div class="err">읽을 행이 없었어요. (엑셀 ${sheetFiles.length}개${failed ? `, 실패 ${failed}개` : ""})</div>
+        <div class="muted" style="font-size:12px;margin-top:6px;line-height:1.7">
+        📂 훑은 폴더: <b>${E(folder.name)}</b>${subs.length ? ` + 하위 ${subs.length}개 (${E(subs.slice(0, 6).join(", "))}${subs.length > 6 ? " …" : ""})` : " <b>(하위폴더 없음)</b>"}<br>
+        발견한 파일 전체 ${files.length}개 / 그중 엑셀 ${allSheetCnt}개${skippedExisting ? ` / 이미 가져온 파일 ${skippedExisting}개 건너뜀 (체크 해제하면 다시 읽어요)` : ""}<br>
+        ${lastErr ? `마지막 오류: ${E(lastErr)}<br>` : ""}
+        폴더가 다르면 <b>🔗 구글 연결 / 폴더 찾기</b>로 올바른 폴더(상위 폴더 이름 표시됨)를 다시 골라주세요.</div>`);
+      return;
+    }
     const res = kind === "orders" ? Modals.addOrdersDedup(out)
       : kind === "bank" ? S.addTransactions(out)
       : Modals.addSettlementsDedup(out);
