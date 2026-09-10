@@ -1953,7 +1953,7 @@ const App = (function () {
     const pfBody = pfGroup(feeRows, "▸ 플랫폼 수수료", "수수료", pfFee, "fee")
       + `<tr class="sum"><td colspan="3">플랫폼 수수료 소계</td><td class="n" id="mr-pfFee">${won(pfFee)}</td><td class="n">100%</td><td class="no-print"></td></tr>`
       + pfGroup(adRows, "▸ 플랫폼 광고비", "광고비", pfAd, "ad")
-      + `<tr class="sum"><td colspan="3">플랫폼 광고비 소계</td><td class="n" id="mr-pfAd">${won(pfAd)}</td><td class="n">100%</td><td class="no-print"></td></tr>`;
+      + `<tr class="sum"><td colspan="3">플랫폼 광고비 소계 <span style="font-weight:400;color:var(--muted);font-size:11.5px">— 매출 대비 <b id="mr-pfAdSalesPct" style="color:var(--navy)">${chT ? (pfAd / chT * 100).toFixed(1) : "0.0"}%</b></span></td><td class="n" id="mr-pfAd">${won(pfAd)}</td><td class="n">100%</td><td class="no-print"></td></tr>`;
     // 플랫폼별 비용 비중 도넛용 (양수만)
     const pfChMap = {};
     R.platform.forEach((r) => { pfChMap[r.supplier || "(미입력)"] = (pfChMap[r.supplier || "(미입력)"] || 0) + S.num(r.amount); });
@@ -2109,6 +2109,7 @@ const App = (function () {
       const be = $("#mr-bankNet", main); if (be) { be.textContent = won(net); be.className = "n " + (net >= 0 ? "pos" : "neg"); }
       const fe = $("#mr-pfFee", main); if (fe) fe.textContent = won(pfFeeT);
       const ae = $("#mr-pfAd", main); if (ae) ae.textContent = won(pfAdT);
+      const asp = $("#mr-pfAdSalesPct", main); if (asp) asp.textContent = (chTotal ? (pfAdT / chTotal * 100).toFixed(1) : "0.0") + "%";
       $$(".mr-pfpct", main).forEach((el) => { const r = R.platform[+el.dataset.pi]; if (!r) return; const base = el.dataset.grp === "ad" ? pfAdT : pfFeeT; el.textContent = (base ? (S.num(r.amount) / base * 100).toFixed(1) : "0.0") + "%"; });
     };
     main.querySelectorAll(".mr-in").forEach((el) => {
@@ -2302,7 +2303,7 @@ const App = (function () {
           <div style="flex:1;min-width:0">
             <table class="doc-table"><thead><tr><th class="c" style="width:40px">순번</th><th>플랫폼</th><th class="n" style="width:130px">금액</th><th class="n" style="width:60px">비중</th></tr></thead>
               <tbody>${supGrp(feeSup, "▸ 플랫폼 수수료", pfFee)}<tr class="sum"><td colspan="2">수수료 소계</td><td class="n">${won(pfFee)}</td><td class="n">100%</td></tr>
-              ${supGrp(adSup, "▸ 플랫폼 광고비", pfAd)}<tr class="sum"><td colspan="2">광고비 소계</td><td class="n">${won(pfAd)}</td><td class="n">100%</td></tr></tbody></table>
+              ${supGrp(adSup, "▸ 플랫폼 광고비", pfAd)}<tr class="sum"><td colspan="2">광고비 소계 <span style="font-weight:400;color:var(--muted);font-size:11.5px">— 매출 대비 <b style="color:var(--navy)">${chT ? (pfAd / chT * 100).toFixed(1) : "0.0"}%</b></span></td><td class="n">${won(pfAd)}</td><td class="n">100%</td></tr></tbody></table>
           </div>
           <div style="width:240px;flex-shrink:0">
             <div style="position:relative;border:1px solid #d4dae4;border-radius:6px;padding:8px;height:260px"><canvas id="mr-pf-ch"></canvas></div>
