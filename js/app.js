@@ -1784,10 +1784,14 @@ const App = (function () {
         fresh.vendors = [...validPrev, ...addFromFresh];
       }
       // 채널: fresh(실데이터) 항상 신선하게 갱신 + prev에만 있는 수동추가 채널 보존
+      // 사용자가 ✕로 지운 자동 채널(deletedChannels)은 다시 넣지 않음 (예: B2B를 지우고 둘로 쪼갠 경우)
       {
-        const freshChNames = new Set(fresh.channels.map((c) => c.name).filter(Boolean));
+        const delCh = new Set(prev.deletedChannels || []);
+        const freshCh = fresh.channels.filter((c) => !delCh.has(c.name));
+        const freshChNames = new Set(freshCh.map((c) => c.name).filter(Boolean));
         const prevOnlyCh = (prev.channels || []).filter((c) => c.name && !freshChNames.has(c.name));
-        fresh.channels = [...fresh.channels, ...prevOnlyCh];
+        fresh.channels = [...freshCh, ...prevOnlyCh];
+        fresh.deletedChannels = prev.deletedChannels || [];
       }
       fresh.pfDeleted = prev.pfDeleted || [];
       fresh.platform = mergePlatform(prev.platform, fresh.platform, fresh.pfDeleted); // 새 세금계산서 수수료·광고비 항목 자동 추가
@@ -2137,6 +2141,11 @@ const App = (function () {
       if (sect === "vendors" && R.vendors[idx] && R.vendors[idx].name) {
         if (!R.deletedVendors) R.deletedVendors = [];
         R.deletedVendors.push(R.vendors[idx].name);
+      }
+      if (sect === "channels" && R.channels[idx] && R.channels[idx].name) {
+        // 지운 자동 채널은 다시 안 들어오게 이름을 기억
+        if (!R.deletedChannels) R.deletedChannels = [];
+        R.deletedChannels.push(R.channels[idx].name);
       }
       if (sect === "platform" && R.platform[idx]) {
         // 삭제한 자동 항목은 다시 안 들어오게 출처 표식을 기억
