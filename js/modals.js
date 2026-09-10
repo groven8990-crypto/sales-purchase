@@ -56,19 +56,38 @@ const Modals = (function () {
   /* ===== 1) 기존 마감 엑셀 불러오기 ===== */
   function importExisting() {
     open("기존 마감 엑셀 불러오기",
-      `<p>현재 쓰시던 <b>그로븐 / 옐로우브릿지(YB)</b> 엑셀 파일을 올리면 매출·매입·입출금·송금처를 한 번에 가져옵니다.</p>
+      `<p>현재 쓰시던 <b>그로븐 / 옐로우브릿지(YB)</b> 엑셀 파일에서 <b>선택한 항목만</b> 가져옵니다.</p>
        <div class="form-row"><label>스토어</label>${storeSelect("ie-store")}</div>
+       <div class="form-row"><label>가져올 항목</label>
+         <div style="display:flex;gap:14px;flex-wrap:wrap;font-size:13.5px">
+           <label style="cursor:pointer"><input type="checkbox" id="ie-ck-sales" checked> 💰 매출</label>
+           <label style="cursor:pointer"><input type="checkbox" id="ie-ck-pur"> 🧾 매입</label>
+           <label style="cursor:pointer"><input type="checkbox" id="ie-ck-txn"> 🏦 입출금</label>
+           <label style="cursor:pointer"><input type="checkbox" id="ie-ck-ven"> 📇 송금처</label>
+         </div>
+         <p class="hint" style="margin:5px 0 0">매출 탭에서 열면 매출만 기본 선택돼요. 장부 전체를 이사시킬 땐 전부 체크하세요.</p></div>
        <div class="form-row"><label>엑셀 파일</label><input type="file" id="ie-file" accept=".xlsx,.xls"></div>
        <div id="ie-preview" class="preview"></div>`,
       `<button class="btn" id="ie-cancel">취소</button>
        <button class="btn primary" id="ie-apply" disabled>가져오기</button>`);
     let parsed = null;
+    const ck = (id) => { const el = q("#" + id); return !!(el && el.checked); };
+    const renderPrev = () => {
+      if (!parsed) return;
+      const parts = [];
+      parts.push(`매출 ${parsed.sales.length}` + (ck("ie-ck-sales") ? "" : " (제외)"));
+      parts.push(`매입 ${parsed.purchases.length}` + (ck("ie-ck-pur") ? "" : " (제외)"));
+      parts.push(`입출금 ${parsed.transactions.length}` + (ck("ie-ck-txn") ? "" : " (제외)"));
+      parts.push(`송금처 ${parsed.vendors.length}` + (ck("ie-ck-ven") ? "" : " (제외)"));
+      q("#ie-preview").innerHTML = `<div class="ok">✅ 인식됨 — ${parts.join(" · ")}건</div>`;
+    };
+    ["ie-ck-sales", "ie-ck-pur", "ie-ck-txn", "ie-ck-ven"].forEach((id) => { const el = q("#" + id); if (el) el.onchange = renderPrev; });
     q("#ie-file").onchange = async (e) => {
       const f = e.target.files[0]; if (!f) return;
       const store = q("#ie-store").value;
       try {
         parsed = await Parsers.importExistingWorkbook(f, store);
-        q("#ie-preview").innerHTML = `<div class="ok">✅ 인식됨 — 매출 ${parsed.sales.length} · 매입 ${parsed.purchases.length} · 입출금 ${parsed.transactions.length} · 송금처 ${parsed.vendors.length}건</div>`;
+        renderPrev();
         q("#ie-apply").disabled = false;
       } catch (err) {
         q("#ie-preview").innerHTML = `<div class="err">❌ 읽기 실패: ${E(err.message)}</div>`;
@@ -77,11 +96,15 @@ const Modals = (function () {
     q("#ie-cancel").onclick = close;
     q("#ie-apply").onclick = () => {
       if (!parsed) return;
-      const rs = S.addSales(parsed.sales), rp = S.addPurchases(parsed.purchases), rt = S.addTransactions(parsed.transactions);
-      parsed.vendors.forEach((v) => S.upsertVendor(v)); S.save();
+      if (!ck("ie-ck-sales") && !ck("ie-ck-pur") && !ck("ie-ck-txn") && !ck("ie-ck-ven")) { alert("가져올 항목을 하나 이상 체크하세요."); return; }
+      const rs = ck("ie-ck-sales") ? S.addSales(parsed.sales) : { added: 0, skipped: 0 };
+      const rp = ck("ie-ck-pur") ? S.addPurchases(parsed.purchases) : { added: 0, skipped: 0 };
+      const rt = ck("ie-ck-txn") ? S.addTransactions(parsed.transactions) : { added: 0, skipped: 0 };
+      if (ck("ie-ck-ven")) parsed.vendors.forEach((v) => S.upsertVendor(v));
+      S.save();
       const sk = rs.skipped + rp.skipped + rt.skipped;
-      close(); App.go("dashboard");
-      if (sk > 0) alert(`✅ 불러오기 완료\n중복 ${sk}건은 건너뜀 (매출 ${rs.skipped} · 매입 ${rp.skipped} · 입출금 ${rt.skipped})`);
+      close(); App.go(ck("ie-ck-sales") && !ck("ie-ck-pur") && !ck("ie-ck-txn") ? "sales" : "dashboard");
+      alert(`✅ 불러오기 완료 — 매출 ${rs.added} · 매입 ${rp.added} · 입출금 ${rt.added}건 추가${sk ? `\n중복 ${sk}건은 건너뜀` : ""}`);
     };
   }
 
