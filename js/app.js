@@ -1353,16 +1353,22 @@ const App = (function () {
   const PLATFORM_VENDORS = new Set(["쿠팡", "지마켓", "G마켓", "옥션", "네이버", "십일번가", "카카오", "당근", "위메프", "티몬"]);
 
   // 플랫폼 세부(Ⅲ-1) 병합: 기존 항목(수기 수정 포함)은 유지하고, 실데이터에 새로 생긴 항목만 추가
-  // 같은 플랫폼에서 내용 글자만 다르고 금액이 같으면 같은 항목으로 봄 (수기 입력 vs 세금계산서 문구 차이)
-  function mergePlatform(prevPf, freshPf) {
+  // - 같은 플랫폼에서 내용 글자만 다르고 금액이 같으면 같은 항목으로 봄 (수기 입력 vs 세금계산서 문구 차이)
+  // - 자동 추가된 행에는 출처 표식(src)이 붙어서, 사용자가 이름·내용을 바꿔도 같은 항목이 다시 안 들어옴
+  // - 사용자가 삭제한 자동 항목(pfDeleted)은 다시 추가하지 않음
+  function mergePlatform(prevPf, freshPf, delKeys) {
     const prev = prevPf || [], fresh = freshPf || [];
-    if (!prev.length) return fresh;
     const canon = (r) => S.canonVendor(r.supplier || "");
+    const srcOf = (r) => r.src || (canon(r) + "|" + Math.round(S.num(r.amount)));
+    const del = new Set(delKeys || []);
+    if (!prev.length) return fresh.filter((r) => !del.has(srcOf(r)));
     const itemKey = (r) => canon(r) + "|" + String(r.item || "").trim();
     const amtKey = (r) => canon(r) + "|" + Math.round(S.num(r.amount));
     const haveItem = new Set(prev.map(itemKey));
     const haveAmt = new Set(prev.map(amtKey));
-    return prev.concat(fresh.filter((r) => !haveItem.has(itemKey(r)) && !haveAmt.has(amtKey(r))));
+    const haveSrc = new Set(prev.map((p) => p.src).filter(Boolean));
+    return prev.concat(fresh.filter((r) =>
+      !del.has(srcOf(r)) && !haveSrc.has(srcOf(r)) && !haveItem.has(itemKey(r)) && !haveAmt.has(amtKey(r))));
   }
 
   function autoFillStoreReport(st, yr, mo) {
@@ -1381,6 +1387,7 @@ const App = (function () {
       item: p.desc || "",
       type: ((p.category || "") + " " + (p.desc || "")).match(/광고|[Aa][Dd]|상품전시/) ? "광고비" : "수수료",
       amount: Math.round(S.num(p.supply)),
+      src: S.canonVendor(p.vendor) + "|" + Math.round(S.num(p.supply)), // 출처 표식 — 이름을 바꿔도 재추가 방지
     }));
     // 발주건수 집계 — 발주서를 올렸으면 발주건수 우선, 없으면 홈택스 계산서 건수 폴백
     const ordRows = S.filterBy(S.data.orders || [], { store: st, year: yr, month: mo });
@@ -1782,7 +1789,8 @@ const App = (function () {
         const prevOnlyCh = (prev.channels || []).filter((c) => c.name && !freshChNames.has(c.name));
         fresh.channels = [...fresh.channels, ...prevOnlyCh];
       }
-      fresh.platform = mergePlatform(prev.platform, fresh.platform); // 새 세금계산서 수수료·광고비 항목 자동 추가
+      fresh.pfDeleted = prev.pfDeleted || [];
+      fresh.platform = mergePlatform(prev.platform, fresh.platform, fresh.pfDeleted); // 새 세금계산서 수수료·광고비 항목 자동 추가
       // csItems: 품목·건수는 사용자 편집 보존, 환불금액은 실데이터(S.data.cs)로 항상 갱신
       if (prev.csItems && prev.csItems.length > 0) {
         // prev 기준이 아닌 fresh(현재 C/S 실데이터) 기준 — C/S에서 삭제된 항목은 보고서에서도 사라짐
@@ -2130,15 +2138,22 @@ const App = (function () {
         if (!R.deletedVendors) R.deletedVendors = [];
         R.deletedVendors.push(R.vendors[idx].name);
       }
+      if (sect === "platform" && R.platform[idx]) {
+        // 삭제한 자동 항목은 다시 안 들어오게 출처 표식을 기억
+        const row = R.platform[idx];
+        if (!R.pfDeleted) R.pfDeleted = [];
+        R.pfDeleted.push(row.src || (S.canonVendor(row.supplier || "") + "|" + Math.round(S.num(row.amount))));
+      }
       R[sect].splice(idx, 1); reSave(true);
     }));
     $("#mr-print", main).addEventListener("click", () => window.print());
     $("#mr-png", main).addEventListener("click", () => exportSheetPng(main, store === "yb" ? "YB" : "그로븐"));
     $("#mr-auto", main).addEventListener("click", () => {
       if (!confirm(`${fullNm}의 수기 보고서를 현재 데이터 자동값으로 다시 채울까요? 지금 입력한 값은 덮어써져요. (플랫폼 세부내역은 유지됩니다)`)) return;
-      const keepPf = R.platform, keepMemo = R.memo;
+      const keepPf = R.platform, keepMemo = R.memo, keepDel = R.pfDeleted || [];
       M[store] = autoFillStoreReport(store, yr, mo);
-      M[store].platform = mergePlatform(keepPf, M[store].platform);
+      M[store].pfDeleted = keepDel;
+      M[store].platform = mergePlatform(keepPf, M[store].platform, keepDel);
       M[store].memo = keepMemo || "";
       reSave(true);
     });
@@ -2354,9 +2369,10 @@ const App = (function () {
     $("#mr-auto-all", main).addEventListener("click", () => {
       if (!confirm(`그로븐·YB 수기 보고서를 현재 데이터 자동값으로 다시 채울까요?\n지금 입력한 값은 덮어써져요. (플랫폼 세부내역은 유지됩니다)`)) return;
       ["groven", "yb"].forEach((st) => {
-        const keepPf = (M[st] || {}).platform;
+        const keepPf = (M[st] || {}).platform, keepDel = (M[st] || {}).pfDeleted || [];
         M[st] = autoFillStoreReport(st, yr, mo);
-        M[st].platform = mergePlatform(keepPf, M[st].platform);
+        M[st].pfDeleted = keepDel;
+        M[st].platform = mergePlatform(keepPf, M[st].platform, keepDel);
       });
       S.save(); renderManualReport(main);
     });
