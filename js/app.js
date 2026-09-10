@@ -1619,6 +1619,59 @@ const App = (function () {
     };
   }
 
+  // 여러 장(통합·그로븐·YB) 미리보기 + 한 번에 저장
+  function previewCanvases(items) {
+    const host = document.createElement("div");
+    host.style.cssText = "position:fixed;inset:0;z-index:100;background:rgba(20,28,50,.55);display:flex;flex-direction:column;align-items:center;padding:18px;overflow:auto";
+    host.innerHTML = `
+      <div style="background:#fff;border-radius:12px;max-width:840px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.3);display:flex;flex-direction:column;max-height:94vh">
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:13px 18px;border-bottom:1px solid #e3e8f0">
+          <b style="font-size:15px">🖼️ 미리보기 <span style="font-weight:500;color:#6b7588;font-size:12.5px">— ${items.length}장을 한 번에 저장해요</span></b>
+          <div style="display:flex;gap:8px">
+            <button class="btn" id="pv-close">닫기</button>
+            ${fsSupported ? `<button class="btn" id="pv-folder" title="저장할 폴더를 고르면 다음부터 그 폴더에 바로 저장돼요">📁 폴더 설정</button>` : ""}
+            <button class="btn primary" id="pv-save">📥 ${items.length}장 모두 저장</button>
+          </div>
+        </div>
+        ${fsSupported ? `<div id="pv-folder-info" style="padding:7px 18px 0;font-size:12px;color:#6b7588"></div>` : ""}
+        <div style="overflow:auto;padding:16px;background:#eef1f6">
+          ${items.map((it) => `<div style="text-align:center;margin-bottom:16px">
+            <div style="font-weight:700;color:#1a3a6b;margin-bottom:6px">${esc(it.label)} <span style="font-weight:400;color:#6b7588;font-size:12px">${esc(it.filename)}</span></div>
+            <img src="${it.canvas.toDataURL("image/png")}" style="max-width:100%;box-shadow:0 2px 12px rgba(0,0,0,.15);border-radius:4px"></div>`).join("")}
+        </div>
+      </div>`;
+    document.body.appendChild(host);
+    const close = () => host.remove();
+    host.addEventListener("click", (e) => { if (e.target === host) close(); });
+    host.querySelector("#pv-close").onclick = close;
+    const info = host.querySelector("#pv-folder-info");
+    const showFolder = (name) => { if (info) info.innerHTML = name ? `저장 폴더: <b>${esc(name)}</b> 에 바로 저장돼요` : `저장 폴더가 아직 없어요. 저장 시 폴더를 고르면 그 폴더로 들어가요.`; };
+    if (fsSupported) {
+      idbDir("get").then((h) => showFolder(h && h.name));
+      host.querySelector("#pv-folder").onclick = async () => { try { const h = await pickSaveDir(); showFolder(h.name); } catch (e) { /* 취소 */ } };
+    }
+    const fallbackAll = async () => {
+      for (const it of items) {
+        const a = document.createElement("a"); a.download = it.filename; a.href = it.canvas.toDataURL("image/png"); a.click();
+        await new Promise((r) => setTimeout(r, 350)); // 연속 다운로드 간격
+      }
+    };
+    host.querySelector("#pv-save").onclick = async () => {
+      const btn = host.querySelector("#pv-save");
+      if (!fsSupported) { await fallbackAll(); close(); return; }
+      btn.disabled = true; btn.textContent = "저장 중…";
+      try {
+        let dir = null;
+        for (const it of items) { dir = await savePngToFolder(it.canvas, it.filename); if (!dir) break; }
+        if (dir) { close(); return; }
+        await fallbackAll(); close();
+      } catch (e) {
+        if (e && e.name === "AbortError") { btn.disabled = false; btn.textContent = `📥 ${items.length}장 모두 저장`; return; } // 폴더 선택 취소 → 모달 유지
+        alert("폴더 저장에 실패해 기본 다운로드로 저장해요.\n" + (e.message || e)); await fallbackAll(); close();
+      }
+    };
+  }
+
   // 공통 캡처 옵션 적용 후 canvas 반환 (Promise)
   function captureSheetPng(main) {
     const node = main.querySelector(".sheet");
@@ -2375,7 +2428,25 @@ const App = (function () {
       saveSoon(true);
     });
     $("#mr-print", main).addEventListener("click", () => window.print());
-    $("#mr-png", main).addEventListener("click", () => exportSheetPng(main, "통합"));
+    // 통합 탭 PNG: 통합·그로븐·YB 3장을 순서대로 캡처해서 한 번에 저장
+    $("#mr-png", main).addEventListener("click", async () => {
+      const btn = $("#mr-png", main);
+      btn.disabled = true;
+      const yymmdd = new Date().toISOString().slice(0, 10).replace(/-/g, "").slice(2);
+      const jobs = [["통합", ""], ["그로븐", "groven"], ["YB", "yb"]];
+      const caps = [];
+      try {
+        for (let i = 0; i < jobs.length; i++) {
+          const [label, st] = jobs[i];
+          btn.textContent = `📸 캡처 중 (${i + 1}/3) — ${label}`;
+          scope.store = st; render();
+          await new Promise((r) => setTimeout(r, 750)); // 차트 그려질 시간
+          caps.push({ label, filename: `${yymmdd}-월마감보고서-${label}.png`, canvas: await captureSheetPng($("#main")) });
+        }
+      } catch (e) { alert("이미지 캡처 실패: " + (e.message || e)); }
+      scope.store = ""; render(); // 통합 화면으로 복귀
+      if (caps.length === jobs.length) previewCanvases(caps);
+    });
     $("#mr-auto-all", main).addEventListener("click", () => {
       if (!confirm(`그로븐·YB 수기 보고서를 현재 데이터 자동값으로 다시 채울까요?\n지금 입력한 값은 덮어써져요. (플랫폼 세부내역은 유지됩니다)`)) return;
       ["groven", "yb"].forEach((st) => {
