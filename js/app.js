@@ -1285,7 +1285,7 @@ const App = (function () {
     if (typeof html2canvas !== "function") { alert("이미지 변환 라이브러리를 불러오지 못했어요. 인터넷 연결을 확인해주세요."); host.remove(); return; }
     html2canvas(node, { scale: 2, backgroundColor: "#ffffff" }).then((canvas) => {
       host.remove();
-      previewCanvas(canvas, `${today.slice(2).replace(/-/g, "")}-예치금현황.png`);
+      previewCanvas(canvas, `${today.slice(2).replace(/-/g, "")}-예치금현황.png`, "dir_deposit");
     }).catch((e) => { alert("이미지 저장 실패: " + e); host.remove(); });
   }
 
@@ -1537,7 +1537,9 @@ const App = (function () {
 
   // ===== 저장 폴더 (File System Access API) — 한 번 고른 폴더에 이미지 바로 저장 =====
   const fsSupported = typeof window.showDirectoryPicker === "function";
-  function idbDir(method, val) {
+  // 용도별(dirKey: 보고서/예치금 등) 저장 폴더를 따로 기억. key 없으면 예전 공용 키.
+  function idbDir(method, val, key) {
+    const k = key || "saveDir";
     return new Promise((res) => {
       let open; try { open = indexedDB.open("spc_fs", 1); } catch (e) { return res(null); }
       open.onupgradeneeded = () => open.result.createObjectStore("h");
@@ -1545,13 +1547,19 @@ const App = (function () {
         try {
           const tx = open.result.transaction("h", method === "get" ? "readonly" : "readwrite");
           const st = tx.objectStore("h");
-          const rq = method === "get" ? st.get("saveDir") : st.put(val, "saveDir");
+          const rq = method === "get" ? st.get(k) : st.put(val, k);
           rq.onsuccess = () => res(method === "get" ? rq.result : true);
           rq.onerror = () => res(null);
         } catch (e) { res(null); }
       };
       open.onerror = () => res(null);
     });
+  }
+  // 용도별 폴더 읽기 — 아직 안 정해졌으면 예전 공용 폴더를 이어받음 (처음 한 번만)
+  async function getSavedDir(dirKey) {
+    let h = await idbDir("get", null, dirKey);
+    if (!h && dirKey) h = await idbDir("get");
+    return h;
   }
   async function dirPerm(handle) {
     if (!handle) return false;
@@ -1561,20 +1569,20 @@ const App = (function () {
       return (await handle.requestPermission(opts)) === "granted";
     } catch (e) { return false; }
   }
-  async function pickSaveDir() { const h = await window.showDirectoryPicker({ mode: "readwrite" }); await idbDir("put", h); return h; }
+  async function pickSaveDir(dirKey) { const h = await window.showDirectoryPicker({ mode: "readwrite" }); await idbDir("put", h, dirKey); return h; }
   // 저장 폴더에 PNG 기록. 성공 시 true, 폴더 미지원/취소 시 false(→기본 다운로드로 폴백)
-  async function savePngToFolder(canvas, filename, forcePick) {
+  async function savePngToFolder(canvas, filename, forcePick, dirKey) {
     if (!fsSupported) return false;
-    let h = forcePick ? null : await idbDir("get");
-    if (!h || !(await dirPerm(h))) { h = await pickSaveDir(); } // 미설정/권한없음 → 폴더 고르기
+    let h = forcePick ? null : await getSavedDir(dirKey);
+    if (!h || !(await dirPerm(h))) { h = await pickSaveDir(dirKey); } // 미설정/권한없음 → 폴더 고르기
     const blob = await new Promise((r) => canvas.toBlob(r, "image/png"));
     const fh = await h.getFileHandle(filename, { create: true });
     const w = await fh.createWritable(); await w.write(blob); await w.close();
     return h.name;
   }
 
-  // 캔버스 미리보기 모달 — 저장 전에 확인
-  function previewCanvas(canvas, filename) {
+  // 캔버스 미리보기 모달 — 저장 전에 확인 (dirKey: 용도별 저장 폴더 구분)
+  function previewCanvas(canvas, filename, dirKey) {
     const url = canvas.toDataURL("image/png");
     const host = document.createElement("div");
     host.style.cssText = "position:fixed;inset:0;z-index:100;background:rgba(20,28,50,.55);display:flex;flex-direction:column;align-items:center;padding:18px;overflow:auto";
@@ -1599,17 +1607,17 @@ const App = (function () {
     host.querySelector("#pv-close").onclick = close;
     const info = host.querySelector("#pv-folder-info");
     const showFolder = (name) => { if (info) info.innerHTML = name ? `저장 폴더: <b>${esc(name)}</b> 에 바로 저장돼요` : `저장 폴더가 아직 없어요. 저장 시 폴더를 고르면 그 폴더로 들어가요.`; };
-    if (fsSupported) idbDir("get").then((h) => showFolder(h && h.name));
+    if (fsSupported) getSavedDir(dirKey).then((h) => showFolder(h && h.name));
     const fallbackDownload = () => { const a = document.createElement("a"); a.download = filename; a.href = url; a.click(); };
     if (fsSupported) host.querySelector("#pv-folder").onclick = async () => {
-      try { const h = await pickSaveDir(); showFolder(h.name); } catch (e) { /* 취소 */ }
+      try { const h = await pickSaveDir(dirKey); showFolder(h.name); } catch (e) { /* 취소 */ }
     };
     host.querySelector("#pv-save").onclick = async () => {
       const btn = host.querySelector("#pv-save");
       if (!fsSupported) { fallbackDownload(); close(); return; }
       btn.disabled = true; btn.textContent = "저장 중…";
       try {
-        const dir = await savePngToFolder(canvas, filename);
+        const dir = await savePngToFolder(canvas, filename, false, dirKey);
         if (dir) { close(); return; }
         fallbackDownload(); close();
       } catch (e) {
@@ -1619,8 +1627,8 @@ const App = (function () {
     };
   }
 
-  // 여러 장(통합·그로븐·YB) 미리보기 + 한 번에 저장
-  function previewCanvases(items) {
+  // 여러 장(통합·그로븐·YB) 미리보기 + 한 번에 저장 (dirKey: 용도별 저장 폴더 구분)
+  function previewCanvases(items, dirKey) {
     const host = document.createElement("div");
     host.style.cssText = "position:fixed;inset:0;z-index:100;background:rgba(20,28,50,.55);display:flex;flex-direction:column;align-items:center;padding:18px;overflow:auto";
     host.innerHTML = `
@@ -1647,8 +1655,8 @@ const App = (function () {
     const info = host.querySelector("#pv-folder-info");
     const showFolder = (name) => { if (info) info.innerHTML = name ? `저장 폴더: <b>${esc(name)}</b> 에 바로 저장돼요` : `저장 폴더가 아직 없어요. 저장 시 폴더를 고르면 그 폴더로 들어가요.`; };
     if (fsSupported) {
-      idbDir("get").then((h) => showFolder(h && h.name));
-      host.querySelector("#pv-folder").onclick = async () => { try { const h = await pickSaveDir(); showFolder(h.name); } catch (e) { /* 취소 */ } };
+      getSavedDir(dirKey).then((h) => showFolder(h && h.name));
+      host.querySelector("#pv-folder").onclick = async () => { try { const h = await pickSaveDir(dirKey); showFolder(h.name); } catch (e) { /* 취소 */ } };
     }
     const fallbackAll = async () => {
       for (const it of items) {
@@ -1662,7 +1670,7 @@ const App = (function () {
       btn.disabled = true; btn.textContent = "저장 중…";
       try {
         let dir = null;
-        for (const it of items) { dir = await savePngToFolder(it.canvas, it.filename); if (!dir) break; }
+        for (const it of items) { dir = await savePngToFolder(it.canvas, it.filename, false, dirKey); if (!dir) break; }
         if (dir) { close(); return; }
         await fallbackAll(); close();
       } catch (e) {
@@ -1716,7 +1724,7 @@ const App = (function () {
     const today = new Date().toISOString().slice(0, 10);
     const yymmdd = today.replace(/-/g, "").slice(2);
     return captureSheetPng(main).then((canvas) => {
-      previewCanvas(canvas, `${yymmdd}-월마감보고서-${label}.png`);
+      previewCanvas(canvas, `${yymmdd}-월마감보고서-${label}.png`, "dir_report");
     }).catch((e) => alert("이미지 저장 실패: " + e));
   }
 
@@ -2445,7 +2453,7 @@ const App = (function () {
         }
       } catch (e) { alert("이미지 캡처 실패: " + (e.message || e)); }
       scope.store = ""; render(); // 통합 화면으로 복귀
-      if (caps.length === jobs.length) previewCanvases(caps);
+      if (caps.length === jobs.length) previewCanvases(caps, "dir_report");
     });
     $("#mr-auto-all", main).addEventListener("click", () => {
       if (!confirm(`그로븐·YB 수기 보고서를 현재 데이터 자동값으로 다시 채울까요?\n지금 입력한 값은 덮어써져요. (플랫폼 세부내역은 유지됩니다)`)) return;
