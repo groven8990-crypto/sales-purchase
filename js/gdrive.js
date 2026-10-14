@@ -435,7 +435,13 @@ const GDrive = (function () {
           if (dec) text = dec;
         }
         JSON.parse(text); // 유효성 검사
-        localStorage.setItem("spc_data_v2", text);
+        // 원본 JSON은 localStorage 한도(약 5MB)를 넘을 수 있어 압축해서 저장
+        let stored = text;
+        if (typeof LZString !== "undefined") {
+          const c = LZString.compressToUTF16(text);
+          if (c && LZString.decompressFromUTF16(c) === text) stored = "lz1:" + c;
+        }
+        localStorage.setItem("spc_data_v2", stored);
         localStorage.setItem(SYNC_KEY, JSON.stringify({ time: new Date().toISOString(), dir: "down" }));
         st(`<div class="ok">✅ 불러왔어요! 새로고침합니다…</div>`);
         setTimeout(() => { Modals.close(); location.reload(); }, 1200);
