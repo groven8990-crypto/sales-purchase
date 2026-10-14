@@ -315,7 +315,9 @@ const GDrive = (function () {
     return new Promise((res, rej) => {
       const tc = google.accounts.oauth2.initTokenClient({
         client_id: clientId,
-        scope: "https://www.googleapis.com/auth/drive.file",
+        // drive.file은 '이 클라이언트 ID가 만든 파일'만 보여서, 다른 ID로 저장된 기존 백업을 못 찾음.
+        // → 내 드라이브의 기존 백업 파일을 읽고 덮어쓸 수 있도록 drive 권한 사용.
+        scope: "https://www.googleapis.com/auth/drive",
         callback: (r) => {
           if (r && r.access_token) { syncToken = r.access_token; res(); }
           else rej(new Error("로그인이 취소됐거나 권한을 받지 못했어요."));
@@ -327,8 +329,9 @@ const GDrive = (function () {
   }
 
   async function findSyncFileId() {
-    const q = encodeURIComponent("name='" + SYNC_FILE + "' and trashed=false");
-    const r = await fetch("https://www.googleapis.com/drive/v3/files?q=" + q + "&fields=files(id,modifiedTime)", {
+    // 내 소유 파일 중 가장 최근에 저장된 백업 1개 (같은 이름 파일이 여러 개여도 최신본 사용)
+    const q = encodeURIComponent("name='" + SYNC_FILE + "' and 'me' in owners and trashed=false");
+    const r = await fetch("https://www.googleapis.com/drive/v3/files?q=" + q + "&orderBy=modifiedTime%20desc&pageSize=1&fields=files(id,modifiedTime)", {
       headers: { Authorization: "Bearer " + syncToken },
     });
     if (r.status === 401) { syncToken = ""; throw new Error("인증이 만료됐어요. 다시 로그인하세요."); }
