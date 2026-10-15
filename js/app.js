@@ -582,7 +582,6 @@ const App = (function () {
           <button class="btn" id="se-delnov">⚠️ 거래처 없는 건 삭제</button>
           <button class="btn danger" id="se-clear">🗑️ 전체삭제</button></div></div>
       <div class="kpibar">
-        <div class="kb"><div class="l">실주문 / 리뷰</div><div class="v">${real.length} / ${rev.length}건</div></div>
         <div class="kb p"><div class="l">공급가 합계</div><div class="v">₩${won(supT)}</div></div>
         <div class="kb"><div class="l">배송비 합계</div><div class="v">₩${won(shipT)}</div></div>
         <div class="kb g"><div class="l">합계</div><div class="v">₩${won(totT)}</div></div>
